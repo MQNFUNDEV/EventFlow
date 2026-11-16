@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -23,6 +23,8 @@ import {
   CheckCircle2,
   MoreHorizontal,
 } from 'lucide-react'
+import { supabase } from './lib/supabase'
+import AdminManagement from './components/AdminManagement'
 import './App.css'
 
 const navigation = [
@@ -34,7 +36,47 @@ const navigation = [
   { label: 'Notifications', icon: Bell, group: 'EVENT' },
   { label: 'LED Display', icon: Monitor, group: 'MANAGEMENT' },
   { label: 'Settings', icon: Settings, group: 'MANAGEMENT' },
+  { label: 'Admin Management', icon: Users, group: 'MANAGEMENT' },
 ]
+
+const rolePageAccess: Record<string, string[]> = {
+  super_admin: [
+    'Overview',
+    'Participants',
+    'Attendance',
+    'Lucky Draw',
+    'Prizes',
+    'Notifications',
+    'LED Display',
+    'Settings',
+    'Admin Management',
+  ],
+  event_admin: [
+    'Overview',
+    'Participants',
+    'Attendance',
+    'Lucky Draw',
+    'Prizes',
+    'Notifications',
+    'LED Display',
+  ],
+  front_desk: [
+    'Overview',
+    'Participants',
+    'Attendance',
+  ],
+  marshal: [
+    'Overview',
+    'Attendance',
+  ],
+}
+
+const roleLabels: Record<string, string> = {
+  super_admin: 'Super Admin',
+  event_admin: 'Event Admin',
+  front_desk: 'Front Desk',
+  marshal: 'Marshal',
+}
 
 const stats = [
   {
@@ -79,22 +121,134 @@ const recentActivity = [
   { name: 'Daniel Wong', category: 'Staff', time: '8 min ago', status: 'Checked in' },
 ]
 
+const pageDescription: Record<string, string> = {
+  Overview: 'Monitor your event at a glance.',
+  Participants: 'Manage your registered guests and their details.',
+  Attendance: 'Track arrivals and manage event check-in.',
+  'Lucky Draw': 'Manage draw rounds and announce winners.',
+  Prizes: 'Organise prizes, sponsors and prize collection.',
+  Notifications: 'Manage participant notification subscriptions.',
+  'LED Display': 'Control what appears on your event display.',
+  Settings: 'Configure your event and administrator access.',
+  'Admin Management': 'Create and manage EventFlow administrator accounts.',
+}
+
 function App() {
   const [activePage, setActivePage] = useState('Overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [currentRole, setCurrentRole] = useState('')
+  const [currentEmail, setCurrentEmail] = useState('')
+  const [roleLoading, setRoleLoading] = useState(true)
+  const [roleError, setRoleError] = useState('')
 
-  const pageDescription: Record<string, string> = {
-    Overview: 'Monitor your event at a glance.',
-    Participants: 'Manage your registered guests and their details.',
-    Attendance: 'Track arrivals and manage event check-in.',
-    'Lucky Draw': 'Manage draw rounds and announce winners.',
-    Prizes: 'Organise prizes, sponsors and prize collection.',
-    Notifications: 'Manage participant notification subscriptions.',
-    'LED Display': 'Control what appears on your event display.',
-    Settings: 'Configure your event and administrator access.',
+  useEffect(() => {
+    async function loadCurrentAdmin() {
+      try {
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser()
+
+        if (userError) throw userError
+
+        const user = userData.user
+
+        if (!user) {
+          throw new Error('No authenticated user was found.')
+        }
+
+        setCurrentEmail(user.email ?? '')
+
+        const { data: roleData, error: roleQueryError } = await supabase
+          .from('admin_roles')
+          .select('role, is_active')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+        if (roleQueryError) throw roleQueryError
+
+        if (!roleData || !roleData.is_active) {
+          throw new Error(
+            'Your administrator account is inactive or has no assigned role. Please contact your Super Admin.',
+          )
+        }
+
+        if (!rolePageAccess[roleData.role]) {
+          throw new Error(
+            'Your account has an unrecognised administrator role. Please contact your Super Admin.',
+          )
+        }
+
+        setCurrentRole(roleData.role)
+      } catch (error) {
+        console.error('Unable to load administrator role:', error)
+        setRoleError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to verify your administrator permissions.',
+        )
+      } finally {
+        setRoleLoading(false)
+      }
+    }
+
+    void loadCurrentAdmin()
+  }, [])
+
+  const allowedPages = rolePageAccess[currentRole] ?? []
+  const displayRole = roleLabels[currentRole] ?? 'Administrator'
+  const isSuperAdmin = currentRole === 'super_admin'
+  const isEventAdmin = currentRole === 'event_admin'
+  const canManageParticipants = isSuperAdmin || isEventAdmin
+  const isOverview = activePage === 'Overview'
+
+  function navigateToPage(page: string) {
+    if (!allowedPages.includes(page)) {
+      console.warn(`Access denied: ${displayRole} cannot access ${page}.`)
+      return
+    }
+
+    setActivePage(page)
+    setSidebarOpen(false)
   }
 
-  const isOverview = activePage === 'Overview'
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+  }
+
+  if (roleLoading) {
+    return (
+      <div className="app-shell">
+        <main className="main-area">
+          <div className="page-content">
+            <section className="panel placeholder-panel">
+              <h2>Verifying administrator access...</h2>
+              <p>Please wait while EventFlow checks your account permissions.</p>
+            </section>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (roleError || !currentRole) {
+    return (
+      <div className="app-shell">
+        <main className="main-area">
+          <div className="page-content">
+            <section className="panel placeholder-panel">
+              <div className="placeholder-icon">
+                <Settings size={30} />
+              </div>
+              <h2>Access verification failed</h2>
+              <p>{roleError || 'Your administrator role could not be verified.'}</p>
+              <button className="button-primary" onClick={handleSignOut}>
+                Sign out
+              </button>
+            </section>
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell">
@@ -134,21 +288,25 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
-          {['MAIN', 'EVENT', 'MANAGEMENT'].map((group) => (
-            <div className="nav-group" key={group}>
-              <div className="nav-heading">{group}</div>
-              {navigation
-                .filter((item) => item.group === group)
-                .map((item) => {
+          {['MAIN', 'EVENT', 'MANAGEMENT'].map((group) => {
+            const visibleItems = navigation.filter(
+              (item) =>
+                item.group === group && allowedPages.includes(item.label),
+            )
+
+            if (visibleItems.length === 0) return null
+
+            return (
+              <div className="nav-group" key={group}>
+                <div className="nav-heading">{group}</div>
+                {visibleItems.map((item) => {
                   const Icon = item.icon
+
                   return (
                     <button
                       key={item.label}
                       className={`nav-item ${activePage === item.label ? 'active' : ''}`}
-                      onClick={() => {
-                        setActivePage(item.label)
-                        setSidebarOpen(false)
-                      }}
+                      onClick={() => navigateToPage(item.label)}
                     >
                       <Icon size={19} strokeWidth={1.8} />
                       <span>{item.label}</span>
@@ -158,24 +316,30 @@ function App() {
                     </button>
                   )
                 })}
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </nav>
 
         <div className="sidebar-bottom">
           <div className="help-card">
-            <div className="help-icon"><CircleHelp size={19} /></div>
+            <div className="help-icon">
+              <CircleHelp size={19} />
+            </div>
             <strong>Need some help?</strong>
             <p>Check the event management guide.</p>
-            <button onClick={() => setActivePage('Settings')}>
-              View guide <ArrowUpRight size={14} />
-            </button>
+            {isSuperAdmin && (
+              <button onClick={() => navigateToPage('Settings')}>
+                View guide <ArrowUpRight size={14} />
+              </button>
+            )}
           </div>
+
           <div className="admin-profile">
             <div className="profile-avatar">AD</div>
             <div className="profile-info">
-              <strong>Event Administrator</strong>
-              <span>Super Admin</span>
+              <strong>{displayRole}</strong>
+              <span>{currentEmail || displayRole}</span>
             </div>
             <MoreHorizontal size={19} />
           </div>
@@ -221,20 +385,35 @@ function App() {
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">EVENT OVERVIEW</div>
+              <div className="eyebrow">{displayRole.toUpperCase()} ACCESS</div>
               <h1>{activePage}</h1>
               <p>{pageDescription[activePage]}</p>
             </div>
+
             <div className="heading-actions">
               <button className="button-secondary">
                 <CalendarDays size={17} />
                 16 November 2026
                 <ChevronDown size={15} />
               </button>
-              <button className="button-primary" onClick={() => setActivePage('Participants')}>
-                <Plus size={18} />
-                Add Participant
-              </button>
+
+              {canManageParticipants ? (
+                <button
+                  className="button-primary"
+                  onClick={() => navigateToPage('Participants')}
+                >
+                  <Plus size={18} />
+                  Add Participant
+                </button>
+              ) : (
+                <button
+                  className="button-primary"
+                  onClick={() => navigateToPage('Attendance')}
+                >
+                  <ScanLine size={18} />
+                  Open Check-in
+                </button>
+              )}
             </div>
           </section>
 
@@ -246,19 +425,21 @@ function App() {
                     <span className="welcome-spark">✦</span>
                     YOUR EVENT CONTROL CENTRE
                   </div>
-                  <h2>Good evening, Administrator.</h2>
+                  <h2>Welcome back, {displayRole}.</h2>
                   <p>
                     Everything is coming together. Here's what's happening
                     with your annual dinner.
                   </p>
-                  <button onClick={() => setActivePage('Attendance')}>
+                  <button onClick={() => navigateToPage('Attendance')}>
                     View attendance <ArrowUpRight size={16} />
                   </button>
                 </div>
                 <div className="banner-decoration">
                   <div className="banner-circle circle-one" />
                   <div className="banner-circle circle-two" />
-                  <div className="banner-symbol"><Gift size={65} /></div>
+                  <div className="banner-symbol">
+                    <Gift size={65} />
+                  </div>
                 </div>
               </section>
 
@@ -293,7 +474,7 @@ function App() {
                       <h3>Attendance Overview</h3>
                       <p>Live check-in summary</p>
                     </div>
-                    <button className="panel-link" onClick={() => setActivePage('Attendance')}>
+                    <button className="panel-link" onClick={() => navigateToPage('Attendance')}>
                       View details <ArrowUpRight size={15} />
                     </button>
                   </div>
@@ -357,7 +538,7 @@ function App() {
                     ))}
                   </div>
 
-                  <button className="activity-footer" onClick={() => setActivePage('Attendance')}>
+                  <button className="activity-footer" onClick={() => navigateToPage('Attendance')}>
                     View all activity <ArrowUpRight size={15} />
                   </button>
                 </article>
@@ -372,26 +553,30 @@ function App() {
                     </div>
                   </div>
                   <div className="quick-actions">
-                    <button onClick={() => setActivePage('Participants')}>
+                    <button onClick={() => navigateToPage('Participants')}>
                       <div className="quick-icon blue"><Users size={20} /></div>
                       <span><strong>Participants</strong><small>Manage guest list</small></span>
                       <ArrowUpRight size={16} />
                     </button>
-                    <button onClick={() => setActivePage('Attendance')}>
+                    <button onClick={() => navigateToPage('Attendance')}>
                       <div className="quick-icon green"><ScanLine size={20} /></div>
                       <span><strong>Scan QR Code</strong><small>Open check-in module</small></span>
                       <ArrowUpRight size={16} />
                     </button>
-                    <button onClick={() => setActivePage('Lucky Draw')}>
-                      <div className="quick-icon purple"><Gift size={20} /></div>
-                      <span><strong>Lucky Draw</strong><small>Manage prize draws</small></span>
-                      <ArrowUpRight size={16} />
-                    </button>
-                    <button onClick={() => setActivePage('LED Display')}>
-                      <div className="quick-icon orange"><Monitor size={20} /></div>
-                      <span><strong>LED Display</strong><small>Control event screen</small></span>
-                      <ArrowUpRight size={16} />
-                    </button>
+                    {canManageParticipants && (
+                      <>
+                        <button onClick={() => navigateToPage('Lucky Draw')}>
+                          <div className="quick-icon purple"><Gift size={20} /></div>
+                          <span><strong>Lucky Draw</strong><small>Manage prize draws</small></span>
+                          <ArrowUpRight size={16} />
+                        </button>
+                        <button onClick={() => navigateToPage('LED Display')}>
+                          <div className="quick-icon orange"><Monitor size={20} /></div>
+                          <span><strong>LED Display</strong><small>Control event screen</small></span>
+                          <ArrowUpRight size={16} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
 
@@ -426,6 +611,8 @@ function App() {
                 </article>
               </section>
             </>
+          ) : activePage === 'Admin Management' && isSuperAdmin ? (
+            <AdminManagement />
           ) : (
             <section className="panel placeholder-panel">
               <div className="placeholder-icon">
@@ -440,7 +627,7 @@ function App() {
                 This module is part of the application structure.
                 We'll build its features in the upcoming development steps.
               </p>
-              <button className="button-secondary" onClick={() => setActivePage('Overview')}>
+              <button className="button-secondary" onClick={() => navigateToPage('Overview')}>
                 Return to overview
               </button>
             </section>
