@@ -35,7 +35,7 @@ function LoginForm() {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: window.location.origin,
+        redirectTo: 'http://localhost:5173',
       },
     )
 
