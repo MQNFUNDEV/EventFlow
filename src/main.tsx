@@ -1,14 +1,20 @@
 
-import { StrictMode } from 'react'
+import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
 import AuthGate from './components/AuthGate'
+import { AppPage, GuestPassPage } from './lazyEntrypoints'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthGate>
-      <App />
-    </AuthGate>
+    <Suspense fallback={<main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui, sans-serif' }}>Loading EventFlow…</main>}>
+    {window.location.pathname.endsWith('/guest-pass') || window.location.hash.startsWith('#/guest-pass') ? (
+      <GuestPassPage />
+    ) : (
+      <AuthGate>
+        <AppPage />
+      </AuthGate>
+    )}
+    </Suspense>
   </StrictMode>,
 )

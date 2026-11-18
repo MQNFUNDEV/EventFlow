@@ -1,0 +1,87 @@
+.guest-pass-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #f4f7fb;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.guest-pass-card {
+  width: min(100%, 430px);
+  box-sizing: border-box;
+  padding: 32px 28px;
+  border: 1px solid #e5eaf1;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 45px rgba(25, 45, 75, .08);
+  text-align: center;
+}
+
+.guest-pass-brand {
+  color: #61718b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.guest-pass-card h1 {
+  margin: 18px 0 8px;
+  color: #172033;
+  font-size: 25px;
+}
+
+.guest-pass-card p {
+  margin: 0 auto;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.guest-pass-qr {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  margin: 22px auto;
+}
+
+.guest-pass-loading {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  color: #667085;
+}
+
+.guest-pass-card .guest-pass-hint {
+  font-size: 12px;
+}
+
+.guest-pass-details {
+  display: grid;
+  gap: 0;
+  margin: 20px 0;
+  border-top: 1px solid #e8edf4;
+  text-align: left;
+}
+
+.guest-pass-details > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf0f5;
+  font-size: 12px;
+}
+
+.guest-pass-details dt {
+  color: #778196;
+}
+
+.guest-pass-details dd {
+  margin: 0;
+  color: #263246;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}

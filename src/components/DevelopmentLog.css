@@ -1,0 +1,545 @@
+﻿.development-log {
+  display: grid;
+  gap: 20px;
+}
+
+.devlog-intro,
+.devlog-section-heading,
+.devlog-active-session,
+.devlog-session-actions,
+.devlog-form-footer,
+.devlog-entry-top,
+.devlog-entry-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.devlog-intro h2 {
+  margin: 7px 0;
+  font-size: 25px;
+  color: var(--text-primary, #172033);
+}
+
+.devlog-intro p,
+.devlog-section-heading p {
+  margin: 0;
+  color: var(--text-secondary, #778196);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.devlog-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.devlog-section-heading {
+  margin-bottom: 20px;
+}
+
+.devlog-section-heading h3 {
+  margin: 0 0 5px;
+  font-size: 16px;
+  color: var(--text-primary, #172033);
+}
+
+.devlog-timezone {
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #edf4ff;
+  color: #315b9a;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.devlog-active-session {
+  align-items: stretch;
+  padding: 18px;
+  border: 1px solid #e7ebf2;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.devlog-active-session > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.devlog-active-session strong {
+  color: #1d2939;
+  font-size: 15px;
+}
+
+.devlog-muted {
+  color: #778196;
+  font-size: 12px;
+}
+
+.devlog-timer {
+  min-width: 175px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: #64748b;
+}
+
+.devlog-timer strong {
+  color: #172033;
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.devlog-timer span {
+  font-size: 11px;
+}
+
+.devlog-session-actions,
+.devlog-start-session {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+
+.devlog-start-session {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.devlog-start-session label,
+.devlog-session-select label,
+.devlog-field label {
+  display: block;
+  margin-bottom: 7px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.devlog-start-session {
+  flex-wrap: wrap;
+}
+
+.devlog-start-session label {
+  width: 100%;
+  margin-bottom: -5px;
+}
+
+.devlog-start-session input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.devlog-session-select {
+  display: grid;
+  max-width: 560px;
+  margin-top: 20px;
+}
+
+.devlog-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.devlog-field {
+  min-width: 0;
+}
+
+.devlog-field-wide {
+  grid-column: 1 / -1;
+}
+
+.devlog-field input,
+.devlog-field select,
+.devlog-field textarea,
+.devlog-start-session input,
+.devlog-session-select select {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #dce2eb;
+  border-radius: 8px;
+  outline: none;
+  background: #fff;
+  color: #263246;
+  font: inherit;
+  font-size: 13px;
+}
+
+.devlog-field textarea {
+  min-height: 100px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.devlog-field input:focus,
+.devlog-field select:focus,
+.devlog-field textarea:focus,
+.devlog-start-session input:focus,
+.devlog-session-select select:focus {
+  border-color: #7298d5;
+  box-shadow: 0 0 0 3px rgba(75, 125, 200, 0.1);
+}
+
+.devlog-form-footer {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0f5;
+}
+
+.devlog-form-footer > span {
+  color: #778196;
+  font-size: 12px;
+}
+
+.devlog-heading-icon {
+  color: #64748b;
+}
+
+.devlog-alert {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.devlog-alert.error {
+  border: 1px solid #f1c7c7;
+  background: #fff5f5;
+  color: #a33232;
+}
+
+.devlog-alert.success {
+  border: 1px solid #cce7d5;
+  background: #f2fbf5;
+  color: #267346;
+}
+
+.button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #efcaca;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #a63737;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button-danger:hover {
+  background: #ffeded;
+}
+
+.devlog-entry-list {
+  display: grid;
+}
+
+.devlog-entry {
+  padding: 17px 0;
+  border-top: 1px solid #edf0f5;
+}
+
+.devlog-entry-top {
+  align-items: flex-start;
+}
+
+.devlog-entry h4 {
+  margin: 8px 0 0;
+  color: #202b3c;
+  font-size: 14px;
+}
+
+.devlog-entry time {
+  color: #778196;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.devlog-entry > p {
+  margin: 10px 0;
+  color: #596579;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.devlog-entry-meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: #778196;
+  font-size: 11px;
+}
+
+.devlog-entry-meta a {
+  color: #356bb5;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.devlog-status {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: #536174;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.status-completed,
+.status-tested {
+  background: #eaf7ef;
+  color: #287448;
+}
+
+.status-in_progress {
+  background: #edf4ff;
+  color: #315f9f;
+}
+
+.status-blocked {
+  background: #fff1e9;
+  color: #a44b20;
+}
+
+.devlog-empty {
+  padding: 22px 0;
+  color: #778196;
+  font-size: 13px;
+  text-align: center;
+}
+
+.devlog-footnote {
+  margin: 0;
+  color: #8993a3;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 700px) {
+  .devlog-intro,
+  .devlog-active-session,
+  .devlog-form-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .devlog-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .devlog-field-wide {
+    grid-column: auto;
+  }
+
+  .devlog-timer {
+    align-items: flex-start;
+  }
+
+  .devlog-start-session {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .devlog-entry-top {
+    flex-direction: column;
+  }
+}
+
+/* Handover notes and report controls */
+.devlog-handover-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.devlog-handover-editor label {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.devlog-handover-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #dce2eb;
+  border-radius: 8px;
+  color: #263246;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.devlog-handover-editor span,
+.devlog-report-actions span {
+  color: #778196;
+  font-size: 11px;
+}
+
+.devlog-editor-intro {
+  margin: 0;
+  color: #596579;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.devlog-handover-editor button {
+  justify-self: start;
+}
+
+.devlog-report-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.devlog-print-report {
+  display: none;
+}
+
+/* Print only the final report, not the application interface. */
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .devlog-print-report,
+  .devlog-print-report * {
+    visibility: visible !important;
+  }
+
+  .devlog-print-report {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    color: #172033;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+  }
+
+  .devlog-report-header {
+    padding-bottom: 18px;
+    border-bottom: 2px solid #263246;
+  }
+
+  .devlog-report-brand {
+    color: #64748b;
+    font-size: 10pt;
+    font-weight: 800;
+    letter-spacing: 2px;
+  }
+
+  .devlog-report-header h1 {
+    margin: 12px 0 8px;
+    font-size: 21pt;
+  }
+
+  .devlog-report-header p,
+  .devlog-report-section p {
+    line-height: 1.5;
+  }
+
+  .devlog-report-section {
+    margin-top: 22px;
+    break-inside: auto;
+  }
+
+  .devlog-report-section h2 {
+    padding-bottom: 7px;
+    border-bottom: 1px solid #dce2eb;
+    font-size: 13pt;
+  }
+
+  .devlog-report-section ul {
+    padding-left: 20px;
+    line-height: 1.6;
+  }
+
+  .devlog-report-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .devlog-report-details div {
+    break-inside: avoid;
+  }
+
+  .devlog-report-details dt {
+    color: #64748b;
+    font-size: 9pt;
+  }
+
+  .devlog-report-details dd {
+    margin: 4px 0 0;
+    font-weight: 700;
+  }
+
+  .devlog-report-entry {
+    padding: 12px 0;
+    border-bottom: 1px solid #e7ebf2;
+    break-inside: avoid;
+  }
+
+  .devlog-report-entry h3 {
+    margin: 0 0 5px;
+    font-size: 11pt;
+  }
+
+  .devlog-report-entry-meta,
+  .devlog-report-reference {
+    color: #64748b;
+    font-size: 8.5pt;
+    overflow-wrap: anywhere;
+  }
+
+  .devlog-report-description,
+  .devlog-report-notes {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+  }
+
+  .devlog-report-footer {
+    margin-top: 28px;
+    padding-top: 10px;
+    border-top: 1px solid #dce2eb;
+    color: #64748b;
+    font-size: 8pt;
+    line-height: 1.5;
+  }
+
+  a {
+    color: #172033 !important;
+    text-decoration: none !important;
+  }
+}

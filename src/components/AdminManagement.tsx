@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+﻿import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   RefreshCw,
   UserPlus,
@@ -10,7 +10,7 @@ import {
 import { supabase } from '../lib/supabase'
 import './AdminManagement.css'
 
-type AdminRole = 'super_admin' | 'event_admin' | 'front_desk' | 'marshal'
+type AdminRole = 'super_admin' | 'event_admin' | 'front_desk'
 
 type AdminAccount = {
   user_id: string
@@ -34,8 +34,9 @@ const roles: { value: AdminRole; label: string }[] = [
   { value: 'super_admin', label: 'Super Admin' },
   { value: 'event_admin', label: 'Event Admin' },
   { value: 'front_desk', label: 'Front Desk' },
-  { value: 'marshal', label: 'Marshal' },
 ]
+
+const creatableRoles = roles.filter((item) => item.value !== 'super_admin')
 
 
 function formatDate(value: string | null) {
@@ -43,7 +44,7 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString()
 }
 
-export default function AdminManagement() {
+export default function AdminManagement({ currentRole }: { currentRole: AdminRole }) {
   const [admins, setAdmins] = useState<AdminAccount[]>([])
   const [currentUserId, setCurrentUserId] = useState('')
   const [email, setEmail] = useState('')
@@ -321,7 +322,7 @@ useEffect(() => {
               value={role}
               onChange={(event) => setRole(event.target.value as AdminRole)}
             >
-              {roles.map((item) => (
+              {creatableRoles.map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
                 </option>
@@ -382,7 +383,7 @@ useEffect(() => {
                         )}
                       </td>
 
-                      <td>{admin.phone_number || '—'}</td>
+                      <td>{admin.phone_number || 'â€”'}</td>
 
                       <td>
                         <select
@@ -396,7 +397,7 @@ useEffect(() => {
                             )
                           }
                         >
-                          {roles.map((item) => (
+                          {roles.filter((item) => currentRole === 'super_admin' || item.value !== 'super_admin').map((item) => (
                             <option key={item.value} value={item.value}>
                               {item.label}
                             </option>
@@ -449,3 +450,4 @@ useEffect(() => {
     </div>
   )
 }
+

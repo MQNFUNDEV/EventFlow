@@ -1,0 +1,68 @@
+.lucky-draw-page { display: grid; gap: 18px; }
+.lucky-draw-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.lucky-draw-eyebrow { display: flex; align-items: center; gap: 7px; color: #64748b; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+.lucky-draw-heading p { margin-top: 8px; }
+.lucky-draw-heading p, .lucky-draw-log-heading p { margin: 0; color: #778196; font-size: 13px; line-height: 1.55; }
+.lucky-draw-message { padding: 12px 14px; border-radius: 8px; font-size: 13px; }
+.lucky-draw-message.error { border: 1px solid #f1c7c7; background: #fff5f5; color: #a33232; }
+.lucky-draw-message.success { border: 1px solid #cce7d5; background: #f2fbf5; color: #267346; }
+.lucky-draw-setup { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.lucky-draw-setup label { display: grid; min-width: 190px; flex: 1; gap: 7px; color: #475467; font-size: 12px; font-weight: 700; }
+.lucky-draw-field-hint { color: #778196; font-size: 10px; font-weight: 400; line-height: 1.4; }
+.lucky-draw-setup input, .lucky-draw-setup select { min-height: 42px; box-sizing: border-box; padding: 10px 12px; border: 1px solid #dce2eb; border-radius: 8px; background: #fff; color: #263246; font: inherit; font-size: 13px; }
+.lucky-draw-category-preview { display: flex; align-items: baseline; gap: 5px; color: #778196; font-size: 11px; font-weight: 400; }
+.lucky-draw-category-preview strong { color: #1c2e4a; font-size: 16px; font-weight: 800; }
+.lucky-draw-setup button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.lucky-draw-pool-count { display: grid; min-width: 150px; min-height: 42px; align-content: center; gap: 2px; padding: 0 10px; border-left: 1px solid #e4e9f1; }
+.lucky-draw-pool-count span { color: #778196; font-size: 10px; }
+.lucky-draw-pool-count strong { color: #1c2e4a; font-size: 20px; }
+.lucky-draw-pool-count small { max-width: 220px; color: #9a6410; font-size: 10px; line-height: 1.45; }
+.lucky-draw-wheel-panel { display: grid; gap: 16px; overflow: hidden; }
+.lucky-draw-round-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lucky-draw-round-title span { color: #263246; font-size: 16px; font-weight: 800; }
+.lucky-draw-round-title small { color: #778196; font-size: 11px; }
+.lucky-draw-wheel-layout { display: grid; grid-template-columns: minmax(360px, 1.2fr) minmax(260px, .8fr); align-items: center; gap: clamp(18px, 4vw, 55px); }
+.lucky-draw-wheel-wrap { position: relative; width: min(100%, 610px); aspect-ratio: 1; justify-self: center; border: 2px solid #f4f8ff; border-radius: 50%; background: radial-gradient(circle, #102951 0%, #08172d 68%, #020817 100%); box-shadow: 0 0 0 2px #0b1730, 0 0 0 4px var(--draw-theme-4, #19d4ff), 0 0 22px 6px var(--draw-theme-3, #1177ff), 0 0 42px 12px var(--draw-theme-5, #ff3e9d); }
+.lucky-draw-wheel { width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
+.lucky-draw-wheel canvas { display: block; width: 100%; height: 100%; }
+.lucky-draw-pointer { position: absolute; z-index: 20; top: -10px; left: 50%; width: 0; height: 0; transform: translateX(-50%); border-right: 19px solid transparent; border-left: 19px solid transparent; border-top: 37px solid #fff; border-bottom: 0; filter: drop-shadow(0 3px 5px #0009); }
+.lucky-draw-wheel-wrap.is-spinning .lucky-draw-pointer { animation: lucky-draw-pointer-breathe .8s ease-in-out infinite; }
+@keyframes lucky-draw-pointer-breathe { 0%, 100% { transform: translateX(-50%) scale(1); filter: drop-shadow(0 0 5px #fff) drop-shadow(0 0 10px var(--draw-theme-4, #19d4ff)); } 50% { transform: translateX(-50%) scale(1.18); filter: drop-shadow(0 0 8px #fff) drop-shadow(0 0 20px var(--draw-theme-3, #1177ff)) drop-shadow(0 0 28px var(--draw-theme-5, #ff3e9d)); } }
+.lucky-draw-wheel-empty { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; background: #06152dbb; color: #fff; font-size: 18px; font-weight: 800; text-align: center; }
+.lucky-draw-controls { display: grid; justify-items: center; gap: 15px; text-align: center; }
+.lucky-draw-prompt, .lucky-draw-selected { display: grid; gap: 7px; }
+.lucky-draw-prompt strong { color: #1c2e4a; font-size: clamp(24px, 3vw, 38px); }
+.lucky-draw-prompt span, .lucky-draw-selected span { color: #778196; font-size: 13px; }
+.lucky-draw-selected small { color: #16803d; font-size: 10px; font-weight: 900; letter-spacing: 1px; }
+.lucky-draw-selected strong { color: #18253b; font-size: clamp(24px, 3vw, 38px); line-height: 1.15; }
+.lucky-draw-spin-button { width: min(100%, 310px); min-height: 58px; padding: 12px 20px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #e31b45, #a9103a); color: #fff; font: inherit; font-size: 17px; font-weight: 900; cursor: pointer; box-shadow: 0 8px 24px #e31b4533; }
+.lucky-draw-output-update { display: inline-flex; width: min(100%, 310px); min-height: 42px; align-items: center; justify-content: center; gap: 8px; }
+.lucky-draw-output-update svg.is-spinning { animation: lucky-draw-refresh-turn .8s linear infinite; }
+@keyframes lucky-draw-refresh-turn { to { transform: rotate(360deg); } }
+.lucky-draw-spin-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 30px #e31b4555; }
+.lucky-draw-spin-button:disabled { cursor: not-allowed; opacity: .48; }
+.lucky-draw-winner-actions { display: grid; width: min(100%, 310px); gap: 9px; }
+.lucky-draw-winner-actions button { display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 7px; }
+.lucky-draw-log-panel { display: grid; gap: 15px; }
+.lucky-draw-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lucky-draw-log-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.lucky-draw-log-actions button { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+.lucky-draw-log-heading h3 { margin: 0 0 5px; color: #263246; font-size: 16px; }
+.lucky-draw-log-heading > strong { display: inline-flex; padding: 7px 10px; border-radius: 99px; background: #eff5ff; color: #3268bd; font-size: 11px; }
+.lucky-draw-log-list { display: grid; }
+.lucky-draw-log-row { display: flex; align-items: center; gap: 12px; padding: 13px 4px; border-top: 1px solid #edf0f5; }
+.lucky-draw-log-row.is-skipped { opacity: .72; }
+.lucky-draw-log-row.is-category-break { margin-top: 8px; border-top: 2px solid #d7deea; }
+.lucky-draw-log-number { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: #fff6e5; color: #b97713; }
+.lucky-draw-log-person { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.lucky-draw-log-person strong { overflow: hidden; color: #263246; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.lucky-draw-log-person span, .lucky-draw-log-meta time { color: #778196; font-size: 11px; }
+.lucky-draw-log-meta { display: grid; justify-items: end; gap: 4px; }
+.lucky-draw-status { padding: 4px 8px; border-radius: 99px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.lucky-draw-status.pending { background: #fff4dc; color: #9a6410; }
+.lucky-draw-status.confirmed { background: #e9f8ee; color: #267346; }
+.lucky-draw-status.skipped { background: #f1f2f5; color: #687386; }
+.lucky-draw-log-empty { margin: 0; padding: 24px 0; color: #778196; font-size: 13px; text-align: center; }
+@media (max-width: 850px) { .lucky-draw-wheel-layout { grid-template-columns: 1fr; } .lucky-draw-wheel-wrap { width: min(100%, 520px); } .lucky-draw-controls { width: min(100%, 520px); justify-self: center; } }
+@media (max-width: 560px) { .lucky-draw-heading { align-items: flex-start; } .lucky-draw-setup { align-items: stretch; } .lucky-draw-setup label { min-width: 100%; } .lucky-draw-pool-count { border-left: 0; border-top: 1px solid #e4e9f1; padding: 10px 0 0; } .lucky-draw-round-title { align-items: flex-start; flex-direction: column; } .lucky-draw-log-heading { align-items: flex-start; flex-direction: column; } .lucky-draw-log-actions { justify-content: flex-start; } .lucky-draw-log-row { align-items: flex-start; } .lucky-draw-log-meta { align-items: end; } }
+@media (prefers-reduced-motion: reduce) { .lucky-draw-wheel-wrap.is-spinning .lucky-draw-pointer { animation: none; } }

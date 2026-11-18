@@ -1,9 +1,9 @@
-
+﻿
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
-const allowedRoles = ['super_admin', 'event_admin', 'front_desk', 'marshal']
+const allowedRoles = ['super_admin', 'event_admin', 'front_desk']
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -35,7 +35,7 @@ function LoginForm() {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: 'http://localhost:5173',
+        redirectTo: window.location.origin,
       },
     )
 
@@ -113,7 +113,7 @@ function LoginForm() {
             </>
           )}
 
-          <p style={styles.footer}>EVENTFLOW · ACCOUNT RECOVERY</p>
+          <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT RECOVERY</p>
         </form>
       </main>
     )
@@ -169,7 +169,7 @@ function LoginForm() {
           {loading ? 'Signing in...' : 'Sign in'}
         </button>
 
-        <p style={styles.footer}>EVENTFLOW · ADMINISTRATION</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW Â· ADMINISTRATION</p>
       </form>
     </main>
   )
@@ -277,7 +277,7 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
           </>
         )}
 
-        <p style={styles.footer}>EVENTFLOW · ACCOUNT SECURITY</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT SECURITY</p>
       </form>
     </main>
   )
@@ -371,7 +371,7 @@ function FirstLoginPasswordForm() {
           {loading ? 'Updating password...' : 'Save new password'}
         </button>
 
-        <p style={styles.footer}>EVENTFLOW · ACCOUNT SECURITY</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT SECURITY</p>
       </form>
     </main>
   )
@@ -626,3 +626,4 @@ const styles = {
     marginTop: '28px',
   },
 }
+

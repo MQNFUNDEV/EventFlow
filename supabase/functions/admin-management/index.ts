@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type User } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
 
       if (rolesError) return json({ error: "Unable to load administrator roles." }, 500);
 
-      const userMap = new Map<string, any>();
+      const userMap = new Map<string, User>();
       for (let page = 1; page <= 20; page++) {
         const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
         if (error) return json({ error: "Unable to load administrator account details." }, 500);
