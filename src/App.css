@@ -53,51 +53,6 @@
   font-weight: 700;
 }
 
-.event-selector {
-  background: #1d2a3f;
-  border: 1px solid #2c3b53;
-  border-radius: 10px;
-  padding: 11px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 29px;
-}
-
-.event-avatar {
-  width: 35px;
-  height: 35px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: #344d78;
-  color: #dce8ff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.event-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.event-info strong {
-  color: white;
-  font-size: 11px;
-}
-
-.event-info span {
-  color: #8796ac;
-  font-size: 10px;
-}
-
-.event-selector > svg {
-  color: #8b9bb1;
-}
-
 .sidebar-nav {
   flex: 1;
 }
@@ -234,8 +189,42 @@
   color: #8292a9;
 }
 
-.admin-profile > svg {
-  color: #8392a8;
+.profile-sign-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #394960;
+  border-radius: 6px;
+  background: transparent;
+  color: #c3cede;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.profile-sign-out:hover:not(:disabled) {
+  border-color: #7893bb;
+  background: #202e42;
+  color: white;
+}
+
+.profile-sign-out:focus-visible {
+  outline: 2px solid #91b5ff;
+  outline-offset: 2px;
+}
+
+.profile-sign-out:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.sign-out-error {
+  margin: 8px 3px 0;
+  color: #ffaaa8;
+  font-size: 11px;
 }
 
 .mobile-close, .mobile-menu, .mobile-backdrop {
@@ -447,6 +436,16 @@
 .welcome-content {
   position: relative;
   z-index: 2;
+  max-width: 70%;
+}
+
+.welcome-project-name {
+  margin-bottom: 8px;
+  color: #fff;
+  font-size: clamp(23px, 2.5vw, 32px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.1;
 }
 
 .welcome-label {
@@ -498,48 +497,47 @@
   background: #ffffff30;
 }
 
-.banner-decoration {
-  position: absolute;
-  width: 300px;
-  height: 250px;
-  right: 35px;
-  top: -25px;
+.welcome-local-clock {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-width: 190px;
+  margin-left: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.banner-circle {
-  position: absolute;
-  border: 1px solid #ffffff20;
-  border-radius: 50%;
+.welcome-local-clock > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #c7d9ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
-.circle-one {
-  width: 210px;
-  height: 210px;
-  right: 20px;
-  top: 30px;
+.welcome-local-clock strong {
+  color: #fff;
+  font-size: clamp(23px, 3.2vw, 38px);
+  font-weight: 800;
+  letter-spacing: -.04em;
+  line-height: 1;
 }
 
-.circle-two {
-  width: 155px;
-  height: 155px;
-  right: 47px;
-  top: 57px;
-}
-
-.banner-symbol {
-  position: absolute;
-  right: 90px;
-  top: 92px;
-  color: #f6d48c;
-  transform: rotate(-9deg);
-  filter: drop-shadow(0 7px 14px #102b5966);
+.welcome-local-clock small {
+  color: #d0ddf5;
+  font-size: 10px;
 }
 
 /* STATS */
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 21px;
 }
@@ -722,10 +720,30 @@
 }
 
 .progress-fill {
-  width: 69.2%;
+  width: 0;
   height: 100%;
   background: #35b68d;
   border-radius: 10px;
+  transition: width 500ms ease;
+}
+
+.dashboard-data-error {
+  margin: -7px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #f1c7c7;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #a33232;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dashboard-activity-empty {
+  padding: 22px 12px;
+  color: #778196;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .attendance-legend {
@@ -833,6 +851,11 @@
   border-bottom: 1px solid #f0f2f6;
 }
 
+.activity-item.is-winner .activity-avatar {
+  background: #fff3d9;
+  color: #a66b12;
+}
+
 .activity-avatar {
   width: 31px;
   height: 31px;
@@ -864,6 +887,10 @@
 
 .activity-check {
   color: #35b68d;
+}
+
+.activity-check.is-winner {
+  color: #c58a1c;
 }
 
 .activity-footer {
@@ -969,6 +996,10 @@
 
 .system-pending {
   color: #d28a3d;
+}
+
+.system-offline {
+  color: #c24141;
 }
 
 .system-note {
@@ -1160,9 +1191,27 @@
     max-width: 235px;
   }
 
-  .banner-decoration {
-    opacity: .35;
-    right: -115px;
+  .welcome-content {
+    max-width: 65%;
+  }
+
+  .welcome-local-clock {
+    min-width: 0;
+    max-width: 35%;
+    gap: 5px;
+  }
+
+  .welcome-local-clock > span {
+    font-size: 8px;
+    letter-spacing: .5px;
+  }
+
+  .welcome-local-clock strong {
+    font-size: clamp(17px, 4vw, 23px);
+  }
+
+  .welcome-local-clock small {
+    font-size: 8px;
   }
 
   .stats-grid {

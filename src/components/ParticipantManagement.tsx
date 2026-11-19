@@ -1,0 +1,820 @@
+﻿import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  Plus, Search, RefreshCw, Pencil, UserX, UserCheck,
+  Upload, Users, X, CheckCircle2,
+} from 'lucide-react'
+import Papa from 'papaparse'
+import { supabase } from '../lib/supabase'
+import './ParticipantManagement.css'
+
+type Role = 'super_admin' | 'event_admin' | 'front_desk'
+type Category = 'student' | 'staff'
+
+type Participant = {
+  id: string
+  participant_code: string
+  full_name: string
+  email: string | null
+  phone: string | null
+  category: Category
+  organisation: string | null
+  notes: string | null
+  is_active: boolean
+  created_at: string
+}
+
+type ParticipantForm = {
+  full_name: string
+  email: string
+  phone: string
+  category: Category
+  organisation: string
+  notes: string
+}
+
+type ParticipantInsert = {
+  participant_code: string
+  full_name: string
+  email: string | null
+  phone: string | null
+  category: Category
+  organisation: string | null
+  notes: string | null
+}
+
+type InvitationRecord = {
+  participant_id: string
+  status: 'pending' | 'sent' | 'failed'
+  sent_at: string | null
+  last_error: string | null
+}
+
+const emptyForm: ParticipantForm = {
+  full_name: '',
+  email: '',
+  phone: '',
+  category: 'staff',
+  organisation: '',
+  notes: '',
+}
+
+function normaliseEmail(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function normalisePhone(value: string | null | undefined) {
+  return (value ?? '').replace(/\D/g, '')
+}
+
+function generateParticipantCode() {
+  return `JMX-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
+}
+
+export default function ParticipantManagement({
+  currentRole,
+}: {
+  currentRole: Role
+}) {
+  const canManage = currentRole === 'super_admin' || currentRole === 'event_admin'
+  const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
+
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [form, setForm] = useState<ParticipantForm>(emptyForm)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('active')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [invitationRecords, setInvitationRecords] = useState<Record<string, InvitationRecord>>({})
+  const [selectedForInvitation, setSelectedForInvitation] = useState<Set<string>>(() => new Set())
+  const [sendingInvitations, setSendingInvitations] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const loadParticipants = useCallback(async () => {
+    const [participantResult, invitationResult] = await Promise.all([
+      supabase.from('participants').select('*').order('created_at', { ascending: false }),
+      supabase.from('participant_invitations').select('participant_id, status, sent_at, last_error'),
+    ])
+
+    if (participantResult.error) {
+      setError(participantResult.error.message)
+    } else if (invitationResult.error) {
+      setError(invitationResult.error.message)
+    } else {
+      setParticipants((participantResult.data ?? []) as Participant[])
+      setInvitationRecords(Object.fromEntries((invitationResult.data ?? []).map((record) => [record.participant_id, record as InvitationRecord])))
+      setError('')
+    }
+
+    setLoading(false)
+  }, [])
+
+    useEffect(() => {
+    let cancelled = false
+
+    async function fetchInitialParticipants() {
+      const [participantResult, invitationResult] = await Promise.all([
+        supabase.from('participants').select('*').order('created_at', { ascending: false }),
+        supabase.from('participant_invitations').select('participant_id, status, sent_at, last_error'),
+      ])
+
+      if (cancelled) return
+
+      if (participantResult.error) {
+        setError(participantResult.error.message)
+      } else if (invitationResult.error) {
+        setError(invitationResult.error.message)
+      } else {
+        setParticipants((participantResult.data ?? []) as Participant[])
+        setInvitationRecords(Object.fromEntries((invitationResult.data ?? []).map((record) => [record.participant_id, record as InvitationRecord])))
+      }
+
+      setLoading(false)
+    }
+
+    void fetchInitialParticipants()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function openAddForm() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setFormOpen(true)
+    setError('')
+    setMessage('')
+  }
+
+  function openEditForm(participant: Participant) {
+    setEditingId(participant.id)
+    setForm({
+      full_name: participant.full_name,
+      email: participant.email ?? '',
+      phone: participant.phone ?? '',
+      category: participant.category,
+      organisation: participant.organisation ?? '',
+      notes: participant.notes ?? '',
+    })
+    setFormOpen(true)
+    setError('')
+    setMessage('')
+  }
+
+  function closeForm() {
+    setFormOpen(false)
+    setEditingId(null)
+    setForm(emptyForm)
+  }
+
+  function findDuplicate(email: string, phone: string, excludeId?: string) {
+    const normalEmail = normaliseEmail(email)
+    const normalPhone = normalisePhone(phone)
+
+    return participants.find((participant) => {
+      if (participant.id === excludeId) return false
+
+      const emailMatch =
+        normalEmail && normaliseEmail(participant.email) === normalEmail
+      const phoneMatch =
+        normalPhone && normalisePhone(participant.phone) === normalPhone
+
+      return Boolean(emailMatch || phoneMatch)
+    })
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setMessage('')
+
+    const duplicate = findDuplicate(
+      form.email,
+      form.phone,
+      editingId ?? undefined,
+    )
+
+    if (duplicate) {
+      setError(
+        `Possible duplicate found: ${duplicate.full_name} (${duplicate.participant_code}). Check the email or phone number.`,
+      )
+      setSaving(false)
+      return
+    }
+
+    const values = {
+      full_name: form.full_name.trim(),
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
+      category: form.category,
+      organisation: form.organisation.trim() || null,
+      notes: form.notes.trim() || null,
+      updated_at: new Date().toISOString(),
+    }
+
+    const result = editingId
+      ? await supabase
+          .from('participants')
+          .update(values)
+          .eq('id', editingId)
+      : await supabase
+          .from('participants')
+          .insert({
+            ...values,
+            participant_code: generateParticipantCode(),
+          })
+
+    if (result.error) {
+      setError(result.error.message)
+    } else {
+      setMessage(
+        editingId
+          ? 'Participant updated.'
+          : 'Participant added successfully.',
+      )
+      closeForm()
+      await loadParticipants()
+    }
+
+    setSaving(false)
+  }
+
+  async function toggleActive(participant: Participant) {
+    const action = participant.is_active ? 'deactivate' : 'reactivate'
+
+    if (
+      !window.confirm(
+        `Are you sure you want to ${action} ${participant.full_name}?`,
+      )
+    ) {
+      return
+    }
+
+    setError('')
+    setMessage('')
+
+    const { error: updateError } = await supabase
+      .from('participants')
+      .update({
+        is_active: !participant.is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', participant.id)
+
+    if (updateError) {
+      setError(updateError.message)
+    } else {
+      setMessage(`Participant ${action}d successfully.`)
+      await loadParticipants()
+    }
+  }
+
+  async function handleCsvImport(file?: File) {
+    if (!file || !canImport) return
+
+    setImporting(true)
+    setError('')
+    setMessage('')
+
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+
+      complete: async (result) => {
+        try {
+          const getValue = (
+            row: Record<string, string>,
+            names: string[],
+          ) => {
+            const normaliseHeader = (value: string) =>
+              value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+            const aliases = names.map(normaliseHeader)
+            const rowEntries = Object.entries(row)
+            const entry = rowEntries.find(([key]) =>
+              aliases.includes(normaliseHeader(key)),
+            ) ?? rowEntries.find(([key]) => {
+              const header = normaliseHeader(key)
+              return aliases.some((alias) => alias.length >= 5 && header.includes(alias))
+            })
+
+            return (entry?.[1] ?? '').trim()
+          }
+
+          const knownEmails = new Set(
+            participants.map((p) => normaliseEmail(p.email)).filter(Boolean),
+          )
+
+          const knownPhones = new Set(
+            participants.map((p) => normalisePhone(p.phone)).filter(Boolean),
+          )
+
+          let skipped = 0
+          const rowsToInsert: ParticipantInsert[] = []
+
+          for (const row of result.data) {
+            const fullName = getValue(row, [
+              'fullname',
+              'participantname',
+              'yourname',
+              'whatisyourfullname',
+              'name',
+            ])
+
+            const email = getValue(row, ['emailaddress', 'email'])
+            const phone = getValue(row, ['phonenumber', 'mobilenumber', 'mobile', 'phone'])
+            const rawCategory = getValue(row, [
+              'category',
+              'participantcategory',
+              'studentstaff',
+              'staffstudent',
+              'employmentstatus',
+            ]).toLowerCase()
+            const categoryValue = rawCategory.includes('student') || rawCategory.includes('pupil')
+              ? 'student'
+              : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
+                ? 'staff'
+                : rawCategory
+
+            const organisation = getValue(row, [
+              'organisation',
+              'organization',
+              'company',
+              'school',
+              'institution',
+            ])
+
+            const notes = getValue(row, ['notes', 'remarks'])
+
+            const normalEmail = normaliseEmail(email)
+            const normalPhone = normalisePhone(phone)
+
+            if (
+              !fullName ||
+              !['student', 'staff'].includes(categoryValue) ||
+              (normalEmail && knownEmails.has(normalEmail)) ||
+              (normalPhone && knownPhones.has(normalPhone))
+            ) {
+              skipped++
+              continue
+            }
+
+            if (normalEmail) knownEmails.add(normalEmail)
+            if (normalPhone) knownPhones.add(normalPhone)
+
+            rowsToInsert.push({
+              participant_code: generateParticipantCode(),
+              full_name: fullName,
+              email: email || null,
+              phone: phone || null,
+              category: categoryValue as Category,
+              organisation: organisation || null,
+              notes: notes || null,
+            })
+          }
+
+          if (rowsToInsert.length === 0) {
+            setMessage(
+              `No new participants imported. ${skipped} row(s) skipped or invalid.`,
+            )
+          } else {
+            const { error: insertError } = await supabase
+              .from('participants')
+              .insert(rowsToInsert)
+
+            if (insertError) {
+              setError(insertError.message)
+            } else {
+              setMessage(
+                `${rowsToInsert.length} participant(s) imported. ${skipped} row(s) skipped because of missing or duplicate information.`,
+              )
+              await loadParticipants()
+            }
+          }
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : 'CSV import failed.',
+          )
+        } finally {
+          setImporting(false)
+
+          if (fileInput.current) {
+            fileInput.current.value = ''
+          }
+        }
+      },
+
+      error: (parseError) => {
+        setError(parseError.message)
+        setImporting(false)
+
+        if (fileInput.current) {
+          fileInput.current.value = ''
+        }
+      },
+    })
+  }
+
+  async function sendInvitations(resend = false) {
+    const selected = participants.filter((participant) => selectedForInvitation.has(participant.id))
+    const eligible = selected.filter((participant) => participant.email?.trim() && (resend ? invitationRecords[participant.id]?.status === 'sent' : invitationRecords[participant.id]?.status !== 'sent'))
+    if (eligible.length === 0) {
+      setError('Select at least one participant with an email address.')
+      return
+    }
+    setSendingInvitations(true)
+    setError('')
+    setMessage('')
+    const { data, error: sendError } = await supabase.functions.invoke('send-invitations', {
+      body: { participant_ids: eligible.map((participant) => participant.id), resend },
+    })
+    if (sendError) {
+      setError(sendError.message.includes('Failed to send a request')
+        ? 'Invitation delivery is not configured yet. An administrator must deploy the invitation sender and configure the email provider.'
+        : sendError.message)
+    } else {
+      const failed = Number(data?.failed ?? 0)
+      const sent = Number(data?.sent ?? 0)
+      const skipped = Number(data?.skipped ?? 0)
+      setMessage(`${sent} invitation(s) sent${failed ? `; ${failed} could not be sent` : ''}${skipped ? `; ${skipped} already-sent invitation(s) skipped` : ''}.${eligible.length < selected.length ? ` ${selected.length - eligible.length} selected participant(s) were not eligible for this action.` : ''}`)
+      setSelectedForInvitation(new Set())
+      await loadParticipants()
+    }
+    setSendingInvitations(false)
+  }
+
+  const filteredParticipants = participants.filter((participant) => {
+    const term = search.trim().toLowerCase()
+
+    const matchesSearch =
+      !term ||
+      participant.full_name.toLowerCase().includes(term) ||
+      participant.participant_code.toLowerCase().includes(term) ||
+      (participant.email ?? '').toLowerCase().includes(term) ||
+      (participant.phone ?? '').toLowerCase().includes(term)
+
+    const matchesCategory =
+      categoryFilter === 'all' || participant.category === categoryFilter
+
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && participant.is_active) ||
+      (statusFilter === 'inactive' && !participant.is_active)
+
+    return matchesSearch && matchesCategory && matchesStatus
+  })
+
+  const activeCount = participants.filter((p) => p.is_active).length
+
+  return (
+    <div className="participant-management">
+      <div className="participant-toolbar">
+        <div className="participant-summary">
+          <div className="participant-summary-icon">
+            <Users size={21} />
+          </div>
+          <div>
+            <strong>{participants.length} participants</strong>
+            <span>{activeCount} active registrations</span>
+          </div>
+        </div>
+
+        <div className="participant-toolbar-actions">
+          {canImport && (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".csv,text/csv"
+                className="participant-file-input"
+                onChange={(event) =>
+                  void handleCsvImport(event.target.files?.[0])
+                }
+              />
+
+              <button
+                className="participant-secondary-button"
+                type="button"
+                disabled={importing}
+                onClick={() => fileInput.current?.click()}
+              >
+                <Upload size={16} />
+                {importing ? 'Importing...' : 'Import CSV'}
+              </button>
+            </>
+          )}
+
+          {canManage && <>
+            <button className="participant-primary-button" type="button" onClick={() => void sendInvitations()} disabled={sendingInvitations || !participants.some((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim())}>{sendingInvitations ? 'Sending...' : `Send unsent invitation${participants.filter((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim()).length === 1 ? '' : 's'} (${participants.filter((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim()).length})`}</button>
+            <button className="participant-secondary-button" type="button" onClick={() => void sendInvitations(true)} disabled={sendingInvitations || !participants.some((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status === 'sent' && participant.email?.trim())}>Resend sent invitation</button>
+          </>}
+
+          <button
+            className="participant-secondary-button"
+            type="button"
+            onClick={() => {
+              setLoading(true)
+              void loadParticipants()
+            }}
+            disabled={loading}
+          >
+            <RefreshCw size={16} /> Refresh
+          </button>
+
+          <button
+            className="participant-primary-button"
+            type="button"
+            onClick={openAddForm}
+          >
+            <Plus size={17} /> Add Participant
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="participant-alert error">{error}</div>}
+      {message && <div className="participant-alert success">{message}</div>}
+
+      {canImport && (
+        <div className="participant-import-help">
+          <strong>Import Google Form responses</strong>
+          <span>In Google Sheets, choose File → Download → Comma-separated values (.csv), then use Import CSV. Include a name, email or phone, and a category such as Student or Staff. EventFlow creates participant records here, where you can search and filter them.</span>
+        </div>
+      )}
+
+      {formOpen && (
+        <section className="participant-form-panel">
+          <div className="participant-form-heading">
+            <div>
+              <h3>{editingId ? 'Edit participant' : 'Add new participant'}</h3>
+              <p>
+                {editingId
+                  ? 'Update this participant’s registration details.'
+                  : 'Enter the participant details for Johor Meetup X.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="participant-close-button"
+              onClick={closeForm}
+            >
+              <X size={19} />
+            </button>
+          </div>
+
+          <form className="participant-form" onSubmit={handleSubmit}>
+            <label>
+              Full name *
+              <input
+                value={form.full_name}
+                onChange={(e) =>
+                  setForm({ ...form, full_name: e.target.value })
+                }
+                required
+                maxLength={150}
+                placeholder="Participant full name"
+              />
+            </label>
+
+            <label>
+              Category *
+              <select
+                value={form.category}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    category: e.target.value as Category,
+                  })
+                }
+              >
+                <option value="staff">Staff</option>
+                <option value="student">Student</option>
+              </select>
+            </label>
+
+            <label>
+              Email address
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) =>
+                  setForm({ ...form, email: e.target.value })
+                }
+                placeholder="name@example.com"
+              />
+            </label>
+
+            <label>
+              Phone number
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) =>
+                  setForm({ ...form, phone: e.target.value })
+                }
+                placeholder="+60 12-345 6789"
+              />
+            </label>
+
+            <label>
+              Organisation
+              <input
+                value={form.organisation}
+                onChange={(e) =>
+                  setForm({ ...form, organisation: e.target.value })
+                }
+                placeholder="Company, school or organisation"
+              />
+            </label>
+
+            <label>
+              Notes
+              <input
+                value={form.notes}
+                onChange={(e) =>
+                  setForm({ ...form, notes: e.target.value })
+                }
+                placeholder="Optional notes"
+              />
+            </label>
+
+            <div className="participant-form-actions">
+              <button
+                type="button"
+                className="participant-secondary-button"
+                onClick={closeForm}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="participant-primary-button"
+                type="submit"
+                disabled={saving}
+              >
+                {saving
+                  ? 'Saving...'
+                  : editingId
+                    ? 'Save changes'
+                    : 'Add participant'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      <section className="participant-list-panel">
+        <div className="participant-list-heading">
+          <div>
+            <h3>Participant Directory</h3>
+            <p>Search and manage Johor Meetup X registrations.</p>
+          </div>
+
+          <span className="participant-count">
+            {filteredParticipants.length} shown
+          </span>
+        </div>
+
+        <div className="participant-filters">
+          <div className="participant-search">
+            <Search size={17} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, code, email or phone..."
+            />
+          </div>
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="all">All categories</option>
+            <option value="student">Students</option>
+            <option value="staff">Staff</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All statuses</option>
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="participant-empty">Loading participants...</div>
+        ) : filteredParticipants.length === 0 ? (
+          <div className="participant-empty">
+            <Users size={28} />
+            <strong>No participants found</strong>
+            <span>
+              Try changing your search or add a new participant.
+            </span>
+          </div>
+        ) : (
+          <div className="participant-table-wrap">
+            <table className="participant-table">
+              <thead>
+                <tr>
+                  {canManage && <th><input aria-label="Select all visible participants" type="checkbox" checked={filteredParticipants.length > 0 && filteredParticipants.every((participant) => selectedForInvitation.has(participant.id))} onChange={(event) => setSelectedForInvitation((current) => { const next = new Set(current); for (const participant of filteredParticipants) { if (event.target.checked) next.add(participant.id); else next.delete(participant.id) } return next })} /></th>}
+                  <th>Participant</th>
+                  <th>Contact</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  {canManage && <th>Invitation</th>}
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredParticipants.map((participant) => (
+                  <tr key={participant.id}>
+                    {canManage && <td><input aria-label={`Select ${participant.full_name} for invitation`} type="checkbox" checked={selectedForInvitation.has(participant.id)} onChange={(event) => setSelectedForInvitation((current) => { const next = new Set(current); if (event.target.checked) next.add(participant.id); else next.delete(participant.id); return next })} /></td>}
+                    <td>
+                      <strong>{participant.full_name}</strong>
+                      <small>{participant.participant_code}</small>
+                      {participant.organisation && (
+                        <small>{participant.organisation}</small>
+                      )}
+                    </td>
+
+                    <td>
+                      <span>{participant.email || '—'}</span>
+                      <small>{participant.phone || 'No phone number'}</small>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`participant-category ${participant.category}`}
+                      >
+                        {participant.category === 'student'
+                          ? 'Student'
+                          : 'Staff'}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`participant-status ${participant.is_active ? 'active' : 'inactive'}`}
+                      >
+                        {participant.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    {canManage && <td>{invitationRecords[participant.id]?.status === 'sent' ? <span className="participant-status active"><CheckCircle2 size={14} /> Sent</span> : invitationRecords[participant.id]?.status === 'failed' ? <span className="participant-status inactive" title={invitationRecords[participant.id].last_error ?? undefined}>Failed</span> : <span className="participant-status inactive">Not sent</span>}</td>}
+
+                    <td>
+                      <div className="participant-row-actions">
+                        {canManage && (
+                          <button
+                            type="button"
+                            className="participant-action-button"
+                            onClick={() => openEditForm(participant)}
+                            title="Edit participant"
+                          >
+                            <Pencil size={15} /> Edit
+                          </button>
+                        )}
+
+                        {canManage && (
+                          <button
+                            type="button"
+                            className="participant-action-button"
+                            onClick={() => void toggleActive(participant)}
+                            title={
+                              participant.is_active
+                                ? 'Deactivate participant'
+                                : 'Reactivate participant'
+                            }
+                          >
+                            {participant.is_active ? (
+                              <>
+                                <UserX size={15} /> Deactivate
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck size={15} /> Reactivate
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

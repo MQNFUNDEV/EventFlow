@@ -27,3 +27,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local Supabase CLI state and local project snapshots
+supabase/.temp/
+project-backups/
+*.bak
+src-tauri/target/
+src-tauri/gen/
+src-tauri/.env
