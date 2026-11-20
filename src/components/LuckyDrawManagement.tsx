@@ -482,7 +482,7 @@ export default function LuckyDrawManagement() {
     }
     const checkedIn = (attendance ?? []).map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category as 'student' | 'staff' } : null
+      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const refreshedPool = checkedIn
       .filter((participant) => poolType === 'everyone' || participant.category === poolType)
@@ -612,7 +612,7 @@ export default function LuckyDrawManagement() {
       <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name} checked in</option>)}</select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>
       <button className="button-primary" onClick={() => void loadPool()} disabled={loading || Boolean(roundId)}><Users size={16} /> {loading ? 'Loading pool…' : roundId ? 'Session ready' : 'Load checked-in pool'}</button>
       {roundId && <button className="button-secondary" onClick={() => void startNewSession()} disabled={loading || spinning || savingWinner || Boolean(pendingWinner)}><RotateCw size={16} /> New draw session</button>}
-      <div className="lucky-draw-pool-count"><span>Available in current wheel</span><strong>{roundId ? eligiblePool.length : '—'}</strong>{checkedInNotInPool > 0 && <small>{checkedInNotInPool} checked-in {poolType === 'everyone' ? 'guests' : `${poolType}s`} are not in this saved pool. Reset the pool to include them.</small>}</div>
+      <div className="lucky-draw-pool-count"><span>Available in current wheel</span><strong>{roundId ? eligiblePool.length : '—'}</strong>{checkedInNotInPool > 0 && <small>{checkedInNotInPool} checked-in {poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are not in this saved pool. Reset the pool to include them.</small>}</div>
     </section>
 
     {roundId && <section className="panel lucky-draw-wheel-panel">
