@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Wheel, type WheelItem } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
+import { DEFAULT_PARTICIPANT_CATEGORIES, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LedDisplay.css'
 
 type DrawEntry = { participant_id: string; name: string; category: string }
@@ -29,7 +30,7 @@ function randomSpinFlashBatch(pool: DrawEntry[], colors: string[], batch: number
   }))
 }
 
-export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event' }: { eventName?: string }) {
+export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', categories = DEFAULT_PARTICIPANT_CATEGORIES }: { eventName?: string; categories?: ParticipantCategory[] }) {
   const [round, setRound] = useState<DrawRound | null>(null)
   const [entries, setEntries] = useState<DrawEntry[]>([])
   const [winner, setWinner] = useState<DrawEntry | null>(null)
@@ -225,7 +226,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event' }: { 
   const themeStyle = {
     '--led-theme-1': themeColors[0], '--led-theme-2': themeColors[1], '--led-theme-3': themeColors[2], '--led-theme-4': themeColors[3], '--led-theme-5': themeColors[4],
   } as CSSProperties
-  const winnerRecord = round && winner ? `Winner · ${winner.category}` : ''
+  const winnerRecord = round && winner ? `Winner · ${categoryName(categories, winner.category)}` : ''
   const confettiColors = [themeColors[2], themeColors[3], themeColors[4], '#fff1b8', '#ffffff']
 
   return <div className="led-lucky-output" style={themeStyle}>
