@@ -298,14 +298,10 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const { data: previousWinners, error: previousError } = await supabase.from('draw_winners').select('participant_id').eq('prize_category_id', category.id)
-    if (previousError) {
-      setError(previousError.message)
-      setLoading(false)
-      return
-    }
-    const alreadyDrawn = new Set((previousWinners ?? []).map((winner) => winner.participant_id))
-    const available = categoryPool.filter((participant) => !alreadyDrawn.has(participant.id))
+    // A new session starts with every currently checked-in active participant.
+    // Prior winners remain in the historical round and must not be excluded here.
+    const alreadyDrawn = new Set<string>()
+    const available = categoryPool
     if (!available.length) {
       setPool(categoryPool)
       setExcludedIds(alreadyDrawn)
@@ -330,14 +326,19 @@ export default function LuckyDrawManagement() {
       const batch = available.slice(offset, offset + 400).map((participant) => ({ draw_round_id: round.data.id, participant_id: participant.id }))
       const { error: entryError } = await supabase.from('draw_entries').insert(batch)
       if (entryError) {
-        setError(entryError.message)
+        await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', round.data.id)
+        setError(`Could not load the complete draw pool. The incomplete round was closed safely: ${entryError.message}`)
         setLoading(false)
         return
       }
     }
-    const { error: activateError } = await supabase.from('draw_rounds').update({ status: 'drawing', updated_at: new Date().toISOString() }).eq('id', round.data.id)
+    const { error: activateError } = await supabase.from('draw_rounds')
+      .update({ status: 'drawing', updated_at: new Date().toISOString() })
+      .eq('id', round.data.id)
+      .eq('status', 'ready')
     if (activateError) {
-      setError(activateError.message)
+      await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', round.data.id)
+      setError(`Could not activate the new draw session. The unused round was closed: ${activateError.message}`)
       setLoading(false)
       return
     }
@@ -538,20 +539,48 @@ export default function LuckyDrawManagement() {
         return
       }
     }
-    const { error: activateError } = await supabase.from('draw_rounds')
-      .update({ status: 'drawing', updated_at: new Date().toISOString() })
-      .eq('id', nextRound.id)
-    if (activateError) {
-      setError(activateError.message)
-      setUpdatingOutput(false)
-      return
-    }
+    // Close the previous active round before activating its replacement.
+    // If either transition fails, attempt a compensating rollback so we do not
+    // leave two rounds marked as drawing.
     if (roundId) {
-      const { error: closeError } = await supabase.from('draw_rounds')
+      const { data: closedPrevious, error: closeError } = await supabase.from('draw_rounds')
         .update({ status: 'completed', updated_at: new Date().toISOString() })
         .eq('id', roundId)
         .eq('status', 'drawing')
-      if (closeError) setError(`Pool refreshed, but the previous session could not be closed: ${closeError.message}`)
+        .select('id')
+        .maybeSingle()
+      if (closeError || !closedPrevious) {
+        await supabase.from('draw_rounds')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('id', nextRound.id)
+        setError(closeError?.message ?? 'The previous session was no longer active. The replacement pool was closed without switching sessions.')
+        setUpdatingOutput(false)
+        return
+      }
+    }
+
+    const { data: activatedRound, error: activateError } = await supabase.from('draw_rounds')
+      .update({ status: 'drawing', updated_at: new Date().toISOString() })
+      .eq('id', nextRound.id)
+      .eq('status', 'ready')
+      .select('id')
+      .maybeSingle()
+    if (activateError || !activatedRound) {
+      const { error: cleanupError } = await supabase.from('draw_rounds')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', nextRound.id)
+      let rollbackMessage = ''
+      if (roundId) {
+        const { error: rollbackError } = await supabase.from('draw_rounds')
+          .update({ status: 'drawing', updated_at: new Date().toISOString() })
+          .eq('id', roundId)
+          .eq('status', 'completed')
+        if (rollbackError) rollbackMessage = ` Previous session recovery also failed: ${rollbackError.message}`
+      }
+      const cleanupMessage = cleanupError ? ` New round cleanup failed: ${cleanupError.message}` : ''
+      setError(`Could not activate the refreshed pool. ${activateError?.message ?? 'The new round was not in the expected ready state.'}${cleanupMessage}${rollbackMessage}`)
+      setUpdatingOutput(false)
+      return
     }
     setPrizeCategoryId(activeCategoryId)
     setRoundId(nextRound.id)
