@@ -1,145 +1,192 @@
-# EventFlow — Current Scope & Development Roadmap
+# EventFlow — Product Scope & Production Readiness
 
-**Last updated:** 2026-11-20 (Malaysia time; after PR #12 password hardening)  
-**Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
-**Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
+**Last updated:** 2026-11-21 (Malaysia time)  
+**Repository:** https://github.com/MQNFUNDEV/EventFlow  
+**Production web app:** https://mqnfundev.github.io/EventFlow/  
+**Current application version:** 1.3.1  
+**Production baseline:** `main` at `7a048955dd852dba46e482abbb8afc5011fcb46f`
 
-> **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised internal-operator scope below. Gemini has stopped work. Its original Phase 3 branch and commit are preserved; the approved operator-only implementation was integrated through PR #6 and the Attendance QR-scanner scope correction was merged through PR #7. Do not reintroduce the cancelled QR/public-registration scope. This file and the matching GitHub issue are the current source of truth.
+> This document supersedes earlier roadmap status where it conflicts with the current repository, deployment, or owner-approved scope. Treat the production database as live. Do not perform destructive data operations, schema changes, migrations, or Edge Function deployments without inspection, a recovery plan, and the required owner approval.
 
-## Product scope (confirmed by owner)
+## 1. Product scope
 
-EventFlow is an **internal operator system for staff only**. Operators use the existing web application with Supabase as the shared backend. It is not an attendee-facing product.
+EventFlow is an internal operator system for Maqna Momento staff. The operator web application is hosted on GitHub Pages and uses Supabase as its shared backend. GitHub Pages hosting is in scope; a public attendee registration product is not.
 
-### Explicitly out of scope — do not build or spend time on these
+### In scope
 
-- Public attendee-facing website or public registration portal.
-- Individual participant QR passes, QR generation, QR scanning, or QR-based check-in.
-- Bulk participant invitation emails / mass email delivery (including 5,000-person sends), Resend setup, or other email-provider procurement.
-- Vercel, Cloudflare Pages, GitHub Pages, or other public frontend hosting.
-- Standalone Windows EXE / Tauri desktop packaging.
+- Staff sign-in and Supabase authentication.
+- Role-based access: Super Admin, Event Admin and Front Desk.
+- Participant management and import.
+- Manual attendance check-in (not QR-based).
+- Operator overview and event settings.
+- LED display control/output, blackout, scenes, artwork and synchronization.
+- Lucky Draw management, winner records and display synchronization.
+- Admin Management, Development Log, security and database integrity.
+- A lightweight, consistent operator interface.
 
-Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` and `send-invitations` Edge Function names are retained only as retired 410 tombstones with JWT verification enabled. They do not expose participant data, generate passes, or send email. The legacy invitation table and QR-token column are retained without application use to preserve existing data; no records or schema columns are deleted.
+### Explicitly out of scope
 
-### In scope — preserve and complete
+- Public attendee registration or attendee-facing account portal.
+- QR passes, QR generation, QR scanning or QR-based check-in.
+- Bulk invitation email delivery, Resend setup or email-provider procurement.
+- Windows EXE / Tauri packaging for the current delivery scope.
+- Unrequested feature expansion that increases operational complexity.
 
-- Private staff sign-in and Supabase authentication.
-- Role-based access and Admin Management (Super Admin, Event Admin, Front Desk).
-- Participant records and participant management.
-- **Manual attendance check-in** (no QR).
-- Operator dashboard and event settings.
-- LED display control/output, including blackout and automatic application of configured display settings.
-- Lucky Draw management, results, and display synchronization.
-- Security, database integrity, and functional testing for the operator workflows.
+The legacy invitation table and QR-token column remain in the database for data preservation. The `guest-pass` and `send-invitations` Edge Functions are retired 410 handlers with JWT verification enabled; do not reactivate them.
 
-## Delivery status
+## 2. Confirmed delivery snapshot
 
-### Phase 1 — Repository sync & critical code cleanup
-**COMPLETE.** PR #3 merged into `main` as `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`.
+### GitHub and deployment
 
-- [x] Removed tracked temporary/backup files: `New Text Document.txt`, `src/App.backup-before-admin.ps1.txt`; `src/App.before-role-access.tsx` had already been removed.
-- [x] Fixed encoding glitches in `AdminManagement.tsx` and `AuthGate.tsx`.
-- [x] Removed inactive Search, Event Year, and topbar avatar controls; retained working sidebar sign-out.
-- [x] Added GitHub Actions CI for `npm ci`, `npm run lint`, and `npm run build`.
-- [x] GitHub Actions run #2 passed all three checks.
+- PR #20 merged: operator settings/dashboard cleanup and related workflow improvements.
+- PR #21 merged: duplicate operator page headings and role-access banners removed from affected pages.
+- Latest `main` commit: `ce0f6b7f9fe857da8c995dc9c5002d1441897e59`.
+- Latest CI run for that commit succeeded: lint, dependency security gate and production build.
+- GitHub Pages deployment for the commit succeeded (workflow run `44764384279`).
+- Production URL: https://mqnfundev.github.io/EventFlow/
 
-### Phase 2 — Deployment / Supabase setup
-**COMPLETE UNDER THE REVISED INTERNAL-ONLY SCOPE.** No public frontend deployment is required.
+### Confirmed application changes
 
-- [x] Supabase project is active and remains the shared backend.
-- [x] Staff authentication remains in scope.
-- [x] `admin-management` v5 active (`verify_jwt: true`); `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers (`verify_jwt: true`).
-- [x] No Vercel/Cloudflare/public URL setup required.
-- [x] No Resend/API key/sender setup or mass-email work required.
-- [x] No public attendee URL or QR-pass deployment required.
-- [x] Remove public Guest Pass routing and UI, QR scanning/check-in, and invitation controls/queries from the active operator application.
-- [x] Retire both deployed public features with 410 responses and JWT verification; no data is queried, changed, or deleted.
-- [x] Preserve legacy invitation tracking table and participant QR-token column without active application references.
+- Removed the global Add Participant action from unrelated modules.
+- LED display controls were consolidated and made more compact.
+- LED settings and event information use separate save paths.
+- Lucky Draw current-session winners are filtered by draw round; reset preserves historical winner records.
+- The Lucky Draw animation prototype received a transparent acrylic hopper, a denser paper pile and additional glass/lever styling. Its animation remains a presentation prototype and is not wired to select or confirm real winners.
+- Duplicate inner headings and redundant access banners were removed from Settings, LED Display, Admin Management, Attendance and Development Log.
+- Relevant refresh/export controls were retained.
 
-### Phase 3 — LED / on-stage operator features
-**IMPLEMENTATION AND QR-SCOPE CLEANUP MERGED; automated CI passed. Live LED smoke test remains pending.** PR #6 merged into `main` as `4eba170a51fbeeafbbc4d192902640a9f144e8f0`; Attendance QR-scanner removal merged through PR #7 as `57d833d78a0c027de92206549f9ab7cd3bf38173`.
+These are implementation and CI/deployment confirmations. They do not constitute end-to-end testing of every operator workflow.
 
-- [x] Blackout scene control and pure-black output stage.
-- [x] Automatic application of theme colors, welcome artwork/backgrounds, and scene backgrounds.
-- [x] Realtime subscriptions for LED control and output, with a 3-second polling fallback on the LED output.
-- [x] `assets_updated_at` cache-version updates when welcome artwork and scene backgrounds are uploaded.
-- [x] Remove walk-in registration URL, QR generation/display, and QR-specific UI from the Phase 3 implementation.
-- [x] Keep Manual Check-in as a non-QR informational display for the staffed check-in desk.
-- [x] Remove the camera-based QR scanner and QR-token lookup from the Attendance page; rename the Overview action to Manual Check-in.
-- [x] Make all new Attendance-page check-ins explicitly use `check_in_method = 'manual'`.
-- [x] Change the database default for `attendance.check_in_method` to `manual` via migration `20261120051204_set_manual_attendance_default`; historical QR values are retained unchanged.
-- [x] Align the migration file to the production-applied version `20261120031308`; production migration history confirms this version is already applied.
-- [x] GitHub Actions run #11 passed `npm ci`, `npm run lint`, and `npm run build` on the Phase 3 branch before PR #6 merged.
-- [x] PR #7 CI run #18 passed `npm ci`, `npm run lint`, and `npm run build` before merge.
-- [ ] Perform a live two-screen smoke test: change LED scene from the operator control, verify output follows, enable blackout, then update theme/artwork/background settings and verify they apply without a browser refresh.
+### Supabase production snapshot (read-only inspection, 2026-11-21)
 
-Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-onstage-features` and original commit `5079bca38ca01530a001b640f8797a98d8bf767a` were preserved. Duplicate PR #5 was also closed without merging. The corrected implementation is in PR #6 and the Attendance scope correction is in PR #7.
+- Project `MaqnaEventFlow` is `ACTIVE_HEALTHY`, region Singapore.
+- All 14 public tables returned by the table inspection have RLS enabled.
+- Current Edge Functions: `admin-management` v10, `guest-pass` v5 and `send-invitations` v6; all have `verify_jwt: true`.
+- The two retired functions remain active deployments only as protected 410 handlers.
+- Supabase Security Advisor reports leaked-password protection disabled. This is unavailable on the current Free plan; retain the compensating password and account controls. Do not upgrade solely for this feature without an owner decision.
+- Performance Advisor reports 22 unused-index notices and two multiple-permissive-policy notices. The latter relate to intentionally different role-specific access paths on `admin_roles` SELECT and `participants` INSERT. Do not remove indexes or combine policies without usage and authorization analysis.
+- No production rows were deleted or modified during this inspection.
 
-**Removed from Phase 3:** walk-in registration URL, QR generation/display, QR-based registration/check-in. Do not reintroduce these.
+### Migration-history caution
 
-### Phase 4 — Supabase security & database hardening
-**PARTIALLY COMPLETE — database and application hardening applied; secret-key rotation and role-based verification remain.**
+Production currently records nine migrations. The production migration version for configurable participant categories is `20261120174100`, while the repository filename is `20261121010000_allow_configurable_participant_categories.sql`. Earlier migration filenames also have historical timestamp differences. Reconcile the exact SQL and production schema before any future migration operation. Never repair migration history by guessing, resetting, or blindly pushing migrations.
 
-- [x] Owner accepted leaked-password protection as unavailable on the current Free plan. It remains disabled; no plan upgrade was made or recommended solely to enable it.
-- [x] Remove four exactly redundant SELECT policies from `draw_entries`, `draw_rounds`, `prize_categories`, and `push_subscriptions`. Their equivalent `ALL` policies retain the same authenticated admin predicate.
-- [x] Preserve non-duplicate policies on `admin_roles` (self-or-superadmin SELECT is broader than superadmin-only ALL) and `participants` (admin and front-desk INSERT predicates intentionally differ).
-- [x] Add and verify indexes for `development_log_entries.created_by`, `development_log_sessions.created_by`, and `participant_invitations.updated_by`.
-- [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
-- [x] Remove active application references and deploy retired 410 Edge Function handlers with JWT verification enabled.
-- [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
-- [x] Enforce at least 14 characters, uppercase, lowercase, number, symbol, no spaces, and a maximum of 72 UTF-8 bytes for password reset and first-login changes, with matching server-side Edge Function validation in `admin-management` v5.
-- [x] Remove unused `html5-qrcode` and `qrcode` packages after confirming no active application imports remain (PR #11).
-- [x] Add full-tree and non-optional npm audit reporting to CI (PR #14/#15).
-- [ ] Re-run role-based access tests after RLS changes.
+## 3. Production-readiness phases
 
-Production migrations applied:
-- `20261120033919_add_missing_foreign_key_indexes`
-- `20261120033944_remove_redundant_select_policies`
-- `20261120051204_set_manual_attendance_default`
+The phases below are the active delivery plan. A source-code review or successful build must never be reported as a passed live workflow test.
 
-Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
+### Phase 1 — Visual presentation audit
 
-### Phase 5 — Operator workflow testing
-**PENDING — CI passed after cleanup and password hardening; authenticated role-based and live operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
+**Status: PARTIALLY COMPLETE**
 
-- [x] PR #9 retired public features; PR #11 removed unused QR dependencies; PR #12 moved password reset and first-login validation to the authenticated Edge Function. CI run #24 passed cleanup; run #34 passed the password-hardening changes (`npm ci`, lint, build).
+- [x] Remove duplicate headings and redundant access banners from the affected pages.
+- [x] Remove the global Add Participant action from unrelated modules.
+- [x] Consolidate LED display controls and settings navigation.
+- [ ] Review every operator page for spacing, typography, hierarchy, alignment, empty states and consistent controls.
+- [ ] Review desktop, laptop and narrow-screen layouts.
+- [ ] Verify that every visible action is relevant to its current module.
+- [ ] Perform a live visual review of Overview, Participants, Attendance, Lucky Draw, LED Display, Settings, Admin Management and Development Log.
 
-- [x] Cleanup PR #9 merged as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; GitHub Actions run #24 passed `npm ci`, `npm run lint`, and `npm run build`.
+**Pass condition:** All operator pages look coherent and finished, with no duplicate UI, dead controls or visibly unfinished sections.
 
-- [ ] Verify staff sign-in, session handling, and role-based access for Super Admin, Event Admin, and Front Desk.
-- [ ] Test participant create/import/edit/search workflows.
-- [ ] Test manual check-in and attendance status updates.
-- [ ] Test LED control, blackout, settings application, and multi-screen synchronization.
-- [ ] Test Lucky Draw setup, eligibility, drawing, winner records, and display synchronization.
-- [ ] Run regression checks and `npm run lint` / `npm run build` after changes.
-- [ ] Record test evidence for each role and operator workflow; a lint/build pass alone does not count as functional verification.
+### Phase 2 — Operator workflow verification
 
-### Phase 6 — Pre-event readiness
-**PENDING.**
+**Status: IMPLEMENTED FEATURES; LIVE ROLE-BASED TESTING PENDING**
 
-- [ ] Review test data and event configuration with the owner.
-- [ ] Back up and obtain explicit approval before deleting/resetting any participant, attendance, or Lucky Draw records.
-- [ ] Confirm final event settings and participant data.
-- [ ] Run an operator-only event-day smoke test.
+- [ ] Super Admin sign-in, session refresh and sign-out.
+- [ ] Event Admin permissions and restricted-page access.
+- [ ] Front Desk permissions and restricted-page access.
+- [ ] Participant create, edit, search, import and active/inactive handling.
+- [ ] Manual check-in, duplicate check-in handling and attendance export.
+- [ ] Event settings save/reload and LED settings save/reload independently.
+- [ ] Admin creation, role assignment, reset/recovery and deactivation.
+- [ ] Development Log session start, pause, resume, end and entry editing.
+- [ ] Verify loading, empty, success and error states for each workflow.
 
-## Agent coordination / change safety
+### Phase 3 — Lucky Draw reliability and scale
 
-1. Human owner is the final authority and Super Admin.
-2. Gemini has stopped work. Its original Phase 3 branch and commit remain preserved for audit; the accepted Phase 3 implementation is merged through PR #6 and #7. Do not restart or overwrite Gemini's branch.
-3. Other agents must read this roadmap and the current GitHub issue before coding.
-4. Gemini is no longer actively changing Phase 3 files. Any further changes must use a dedicated branch and pull request, with the human owner remaining the final authority.
-5. Use dedicated branches and pull requests; do not push directly to `main` for feature work.
-6. Do not reset, force-push, deploy functions, apply migrations, or delete production data without reconciliation and explicit owner approval.
-7. Keep GitHub, production Supabase, and Hive Mind status synchronized after each meaningful milestone.
+**Status: IMPLEMENTED BASELINE; DEEP VALIDATION PENDING**
 
-## Current known production notes
+- [ ] Verify checked-in eligibility for every configured participant category.
+- [ ] Verify round creation, pool loading, winner selection and duplicate prevention.
+- [ ] Verify winner collection/skipping and historical session preservation.
+- [ ] Review reset consistency, including partial-failure recovery and prize-category accumulation.
+- [ ] Review large-pool insertion strategy and API/body limits for 5,000 attendees.
+- [ ] Test repeated draws, operator double-clicks and concurrent operator actions.
+- [ ] Test connection loss/recovery during pool loading and winner confirmation.
+- [ ] Verify LED winner announcement synchronization.
+- [ ] Keep the Lucky Draw machine animation clearly identified as a visual prototype until its draw action is wired to the real draw workflow.
 
-- CI npm audit: 4 findings in the optional canvas/native-binary dependency chain; excluding optional dependencies reports 0. Keep this as an open dependency-hardening item pending a safe Lucky Draw compatibility review.
+**Safety note:** Current production Lucky Draw records are live. Do not reset, delete, or use production records as test fixtures. Use a dedicated safe test environment or carefully approved test records.
 
-- Cleanup PR #9 merged into `main` as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; CI run #24 passed.
-- Deployed `admin-management` v5 enforces the app password policy for reset and first-login changes. `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers with JWT verification enabled; they do not query or mutate data or send email.
-- `admin-management` is deployed at v4 with the 14–72 character application password validation for first-login password changes.
-- Supabase project: `MaqnaEventFlow` (`wypjyzpiunkrrpodylpo`), Singapore region, currently `ACTIVE_HEALTHY`.
-- Edge Functions and JWT settings are listed under Phase 2 above.
-- Security Advisor still reports leaked-password protection disabled. The four redundant SELECT-policy warnings were reduced; two remaining warnings are intentional role-specific policies. The three missing-FK-index findings were addressed. The 22 unused-index notices are informational and must not be cleaned up without usage review.
-- The owner confirmed the Free plan has no project backups and directed work to proceed without one. Treat production changes as elevated risk; no destructive data cleanup or reset.
-- Existing test-data counts were previously observed; treat them as live production data, not disposable fixtures.
+### Phase 4 — Security and administrator control
+
+**Status: BASELINE HARDENING APPLIED; AUTHORIZATION TESTS PENDING**
+
+- [x] Rotate the exposed historical Supabase secret key; the old key was revoked/deleted and the replacement key reference is in use.
+- [x] Keep service-role/secret keys out of frontend code.
+- [x] Keep all public tables protected by RLS.
+- [x] Keep retired Edge Functions protected by JWT verification.
+- [ ] Test every role against both allowed and denied actions.
+- [ ] Review RLS policies and Edge Function authorization against the intended role matrix.
+- [ ] Verify account deactivation, session expiry and recovery behaviour.
+- [ ] Re-run Supabase security and performance advisors after any approved database change.
+- [ ] Keep leaked-password protection disabled as a documented Free-plan limitation unless the owner chooses a plan change.
+
+### Phase 5 — Performance and stability
+
+**Status: NOT YET VALIDATED UNDER EVENT LOAD**
+
+- [ ] Review production bundle size and asset weight.
+- [ ] Review repeated/polling database requests and realtime fallback behaviour.
+- [ ] Test 5,000-participant search, import and attendance workflows.
+- [ ] Test repeated check-ins and concurrent operators.
+- [ ] Test LED output over a long session and after reconnect.
+- [ ] Inspect browser console/network failures and memory growth.
+- [ ] Review npm audit findings, including optional native/canvas dependencies, without breaking the Lucky Draw visual experience.
+- [ ] Establish measurable performance acceptance criteria before optimizing.
+
+### Phase 6 — Full event simulation
+
+**Status: BLOCKED ON OWNER/OPERATOR PARTICIPATION**
+
+- [ ] Use a safe test event/data set.
+- [ ] Rehearse all three roles.
+- [ ] Run participant import and check-in at realistic volume.
+- [ ] Operate the LED controller and a separate display device together.
+- [ ] Run multiple Lucky Draw rounds and verify results.
+- [ ] Simulate internet interruption and recovery.
+- [ ] Record evidence and defects; fix and repeat failed scenarios.
+
+### Phase 7 — Release preparation
+
+**Status: DEPLOYMENT ACTIVE; RELEASE SIGN-OFF PENDING**
+
+- [x] Production GitHub Pages deployment is active.
+- [x] CI passes for the current production baseline.
+- [ ] Complete Phases 1–6 acceptance checks.
+- [ ] Confirm production event configuration and data with the owner.
+- [ ] Prepare concise operator instructions and recovery steps.
+- [ ] Record final version and release notes.
+- [ ] Obtain owner sign-off before calling the system event-ready.
+
+## 4. Owner attention required
+
+The owner/operator is needed only for checks that require their live accounts, devices, decisions or physical setup:
+
+1. **Live role testing:** provide/operate the Super Admin, Event Admin and Front Desk accounts so access and workflows can be verified. Never share passwords in chat.
+2. **Visual acceptance:** inspect the live pages on the actual operator laptop and report only visible issues or preferences.
+3. **LED rehearsal:** use the operator computer and a separate LED/output screen to verify scene changes, blackout and reconnect behaviour.
+4. **Lucky Draw acceptance:** confirm the intended category/prize/round workflow and observe a safe test draw. Do not use live production records for destructive testing.
+5. **Event sign-off:** confirm final event details, participant data and readiness to run the rehearsal.
+
+No owner action is needed for ordinary code inspection, static analysis, documentation maintenance, CI checks or preparing safe test plans.
+
+## 5. Change-control rules
+
+1. Use a dedicated branch and pull request for code changes; do not push feature work directly to `main`.
+2. Inspect current `main`, production Supabase and migration history before backend work.
+3. Never reset, force-push, deploy Edge Functions, apply migrations or delete production records without a recovery plan and required approval.
+4. Treat production participants, attendance, draw entries, winners and rounds as real records—not disposable fixtures.
+5. Keep GitHub, deployed frontend and Supabase status clearly distinguished: committed, merged, deployed and functionally verified are different states.
+6. Prefer small, testable changes. Avoid feature expansion and unnecessary dependencies.
