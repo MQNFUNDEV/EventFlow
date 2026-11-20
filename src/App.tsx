@@ -6,12 +6,10 @@ import {
   Gift,
   Monitor,
   Settings,
-  Search,
   Plus,
   ArrowUpRight,
   CalendarDays,
   Activity,
-  ChevronDown,
   Menu,
   X,
   CircleHelp,
@@ -467,13 +465,6 @@ function App() {
               <span className="status-dot" />
               System operational
             </div>
-            <button className="icon-button" aria-label="Search">
-              <Search size={19} />
-            </button>
-            <div className="topbar-user">
-              <div className="profile-avatar small">AD</div>
-              <ChevronDown size={15} />
-            </div>
           </div>
         </header>
 
@@ -486,12 +477,6 @@ function App() {
             </div>
 
             <div className="heading-actions">
-              <button className="button-secondary">
-                <CalendarDays size={17} />
-                Event Year: 2026
-                <ChevronDown size={15} />
-              </button>
-
               {canManageParticipants ? (
                 <button
                   className="button-primary"
