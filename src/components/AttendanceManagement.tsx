@@ -133,17 +133,10 @@ export default function AttendanceManagement() {
 
   return (
     <div className="attendance-page">
-      <header className="attendance-heading">
-        <div>
-          <span className="attendance-eyebrow"><Users size={14} /> EVENT CHECK-IN</span>
-          <h2>Attendance</h2>
-          <p>Find a registered participant and record their arrival.</p>
-        </div>
-        <div className="attendance-heading-actions">
+      <div className="attendance-heading attendance-heading-actions">
           <button className="button-secondary" onClick={() => void loadData()} disabled={loading}><RefreshCw size={16} /> Refresh</button>
           <button className="button-secondary" onClick={exportCsv} disabled={loading || participants.length === 0}><Download size={16} /> Export CSV</button>
-        </div>
-      </header>
+      </div>
 
       {error && <div className="attendance-alert error" role="alert">{error}</div>}
       {message && <div className="attendance-alert success" role="status">{message}</div>}
