@@ -383,7 +383,7 @@ useEffect(() => {
                         )}
                       </td>
 
-                      <td>{admin.phone_number || 'â€”'}</td>
+                      <td>{admin.phone_number || '—'}</td>
 
                       <td>
                         <select
