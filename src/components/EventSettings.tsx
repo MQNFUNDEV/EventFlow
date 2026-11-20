@@ -168,6 +168,7 @@ async function compressUploadedKV(file: File) {
 export default function EventSettings() {
   const [settingsTab, setSettingsTab] = useState<'led' | 'event' | 'pool'>('event')
   const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_CATEGORIES)
+  const [categoryCount, setCategoryCount] = useState(2)
   const [eventName, setEventName] = useState('Johor Meetup X')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
@@ -230,6 +231,7 @@ export default function EventSettings() {
         setEventLocation(values.event_location ?? '')
         const savedCategories = Array.isArray(values.participant_categories) ? values.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : []
         setParticipantCategories(savedCategories.length ? savedCategories : DEFAULT_CATEGORIES)
+        setCategoryCount(savedCategories.length || DEFAULT_CATEGORIES.length)
         setPosterPath(savedPoster && !isDataImage(savedPoster) ? savedPoster : '')
         let posterUrl = KV_PATH
         if (savedPoster) {
@@ -296,8 +298,9 @@ export default function EventSettings() {
   }
 
   function resizeCategories(count: number) {
+    setCategoryCount(count)
     setParticipantCategories((current) => {
-      const next = current.slice(0, count)
+      const next = [...current]
       while (next.length < count) {
         const index = next.length + 1
         next.push({ id: `pool_${index}`, name: `CATEGORY ${index}` })
@@ -310,7 +313,7 @@ export default function EventSettings() {
     setSaving(true)
     setError('')
     setMessage('')
-    const cleaned = participantCategories.map((category) => ({ ...category, name: category.name.trim() }))
+    const cleaned = participantCategories.slice(0, categoryCount).map((category) => ({ ...category, name: category.name.trim() }))
     const names = cleaned.map((category) => category.name.toLocaleLowerCase())
     if (cleaned.length < 1 || cleaned.length > 10 || cleaned.some((category) => !category.name) || new Set(names).size !== names.length) {
       setError('Enter a name for every category. Category names must be unique.')
@@ -330,6 +333,7 @@ export default function EventSettings() {
       }
       await savePayloadPatch({ participant_categories: cleaned })
       setParticipantCategories(cleaned)
+      setCategoryCount(cleaned.length)
       setMessage('Pool settings saved. Participant, attendance and Lucky Draw category options will use these names.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save pool settings.') }
     setSaving(false)
@@ -492,8 +496,8 @@ export default function EventSettings() {
       </section>
     </> : settingsTab === 'pool' ? <section className="panel event-settings-card">
       <div className="event-settings-card-heading"><div><h3>Participant pool categories</h3><p>Set how many participant categories this event uses. These names appear in participant records, attendance filters and Lucky Draw pools.</p></div></div>
-      <label className="pool-category-count">Number of categories<select value={participantCategories.length} onChange={(event) => resizeCategories(Number(event.target.value))} disabled={loading || saving}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
-      <div className="pool-category-fields">{participantCategories.map((category, index) => <label key={category.id}>Category {index + 1} name<input value={category.name} maxLength={60} onChange={(event) => setParticipantCategories((current) => current.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item))} placeholder={`Category ${index + 1}`} disabled={loading || saving} /></label>)}</div>
+      <label className="pool-category-count">Number of categories<select value={categoryCount} onChange={(event) => resizeCategories(Number(event.target.value))} disabled={loading || saving}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
+      <div className="pool-category-fields">{participantCategories.slice(0, categoryCount).map((category, index) => <label key={category.id}>Category {index + 1} name<input value={category.name} maxLength={60} onChange={(event) => setParticipantCategories((current) => current.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item))} placeholder={`Category ${index + 1}`} disabled={loading || saving} /></label>)}</div>
       <p className="event-settings-hint">Category IDs stay stable when names are changed. You cannot remove a category that still has participants assigned to it.</p>
       <button className="button-primary" onClick={() => void savePoolSettings()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save pool settings</>}</button>
     </section> : <section className="panel event-settings-card">
