@@ -474,25 +474,17 @@ function App() {
               <p>{pageDescription[activePage]}</p>
             </div>
 
-            <div className="heading-actions">
-              {canManageParticipants ? (
+            {activePage === 'Participants' && canManageParticipants && (
+              <div className="heading-actions">
                 <button
                   className="button-primary"
-                  onClick={() => navigateToPage('Participants')}
+                  onClick={() => window.dispatchEvent(new CustomEvent('eventflow:open-add-participant'))}
                 >
                   <Plus size={18} />
                   Add Participant
                 </button>
-              ) : (
-                <button
-                  className="button-primary"
-                  onClick={() => navigateToPage('Attendance')}
-                >
-                  <ClipboardCheck size={18} />
-                  Open Check-in
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
