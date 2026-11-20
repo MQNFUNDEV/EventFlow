@@ -474,7 +474,7 @@ export default function ParticipantManagement({
       {canImport && (
         <div className="participant-import-help">
           <strong>Import Google Form responses</strong>
-          <span>In Google Sheets, choose File → Download → Comma-separated values (.csv), then use Import CSV. Include a name, email or phone, and a category such as Student or Staff. EventFlow creates participant records here, where you can search and filter them.</span>
+          <span>In Google Sheets, choose File → Download → Comma-separated values (.csv), then use Import CSV. Include a name, email or phone, and a category matching one of the names configured in Settings → Pool Settings. EventFlow creates participant records here, where you can search and filter them.</span>
         </div>
       )}
 
@@ -680,7 +680,7 @@ export default function ParticipantManagement({
 
                     <td>
                       <span
-                        className={`participant-category ${participant.category}`}
+                        className={`participant-category ${participant.category} category-color-${Math.max(0, categories.findIndex((item) => item.id === participant.category)) % 5}`}
                       >
                         {categoryName(categories, participant.category)}
                       </span>
