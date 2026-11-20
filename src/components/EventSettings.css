@@ -38,3 +38,50 @@
 .event-settings-message.error { border: 1px solid #f1c7c7; background: #fff5f5; color: #a33232; }
 .event-settings-message.success { border: 1px solid #cce7d5; background: #f2fbf5; color: #267346; }
 @media (max-width: 640px) { .event-settings-heading { align-items: flex-start; } .event-settings-fields { grid-template-columns: 1fr; } .event-settings-fields label:first-child { grid-column: auto; } .event-theme-palette { grid-template-columns: repeat(2, minmax(0, 1fr)); } .event-settings-kv-preview { min-height: 150px; } .event-scene-background-row { grid-template-columns: 1fr; align-items: stretch; } .event-scene-background-title { padding-bottom: 0; } }
+
+
+.event-settings-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid #e3e8f0;
+  border-radius: 11px;
+  background: #f8faff;
+}
+
+.event-settings-tabs button {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.event-settings-tabs button:hover {
+  color: #294f88;
+  background: #eef4ff;
+}
+
+.event-settings-tabs button.active {
+  border-color: #dbe5f5;
+  background: #fff;
+  color: #2859a8;
+  box-shadow: 0 2px 7px #20375612;
+}
+
+.event-settings-tabs button:focus-visible {
+  outline: 2px solid #3268bd;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .event-settings-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  .event-settings-tabs button { padding: 0 8px; }
+}

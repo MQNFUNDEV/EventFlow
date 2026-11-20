@@ -6,7 +6,6 @@ import {
   Gift,
   Monitor,
   Settings,
-  Plus,
   ArrowUpRight,
   Activity,
   Menu,
@@ -474,25 +473,7 @@ function App() {
               <p>{pageDescription[activePage]}</p>
             </div>
 
-            <div className="heading-actions">
-              {canManageParticipants ? (
-                <button
-                  className="button-primary"
-                  onClick={() => navigateToPage('Participants')}
-                >
-                  <Plus size={18} />
-                  Add Participant
-                </button>
-              ) : (
-                <button
-                  className="button-primary"
-                  onClick={() => navigateToPage('Attendance')}
-                >
-                  <ClipboardCheck size={18} />
-                  Open Check-in
-                </button>
-              )}
-            </div>
+
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
