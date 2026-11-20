@@ -1,6 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BookOpen,
   CheckCircle2,
   Clock3,
   Pause,
