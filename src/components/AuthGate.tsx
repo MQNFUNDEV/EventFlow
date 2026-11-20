@@ -113,7 +113,7 @@ function LoginForm() {
             </>
           )}
 
-          <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT RECOVERY</p>
+          <p style={styles.footer}>MAQNA EVENTFLOW · ACCOUNT RECOVERY</p>
         </form>
       </main>
     )
@@ -169,7 +169,7 @@ function LoginForm() {
           {loading ? 'Signing in...' : 'Sign in'}
         </button>
 
-        <p style={styles.footer}>MAQNA EVENTFLOW Â· ADMINISTRATION</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW · ADMINISTRATION</p>
       </form>
     </main>
   )
@@ -277,7 +277,7 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
           </>
         )}
 
-        <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT SECURITY</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW · ACCOUNT SECURITY</p>
       </form>
     </main>
   )
@@ -371,7 +371,7 @@ function FirstLoginPasswordForm() {
           {loading ? 'Updating password...' : 'Save new password'}
         </button>
 
-        <p style={styles.footer}>MAQNA EVENTFLOW Â· ACCOUNT SECURITY</p>
+        <p style={styles.footer}>MAQNA EVENTFLOW · ACCOUNT SECURITY</p>
       </form>
     </main>
   )
