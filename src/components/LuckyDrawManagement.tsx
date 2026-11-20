@@ -4,6 +4,7 @@ import { Wheel, type WheelItem, type WheelRestEvent } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LuckyDrawManagement.css'
+import LuckyDrawMachine from './LuckyDrawMachine'
 
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string }
@@ -607,6 +608,7 @@ export default function LuckyDrawManagement() {
     <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from guests who have checked in. Every selected guest is removed from future spins.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
     {error && <div className="lucky-draw-message error" role="alert">{error}</div>}
     {message && <div className="lucky-draw-message success" role="status">{message}</div>}
+    <LuckyDrawMachine />
     <section className="panel lucky-draw-setup">
       <label>Session name<input value={roundName} onChange={(event) => setRoundName(event.target.value)} disabled={Boolean(roundId)} /><small className="lucky-draw-field-hint">Shown as the heading on the live LED screen. Set it before loading the guest pool.</small></label>
       <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name} checked in</option>)}</select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>
