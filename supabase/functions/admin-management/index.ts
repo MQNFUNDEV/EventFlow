@@ -19,7 +19,7 @@ function meetsPasswordPolicy(password: string) {
   return password.length >= 14 && password.length <= 128 &&
     /[a-z]/.test(password) && /[A-Z]/.test(password) &&
     /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) &&
-    !/\\s/.test(password);
+    !/\s/.test(password);
 }
 
 function generateTemporaryPassword() {
