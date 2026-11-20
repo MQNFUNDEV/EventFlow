@@ -11,6 +11,7 @@ type EventPayload = {
   welcome_poster?: string | null
   theme_colors?: string[]
   scene_backgrounds?: Partial<Record<BackgroundScene, SceneBackground>>
+  assets_updated_at?: string
   [key: string]: unknown
 }
 
@@ -208,12 +209,12 @@ export default function EventSettings() {
         try {
           if (isDataImage(savedPoster)) {
             await uploadEventImage(POSTER_OBJECT_PATH, dataImageToBlob(savedPoster))
-            values = await savePayloadPatch({ welcome_poster: POSTER_OBJECT_PATH })
+            values = await savePayloadPatch({ welcome_poster: POSTER_OBJECT_PATH, assets_updated_at: new Date().toISOString() })
             savedPoster = POSTER_OBJECT_PATH
           }
           if (isDataImage(savedBackground)) {
             await uploadEventImage(BACKGROUND_OBJECT_PATH, dataImageToBlob(savedBackground))
-            values = await savePayloadPatch({ welcome_background: BACKGROUND_OBJECT_PATH })
+            values = await savePayloadPatch({ welcome_background: BACKGROUND_OBJECT_PATH, assets_updated_at: new Date().toISOString() })
             savedBackground = BACKGROUND_OBJECT_PATH
           }
         } catch (migrationError) {
@@ -240,7 +241,7 @@ export default function EventSettings() {
         setKeyVisualIsFullHd(fullHd)
         if (fullHd && savedBackground) {
           try {
-            values = await savePayloadPatch({ welcome_background: null })
+            values = await savePayloadPatch({ welcome_background: null, assets_updated_at: new Date().toISOString() })
             savedBackground = ''
           } catch (clearError) {
             setError(clearError instanceof Error ? `Full HD artwork is ready, but its old generated fill could not be cleared: ${clearError.message}` : 'Full HD artwork is ready, but its old generated fill could not be cleared.')
@@ -249,7 +250,7 @@ export default function EventSettings() {
           try {
             const generatedBackground = make16x9Fill(await decodeImage(posterUrl))
             await uploadEventImage(BACKGROUND_OBJECT_PATH, dataImageToBlob(generatedBackground))
-            values = await savePayloadPatch({ welcome_background: BACKGROUND_OBJECT_PATH })
+            values = await savePayloadPatch({ welcome_background: BACKGROUND_OBJECT_PATH, assets_updated_at: new Date().toISOString() })
             savedBackground = BACKGROUND_OBJECT_PATH
           } catch (generationError) {
             setError(generationError instanceof Error ? `The KV loaded, but its 16:9 fill could not be generated: ${generationError.message}` : 'The KV loaded, but its 16:9 fill could not be generated.')
@@ -283,7 +284,7 @@ export default function EventSettings() {
     }
     try {
       await savePayloadPatch(eventPatch)
-      setMessage('Event details saved. New invitations and guest passes will use these details.')
+      setMessage('Event details saved. Updated event details are available on the live LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save event details.') }
     setSaving(false)
   }
@@ -294,7 +295,7 @@ export default function EventSettings() {
     setMessage('')
     try {
       await savePayloadPatch({ scene_backgrounds: sceneBackgrounds })
-      setMessage('LED scene backgrounds saved. Refresh the LED output browser to apply them.')
+      setMessage('LED scene backgrounds saved. Changes apply automatically on the live LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save the LED scene backgrounds.') }
     setSaving(false)
   }
@@ -309,9 +310,9 @@ export default function EventSettings() {
       const path = `scene-backgrounds/${scene}.jpg`
       await uploadEventImage(path, dataImageToBlob(compressed))
       const nextBackgrounds = { ...sceneBackgrounds, [scene]: { mode: 'custom' as const, path } }
-      await savePayloadPatch({ scene_backgrounds: nextBackgrounds })
+      await savePayloadPatch({ scene_backgrounds: nextBackgrounds, assets_updated_at: new Date().toISOString() })
       setSceneBackgrounds(nextBackgrounds)
-      setMessage(`${BACKGROUND_SCENES.find((item) => item.id === scene)?.name ?? 'Scene'} background uploaded. Refresh the LED output browser to apply it.`)
+      setMessage(`${BACKGROUND_SCENES.find((item) => item.id === scene)?.name ?? 'Scene'} background uploaded and synced to the live LED output.`)
     } catch (uploadError) { setError(uploadError instanceof Error ? uploadError.message : 'Could not upload this scene background.') }
     setSaving(false)
   }
@@ -363,15 +364,19 @@ export default function EventSettings() {
       const generatedBackground = isFullHd ? '' : make16x9Fill(image)
       await uploadEventImage(POSTER_OBJECT_PATH, dataImageToBlob(compressedPoster))
       if (generatedBackground) await uploadEventImage(BACKGROUND_OBJECT_PATH, dataImageToBlob(generatedBackground))
-      await savePayloadPatch({ welcome_poster: POSTER_OBJECT_PATH, welcome_background: generatedBackground ? BACKGROUND_OBJECT_PATH : null })
+      await savePayloadPatch({
+        welcome_poster: POSTER_OBJECT_PATH,
+        welcome_background: generatedBackground ? BACKGROUND_OBJECT_PATH : null,
+        assets_updated_at: new Date().toISOString(),
+      })
       setKeyVisual(compressedPoster)
       setKeyVisualIsFullHd(isFullHd)
       setPosterPath(POSTER_OBJECT_PATH)
       setBackgroundPath(generatedBackground ? BACKGROUND_OBJECT_PATH : '')
       setGeneratedFill(generatedBackground)
       setMessage(isFullHd
-        ? '1920 × 1080 key visual uploaded. It will fill the LED screen directly.'
-        : 'Key visual uploaded and a 1920 × 1080 fill was generated for the LED screen.')
+        ? '1920 × 1080 key visual uploaded and synced to the live LED output.'
+        : 'Key visual uploaded with a 1920 × 1080 fill and synced to the live LED output.')
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Could not upload the key visual.')
     }
@@ -385,17 +390,17 @@ export default function EventSettings() {
     setMessage('')
     try {
       await uploadEventImage(BACKGROUND_OBJECT_PATH, dataImageToBlob(generatedFill))
-      const patch: EventPayload = { welcome_background: BACKGROUND_OBJECT_PATH }
+      const patch: EventPayload = { welcome_background: BACKGROUND_OBJECT_PATH, assets_updated_at: new Date().toISOString() }
       if (posterPath) patch.welcome_poster = posterPath
       await savePayloadPatch(patch)
       setBackgroundPath(BACKGROUND_OBJECT_PATH)
-      setMessage('Generated 16:9 fill saved. Refresh the LED output page to display it.')
+      setMessage('Generated 16:9 fill saved and synced to the live LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save the LED background.') }
     setSaving(false)
   }
 
   return <main className="event-settings-page">
-    <header className="event-settings-heading"><div><span className="event-settings-eyebrow">EVENT CONFIGURATION</span><h2>Event Settings</h2><p>Update the event details used in invitations and prepare artwork for the venue screen.</p></div><button className="button-secondary" onClick={() => window.location.reload()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></header>
+    <header className="event-settings-heading"><div><span className="event-settings-eyebrow">EVENT CONFIGURATION</span><h2>Event Settings</h2><p>Update event details, LED theme colors, and venue-screen artwork.</p></div><button className="button-secondary" onClick={() => window.location.reload()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></header>
     {error && <div className="event-settings-message error" role="alert">{error}</div>}
     {message && <div className="event-settings-message success" role="status">{message}</div>}
     <section className="panel event-settings-card">
@@ -407,7 +412,7 @@ export default function EventSettings() {
       <div className="event-theme-preview" aria-label="Current LED color theme">{themeColors.map((color, index) => <span key={index} style={{ backgroundColor: color }} />)}</div>
     </section>
     <section className="panel event-settings-card">
-      <div className="event-settings-card-heading"><div><h3>Event details</h3><p>These details appear in new invitations and guest passes.</p></div></div>
+      <div className="event-settings-card-heading"><div><h3>Event details</h3><p>These details are shown in the operator dashboard and LED display.</p></div></div>
       <div className="event-settings-fields">
         <label>Event name<input value={eventName} onChange={(event) => setEventName(event.target.value)} placeholder="Johor Meetup X" disabled={loading} /></label>
         <label>Date and time<input value={eventDate} onChange={(event) => setEventDate(event.target.value)} placeholder="To be announced" disabled={loading} /></label>
@@ -423,13 +428,13 @@ export default function EventSettings() {
         <label className="event-settings-upload"><Upload size={15} /> {saving ? 'Saving…' : 'Upload background'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadSceneBackground(id, event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>
       </article>)}</div>
       <button className="button-primary" onClick={() => void saveSceneBackgroundSettings()} disabled={loading || saving}><Save size={16} /> {saving ? 'Saving…' : 'Save scene backgrounds'}</button>
-      <p className="event-settings-hint">Separate images are compressed before upload. Refresh the LED output browser after saving a background choice.</p>
+      <p className="event-settings-hint">Separate images are compressed before upload and apply automatically on the live LED output.</p>
     </section>
     <section className="panel event-settings-card">
         <div className="event-settings-card-heading"><div><h3>Welcome screen artwork</h3><p>1920 × 1080 artwork fills the screen edge-to-edge. Other image sizes get an automatically generated 16:9 surround, with the original KV centered.</p></div></div>
       <div className="event-settings-kv-preview">{keyVisualIsFullHd ? <img className="event-settings-fullhd-preview" src={keyVisual} alt="Full-screen 1920 by 1080 event key visual" /> : generatedFill ? <><img className="event-settings-fill-preview" src={generatedFill} alt="Generated 16:9 color fill" /><img className="event-settings-poster-preview" src={keyVisual} alt="Centered event key visual" /></> : <img src={keyVisual} alt="Preview of the current event key visual" />}</div>
       <div className="event-settings-actions"><label className="event-settings-upload button-secondary"><Upload size={16} /> Upload KV image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadKV(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>{!keyVisualIsFullHd && <><button className="button-secondary" onClick={() => void generateFill()} disabled={loading || generating || scanning || saving}><ImagePlus size={16} /> {generating ? 'Generating fill…' : 'Regenerate 16:9 fill'}</button><button className="button-primary" onClick={() => void saveFill()} disabled={loading || saving || !generatedFill}>{saving ? 'Saving…' : <><Save size={16} /> {backgroundPath ? 'Replace LED Welcome Page fill' : 'Save for LED Welcome Page'}</>}</button></>}</div>
-      <p className="event-settings-hint">After saving, refresh the LED output browser. The original poster file remains unchanged.</p>
+      <p className="event-settings-hint">Changes sync automatically to the live LED output screen. The original poster file remains unchanged.</p>
     </section>
   </main>
 }
