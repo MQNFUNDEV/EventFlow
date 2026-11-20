@@ -490,19 +490,34 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const refreshedAt = new Date()
-    const internalCategoryName = `Lucky Draw ${roundName.trim() || 'Session'} ${refreshedAt.toISOString()}`
-    const { data: category, error: categoryError } = await supabase.from('prize_categories')
-      .insert({ name: internalCategoryName, display_order: 0, is_active: true, created_by: authData.user.id })
-      .select('id')
-      .single()
-    if (categoryError || !category) {
-      setError(categoryError?.message ?? 'Could not prepare a clean draw pool.')
-      setUpdatingOutput(false)
-      return
+    let activeCategoryId = prizeCategoryId
+    if (!activeCategoryId) {
+      const { data: existingCategory, error: categoryLookupError } = await supabase.from('prize_categories')
+        .select('id')
+        .eq('name', 'Lucky Draw')
+        .maybeSingle()
+      if (categoryLookupError) {
+        setError(categoryLookupError.message)
+        setUpdatingOutput(false)
+        return
+      }
+      if (existingCategory) {
+        activeCategoryId = existingCategory.id
+      } else {
+        const { data: createdCategory, error: categoryCreateError } = await supabase.from('prize_categories')
+          .insert({ name: 'Lucky Draw', display_order: 0, is_active: true, created_by: authData.user.id })
+          .select('id')
+          .single()
+        if (categoryCreateError || !createdCategory) {
+          setError(categoryCreateError?.message ?? 'Could not prepare the draw pool.')
+          setUpdatingOutput(false)
+          return
+        }
+        activeCategoryId = createdCategory.id
+      }
     }
     const { data: nextRound, error: roundError } = await supabase.from('draw_rounds').insert({
-      prize_category_id: category.id,
+      prize_category_id: activeCategoryId,
       name: roundName.trim() || 'Lucky Draw Session',
       pool_type: poolType,
       status: 'ready',
@@ -513,12 +528,15 @@ export default function LuckyDrawManagement() {
       setUpdatingOutput(false)
       return
     }
-    const entries = refreshedPool.map((participant) => ({ draw_round_id: nextRound.id, participant_id: participant.id }))
-    const { error: entriesError } = await supabase.from('draw_entries').insert(entries)
-    if (entriesError) {
-      setError(entriesError.message)
-      setUpdatingOutput(false)
-      return
+    for (let offset = 0; offset < refreshedPool.length; offset += 400) {
+      const batch = refreshedPool.slice(offset, offset + 400).map((participant) => ({ draw_round_id: nextRound.id, participant_id: participant.id }))
+      const { error: entriesError } = await supabase.from('draw_entries').insert(batch)
+      if (entriesError) {
+        await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', nextRound.id)
+        setError(`Could not load the complete draw pool. The new round was closed safely: ${entriesError.message}`)
+        setUpdatingOutput(false)
+        return
+      }
     }
     const { error: activateError } = await supabase.from('draw_rounds')
       .update({ status: 'drawing', updated_at: new Date().toISOString() })
@@ -535,7 +553,7 @@ export default function LuckyDrawManagement() {
         .eq('status', 'drawing')
       if (closeError) setError(`Pool refreshed, but the previous session could not be closed: ${closeError.message}`)
     }
-    setPrizeCategoryId(category.id)
+    setPrizeCategoryId(activeCategoryId)
     setRoundId(nextRound.id)
     setPool(refreshedPool)
     setExcludedIds(new Set())
