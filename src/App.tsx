@@ -157,7 +157,7 @@ function App() {
       if (payload && typeof payload === 'object' && 'event_name' in payload && typeof payload.event_name === 'string' && payload.event_name.trim()) {
         setEventName(payload.event_name.trim())
       }
-      const queryError = total.error ?? students.error ?? staff.error ?? checkedIn.error ?? studentsCheckedIn.error ?? staffCheckedIn.error ?? recent.error
+      const queryError = total.error ?? students.error ?? staff.error ?? checkedIn.error ?? studentsCheckedIn.error ?? staffCheckedIn.error ?? recent.error ?? recentWinners.error
       if (queryError) {
         setDashboardError(queryError.message)
         setDashboardMetrics(null)
