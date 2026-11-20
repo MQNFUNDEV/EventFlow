@@ -1,6 +1,6 @@
 # EventFlow — Current Scope & Development Roadmap
 
-**Last updated:** 2026-11-20 (Malaysia time)  
+**Last updated:** 2026-11-20 (Malaysia time; after PR #9 cleanup)  
 **Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
 **Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
 
@@ -47,7 +47,7 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 
 - [x] Supabase project is active and remains the shared backend.
 - [x] Staff authentication remains in scope.
-- [x] Existing Edge Functions inspected: `admin-management` v3 active (`verify_jwt: true`), `send-invitations` v2 active (`verify_jwt: true`), `guest-pass` v1 active (`verify_jwt: false`).
+- [x] `admin-management` v4 active (`verify_jwt: true`); `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers (`verify_jwt: true`).
 - [x] No Vercel/Cloudflare/public URL setup required.
 - [x] No Resend/API key/sender setup or mass-email work required.
 - [x] No public attendee URL or QR-pass deployment required.
@@ -77,9 +77,9 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 **Removed from Phase 3:** walk-in registration URL, QR generation/display, QR-based registration/check-in. Do not reintroduce these.
 
 ### Phase 4 — Supabase security & database hardening
-**PARTIALLY COMPLETE — production changes applied and verified; owner follow-up remains.**
+**PARTIALLY COMPLETE — database and application hardening applied; secret-key rotation and role-based verification remain.**
 
-- [ ] Enable Supabase leaked-password protection. Still disabled in Auth Security Advisor; the connected Supabase tools do not expose this Auth setting.
+- [x] Owner accepted leaked-password protection as unavailable on the current Free plan. It remains disabled; no plan upgrade was made or recommended solely to enable it.
 - [x] Remove four exactly redundant SELECT policies from `draw_entries`, `draw_rounds`, `prize_categories`, and `push_subscriptions`. Their equivalent `ALL` policies retain the same authenticated admin predicate.
 - [x] Preserve non-duplicate policies on `admin_roles` (self-or-superadmin SELECT is broader than superadmin-only ALL) and `participants` (admin and front-desk INSERT predicates intentionally differ).
 - [x] Add and verify indexes for `development_log_entries.created_by`, `development_log_sessions.created_by`, and `participant_invitations.updated_by`.
@@ -97,7 +97,9 @@ Production migrations applied:
 Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
 
 ### Phase 5 — Operator workflow testing
-**PENDING — cleanup build/CI is being run; live role-based and operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
+**PENDING — CI passed after cleanup; authenticated role-based and live operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
+
+- [x] Cleanup PR #9 merged as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; GitHub Actions run #24 passed `npm ci`, `npm run lint`, and `npm run build`.
 
 - [ ] Verify staff sign-in, session handling, and role-based access for Super Admin, Event Admin, and Front Desk.
 - [ ] Test participant create/import/edit/search workflows.
@@ -127,6 +129,9 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 
 ## Current known production notes
 
+- Cleanup PR #9 merged into `main` as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; CI run #24 passed.
+- Deployed `guest-pass` and `send-invitations` are retained as inactive-by-design 410 handlers; JWT verification is enabled on both. They do not query or mutate data or send email.
+- `admin-management` is deployed at v4 with the 14–128 character application password validation for first-login password changes.
 - Supabase project: `MaqnaEventFlow` (`wypjyzpiunkrrpodylpo`), Singapore region, currently `ACTIVE_HEALTHY`.
 - Edge Functions and JWT settings are listed under Phase 2 above.
 - Security Advisor still reports leaked-password protection disabled. The four redundant SELECT-policy warnings were reduced; two remaining warnings are intentional role-specific policies. The three missing-FK-index findings were addressed. The 22 unused-index notices are informational and must not be cleaned up without usage review.
