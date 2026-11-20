@@ -318,7 +318,11 @@ export default function EventSettings() {
       return
     }
     try {
-      const removedIds = DEFAULT_CATEGORIES.filter((category) => !cleaned.some((item) => item.id === category.id)).map((category) => category.id)
+      const { data: latestSettings, error: settingsError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
+      if (settingsError) throw settingsError
+      const latestPayload = latestSettings?.payload && typeof latestSettings.payload === 'object' ? latestSettings.payload as EventPayload : {}
+      const previousCategories = Array.isArray(latestPayload.participant_categories) ? latestPayload.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : DEFAULT_CATEGORIES
+      const removedIds = previousCategories.filter((category) => !cleaned.some((item) => item.id === category.id)).map((category) => category.id)
       if (removedIds.length) {
         const { count, error: countError } = await supabase.from('participants').select('id', { count: 'exact', head: true }).in('category', removedIds)
         if (countError) throw countError
