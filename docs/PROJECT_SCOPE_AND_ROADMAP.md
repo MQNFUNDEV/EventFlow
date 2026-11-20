@@ -86,7 +86,7 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 - [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
 - [x] Remove active application references and deploy retired 410 Edge Function handlers with JWT verification enabled.
 - [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
-- [x] Enforce a 14–128 character app-level password policy (uppercase, lowercase, number, symbol, no spaces) for password reset and first-login changes, with matching server-side Edge Function validation.
+- [x] Enforce a 14–72 character app-level password policy (uppercase, lowercase, number, symbol, no spaces) for password reset and first-login changes, with matching server-side Edge Function validation.
 - [ ] Re-run role-based access tests after RLS changes.
 
 Production migrations applied:
@@ -131,7 +131,7 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 
 - Cleanup PR #9 merged into `main` as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; CI run #24 passed.
 - Deployed `guest-pass` and `send-invitations` are retained as inactive-by-design 410 handlers; JWT verification is enabled on both. They do not query or mutate data or send email.
-- `admin-management` is deployed at v4 with the 14–128 character application password validation for first-login password changes.
+- `admin-management` is deployed at v4 with the 14–72 character application password validation for first-login password changes.
 - Supabase project: `MaqnaEventFlow` (`wypjyzpiunkrrpodylpo`), Singapore region, currently `ACTIVE_HEALTHY`.
 - Edge Functions and JWT settings are listed under Phase 2 above.
 - Security Advisor still reports leaked-password protection disabled. The four redundant SELECT-policy warnings were reduced; two remaining warnings are intentional role-specific policies. The three missing-FK-index findings were addressed. The 22 unused-index notices are informational and must not be cleaned up without usage review.
