@@ -240,7 +240,7 @@ export default function LedDisplayOutput() {
           {!welcomePosterIsFullHd && (generatedWelcomeFill ? <img className="led-generated-fill" src={generatedWelcomeFill} alt="" /> : <img className="led-welcome-backdrop" src={welcomePoster} alt="" />)}
           <img className="led-welcome-poster" src={welcomePoster} alt="Event key visual" />
         </div>
-      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} />      </> : <>
+      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} /> : <>
         <div className="led-attendance-heading"><div className="led-output-brand">{eventDetails.name.toUpperCase()}</div><h1>Our Guests Are Here</h1><p>{attendees.length} checked in and counting</p></div>
         {attendees.length ? <div className="led-credits-window" aria-label="List of checked-in guests">
           <div className="led-credits-track">{repeatedAttendees.map((guest, index) => <div className="led-credit-name" key={`${guest.participant_id}-${index}`}><strong>{guest.participant.full_name}</strong><span>{guest.participant.category}</span></div>)}</div>
