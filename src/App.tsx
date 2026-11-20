@@ -468,7 +468,6 @@ function App() {
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">{displayRole.toUpperCase()} ACCESS</div>
               <h1>{activePage}</h1>
               <p>{pageDescription[activePage]}</p>
             </div>
