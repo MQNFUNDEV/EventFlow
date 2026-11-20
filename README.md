@@ -2,38 +2,38 @@
 
 EventFlow is a staff-only event operations dashboard built with React, TypeScript, Vite, and Supabase.
 
-## Production deployment status
+## Hosting
 
-**The operator dashboard is not currently deployed to a public web host. There is no verified live dashboard URL yet.**
+- Frontend target: https://mqnfundev.github.io/EventFlow/
+- Frontend hosting: GitHub Pages (public site).
+- Backend: Supabase Auth, Postgres, Realtime, and Edge Functions.
+- Staff access is enforced by Supabase authentication, application authorization, and database RLS. A public frontend does not make staff data or operations public.
 
-- The repository is the source of truth for application code: [Maqna-Eventflow](https://github.com/MQNFUNDEV/Maqna-Eventflow).
-- Supabase is the backend for authentication, database, realtime features, and Edge Functions.
-- The current GitHub Actions workflow runs dependency installation, audit reporting, linting, and a production build. It does **not** publish the frontend.
-- The repository is private and GitHub Pages has not been configured. Do not use a guessed `github.io` URL or a localhost address as the production dashboard.
+The URL above is the intended permanent URL. It is not considered live until the GitHub Pages deployment succeeds and the site is verified.
 
-A hosted frontend is still required: Supabase provides the backend/API but the current project setup does not publish the built React frontend. GitHub Pages is available for private repositories on eligible paid GitHub plans; on GitHub Free, the source repository must be public. GitHub Pages sites are publicly reachable, so staff authentication must remain enforced by Supabase and the application. See [GitHub Pages availability](https://docs.github.com/en/pages/quickstart).
+## GitHub Pages setup
 
-**Live dashboard:** Not deployed — URL pending hosting configuration and successful deployment verification.
+The repository owner must enable GitHub Pages with **Settings → Pages → Build and deployment → Source → GitHub Actions**.
+
+The deployment workflow also requires these repository Actions variables:
+
+- `VITE_SUPABASE_URL`: the Supabase project URL.
+- `VITE_SUPABASE_ANON_KEY`: the Supabase publishable/anon key. This is a browser-visible public key; never put a service-role or secret key here.
+
+The workflow builds the frontend with the `/EventFlow/` Vite base path and deploys the `dist` directory.
 
 ## Technology
 
 - React + TypeScript + Vite
 - Supabase Auth, Postgres, Realtime, and Edge Functions
-- GitHub Actions for CI validation
+- GitHub Actions for CI and Pages deployment
 
 ## Operator scope
 
-EventFlow is an internal staff tool. It supports staff sign-in and role-based access, participant management, manual attendance check-in, LED display control, and Lucky Draw operations.
+EventFlow is an internal staff tool for authenticated staff. Its intended scope includes participant management, manual attendance check-in, LED display control, and Lucky Draw operations.
 
 Public attendee registration, QR passes/scanning, invitation-email workflows, and public attendee portals are out of scope.
 
-## Development and validation
+## Validation
 
-CI currently runs:
-
-- `npm ci`
-- Full and non-optional npm audit reports
-- `npm run lint`
-- `npm run build`
-
-A successful CI build verifies code quality and build output; it does not mean the frontend has been deployed.
+The CI workflow runs dependency installation, npm audit reporting, ESLint, and a production build. A successful build alone does not prove that the deployed application or live operator workflows work; those require deployment and authenticated end-to-end tests.
