@@ -112,7 +112,7 @@ export default function ParticipantManagement({
 
   function openAddForm() {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, category: categories[0]?.id ?? 'staff' })
     setFormOpen(true)
     setError('')
     setMessage('')
