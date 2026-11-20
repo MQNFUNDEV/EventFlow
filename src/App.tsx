@@ -474,17 +474,7 @@ function App() {
               <p>{pageDescription[activePage]}</p>
             </div>
 
-            {activePage === 'Participants' && canManageParticipants && (
-              <div className="heading-actions">
-                <button
-                  className="button-primary"
-                  onClick={() => window.dispatchEvent(new CustomEvent('eventflow:open-add-participant'))}
-                >
-                  <Plus size={18} />
-                  Add Participant
-                </button>
-              </div>
-            )}
+
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
