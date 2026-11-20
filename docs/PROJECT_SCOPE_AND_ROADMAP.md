@@ -4,7 +4,7 @@
 **Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
 **Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
 
-> **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised scope below. Gemini is currently working on Phase 3. Preserve Gemini's in-progress work and branch; do not overwrite, reset, or rebase another agent's uncommitted work. This file and the matching GitHub issue are the current source of truth.
+> **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised internal-operator scope below. Gemini has stopped work. Its original Phase 3 branch and commit are preserved; the approved operator-only implementation was integrated through PR #6. Do not reintroduce the cancelled QR/public-registration scope. This file and the matching GitHub issue are the current source of truth.
 
 ## Product scope (confirmed by owner)
 
@@ -54,18 +54,21 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [ ] Later cleanup: review and retire deprecated `guest-pass` and `send-invitations` functions only after code-reference/dependency review. Do not block current operator work on this cleanup.
 
 ### Phase 3 — LED / on-stage operator features
-**IN PROGRESS — Gemini PR #4 is open; implementation is not accepted yet. Preserve its branch and commits.**
+**IMPLEMENTATION MERGED; automated CI passed. Live LED smoke test remains pending.** PR #6 merged into `main` as `4eba170a51fbeeafbbc4d192902640a9f144e8f0`.
 
-- [x] Initial implementation includes blackout scene control/output.
-- [x] Initial implementation includes automatic application of theme colors, welcome artwork, and scene backgrounds.
-- [x] Initial implementation includes Realtime display-state subscription with polling fallback.
-- [ ] Remove walk-in registration URL, QR generation/display, and related UI/dependencies from PR #4; these are explicitly cancelled.
-- [ ] Reconcile Gemini branch with latest `main` without overwriting its work.
-- [ ] Validate operator control and display synchronization after QR removal.
+- [x] Blackout scene control and pure-black output stage.
+- [x] Automatic application of theme colors, welcome artwork/backgrounds, and scene backgrounds.
+- [x] Realtime subscriptions for LED control and output, with a 3-second polling fallback on the LED output.
+- [x] `assets_updated_at` cache-version updates when welcome artwork and scene backgrounds are uploaded.
+- [x] Remove walk-in registration URL, QR generation/display, and QR-specific UI from the Phase 3 implementation.
+- [x] Keep Manual Check-in as a non-QR informational display for the staffed check-in desk.
+- [x] Align the migration file to the production-applied version `20261120031308`; production migration history confirms this version is already applied.
+- [x] GitHub Actions run #11 passed `npm ci`, `npm run lint`, and `npm run build` on the Phase 3 branch before merge.
+- [ ] Perform a live two-screen smoke test: change LED scene from the operator control, verify output follows, enable blackout, then update theme/artwork/background settings and verify they apply without a browser refresh.
 
-The production migration history already contains `enable_realtime_display_state` as version `20261120031308`. Gemini's branch migration file uses a different timestamp (`20261120000000`); do not apply it again. Compare its SQL to production before accepting the branch.
+Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-onstage-features` and original commit `5079bca38ca01530a001b640f8797a98d8bf767a` were preserved. The corrected implementation is in PR #6 / merge commit above.
 
-**Removed from Phase 3:** QR/manual registration URL, walk-in QR generation, SAMPLE QR replacement, participant QR display. Do not implement these.
+**Removed from Phase 3:** walk-in registration URL, QR generation/display, QR-based registration/check-in. Do not reintroduce these.
 
 ### Phase 4 — Supabase security & database hardening
 **PARTIALLY COMPLETE — production changes applied and verified; owner follow-up remains.**
