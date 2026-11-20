@@ -682,9 +682,7 @@ export default function ParticipantManagement({
                       <span
                         className={`participant-category ${participant.category}`}
                       >
-                        {categoryName(categories, participant.category)
-                          ? 'Student'
-                          : 'Staff'}
+                        {categoryName(categories, participant.category)}
                       </span>
                     </td>
 
