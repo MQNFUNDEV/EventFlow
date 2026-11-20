@@ -93,7 +93,18 @@ export default function ParticipantManagement({
     setLoading(false)
   }, [])
 
-  useEffect(() => { void loadParticipants() }, [loadParticipants])
+  useEffect(() => {
+    let cancelled = false
+    async function initialLoad() {
+      const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
+      if (cancelled) return
+      if (loadError) setError(loadError.message)
+      else setParticipants((data ?? []) as Participant[])
+      setLoading(false)
+    }
+    void initialLoad()
+    return () => { cancelled = true }
+  }, [])
 
   function openAddForm() {
     setEditingId(null)
