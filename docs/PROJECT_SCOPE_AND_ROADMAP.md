@@ -54,26 +54,38 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [ ] Later cleanup: review and retire deprecated `guest-pass` and `send-invitations` functions only after code-reference/dependency review. Do not block current operator work on this cleanup.
 
 ### Phase 3 — LED / on-stage operator features
-**IN PROGRESS — Gemini is currently working on this phase. Preserve its current work.**
+**IN PROGRESS — Gemini PR #4 is open; implementation is not accepted yet. Preserve its branch and commits.**
 
-- [ ] Add a `blackout` scene option to `LedDisplayControl.tsx` and `LedDisplayOutput.tsx`.
-- [ ] Ensure LED output automatically applies configured theme colors, welcome poster, and scene backgrounds (Realtime / change detection as appropriate).
-- [ ] Validate operator control and display synchronization.
+- [x] Initial implementation includes blackout scene control/output.
+- [x] Initial implementation includes automatic application of theme colors, welcome artwork, and scene backgrounds.
+- [x] Initial implementation includes Realtime display-state subscription with polling fallback.
+- [ ] Remove walk-in registration URL, QR generation/display, and related UI/dependencies from PR #4; these are explicitly cancelled.
+- [ ] Reconcile Gemini branch with latest `main` without overwriting its work.
+- [ ] Validate operator control and display synchronization after QR removal.
+
+The production migration history already contains `enable_realtime_display_state` as version `20261120031308`. Gemini's branch migration file uses a different timestamp (`20261120000000`); do not apply it again. Compare its SQL to production before accepting the branch.
 
 **Removed from Phase 3:** QR/manual registration URL, walk-in QR generation, SAMPLE QR replacement, participant QR display. Do not implement these.
 
 ### Phase 4 — Supabase security & database hardening
-**PENDING.**
+**PARTIALLY COMPLETE — production changes applied and verified; owner follow-up remains.**
 
-- [ ] Enable Supabase leaked-password protection.
-- [ ] Consolidate duplicate permissive RLS policies after inspecting the exact effective policies and preserving intended access.
-- [ ] Add the three missing foreign-key indexes: `development_log_entries.created_by`, `development_log_sessions.created_by`, `participant_invitations.updated_by`.
-- [ ] Rotate/revoke any Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not remove it from Git history.
+- [ ] Enable Supabase leaked-password protection. Still disabled in Auth Security Advisor; the connected Supabase tools do not expose this Auth setting.
+- [x] Remove four exactly redundant SELECT policies from `draw_entries`, `draw_rounds`, `prize_categories`, and `push_subscriptions`. Their equivalent `ALL` policies retain the same authenticated admin predicate.
+- [x] Preserve non-duplicate policies on `admin_roles` (self-or-superadmin SELECT is broader than superadmin-only ALL) and `participants` (admin and front-desk INSERT predicates intentionally differ).
+- [x] Add and verify indexes for `development_log_entries.created_by`, `development_log_sessions.created_by`, and `participant_invitations.updated_by`.
+- [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
 - [ ] Review and retire deprecated invitation / guest-pass code and deployed functions safely.
-- [ ] Preserve production records; no reset or cleanup of test data without explicit owner approval and a verified backup.
+- [ ] Re-run role-based access tests after RLS changes.
+
+Production migrations applied:
+- `20261120033919_add_missing_foreign_key_indexes`
+- `20261120033944_remove_redundant_select_policies`
+
+Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
 
 ### Phase 5 — Operator workflow testing
-**PENDING.** No public-domain, email, QR, or desktop-package testing.
+**PENDING — no end-to-end operator workflow tests have been completed yet.** No public-domain, email, QR, or desktop-package testing.
 
 - [ ] Verify staff sign-in, session handling, and role-based access for Super Admin, Event Admin, and Front Desk.
 - [ ] Test participant create/import/edit/search workflows.
@@ -81,6 +93,7 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [ ] Test LED control, blackout, settings application, and multi-screen synchronization.
 - [ ] Test Lucky Draw setup, eligibility, drawing, winner records, and display synchronization.
 - [ ] Run regression checks and `npm run lint` / `npm run build` after changes.
+- [ ] Record test evidence for each role and operator workflow; a lint/build pass alone does not count as functional verification.
 
 ### Phase 6 — Pre-event readiness
 **PENDING.**
@@ -104,5 +117,6 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 
 - Supabase project: `MaqnaEventFlow` (`wypjyzpiunkrrpodylpo`), Singapore region, currently `ACTIVE_HEALTHY`.
 - Edge Functions and JWT settings are listed under Phase 2 above.
-- Security Advisor previously reported leaked-password protection disabled. RLS duplicate-policy and missing-index findings remain Phase 4 work.
+- Security Advisor still reports leaked-password protection disabled. The four redundant SELECT-policy warnings were reduced; two remaining warnings are intentional role-specific policies. The three missing-FK-index findings were addressed. The 22 unused-index notices are informational and must not be cleaned up without usage review.
+- The owner confirmed the Free plan has no project backups and directed work to proceed without one. Treat production changes as elevated risk; no destructive data cleanup or reset.
 - Existing test-data counts were previously observed; treat them as live production data, not disposable fixtures.
