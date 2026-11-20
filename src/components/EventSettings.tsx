@@ -330,6 +330,9 @@ export default function EventSettings() {
         const { count, error: countError } = await supabase.from('participants').select('id', { count: 'exact', head: true }).in('category', removedIds)
         if (countError) throw countError
         if ((count ?? 0) > 0) throw new Error('A category cannot be removed while participants are assigned to it. Reassign those participants first.')
+        const { count: drawCount, error: drawCountError } = await supabase.from('draw_rounds').select('id', { count: 'exact', head: true }).in('pool_type', removedIds)
+        if (drawCountError) throw drawCountError
+        if ((drawCount ?? 0) > 0) throw new Error('A category used by an existing Lucky Draw session cannot be removed. Rename it instead to preserve the draw history.')
       }
       await savePayloadPatch({ participant_categories: cleaned })
       setParticipantCategories(cleaned)
