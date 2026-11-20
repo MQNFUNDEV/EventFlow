@@ -88,6 +88,7 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 - [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
 - [x] Enforce at least 14 characters, uppercase, lowercase, number, symbol, no spaces, and a maximum of 72 UTF-8 bytes for password reset and first-login changes, with matching server-side Edge Function validation in `admin-management` v5.
 - [x] Remove unused `html5-qrcode` and `qrcode` packages after confirming no active application imports remain (PR #11).
+- [x] Add full-tree and non-optional npm audit reporting to CI (PR #14/#15).
 - [ ] Re-run role-based access tests after RLS changes.
 
 Production migrations applied:
@@ -131,6 +132,8 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 7. Keep GitHub, production Supabase, and Hive Mind status synchronized after each meaningful milestone.
 
 ## Current known production notes
+
+- CI npm audit: 4 findings in the optional canvas/native-binary dependency chain; excluding optional dependencies reports 0. Keep this as an open dependency-hardening item pending a safe Lucky Draw compatibility review.
 
 - Cleanup PR #9 merged into `main` as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; CI run #24 passed.
 - Deployed `admin-management` v5 enforces the app password policy for reset and first-login changes. `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers with JWT verification enabled; they do not query or mutate data or send email.
