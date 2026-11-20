@@ -30,7 +30,7 @@ jobs:
       - name: Build production frontend
         env:
           VITE_SUPABASE_URL: https://wypjyzpiunkrrpodylpo.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_ADQHYjzn8dDI6c1bb11ZxA_6iG2ndA2
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ADQHYjzn8dDI6c1bb11ZxA_6iG2ndA2
         run: npm run build
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
