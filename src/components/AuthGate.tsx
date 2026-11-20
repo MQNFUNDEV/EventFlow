@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 const allowedRoles = ['super_admin', 'event_admin', 'front_desk']
 
 function meetsPasswordPolicy(password: string) {
-  return password.length >= 14 && password.length <= 72 &&
+  return password.length >= 14 && new TextEncoder().encode(password).length <= 72 &&
     /[a-z]/.test(password) && /[A-Z]/.test(password) &&
     /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) &&
     !/\s/.test(password)
@@ -194,7 +194,7 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
     setError('')
 
     if (!meetsPasswordPolicy(password)) {
-      setError('Use 14–72 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
+      setError('Use 14 or more characters, up to 72 UTF-8 bytes, with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
       return
     }
 
@@ -307,7 +307,7 @@ function FirstLoginPasswordForm() {
     setSuccess('')
 
     if (!meetsPasswordPolicy(password)) {
-      setError('Use 14–72 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
+      setError('Use 14 or more characters, up to 72 UTF-8 bytes, with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
       return
     }
 
