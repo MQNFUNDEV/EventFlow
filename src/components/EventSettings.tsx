@@ -411,7 +411,7 @@ export default function EventSettings() {
   }
 
   return <main className="event-settings-page">
-    <div className="event-settings-heading"><button className="button-secondary" onClick={() => void loadSettings()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></div>
+    <div className="event-settings-heading"><button className="button-secondary" onClick={() => window.location.reload()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></div>
     <nav className="event-settings-tabs" aria-label="Settings sections" role="tablist">
       <button type="button" role="tab" aria-selected={settingsTab === 'led'} className={settingsTab === 'led' ? 'active' : ''} onClick={() => { setSettingsTab('led'); setError(''); setMessage('') }}>LED Settings</button>
       <button type="button" role="tab" aria-selected={settingsTab === 'event'} className={settingsTab === 'event' ? 'active' : ''} onClick={() => { setSettingsTab('event'); setError(''); setMessage('') }}>Event Settings</button>
