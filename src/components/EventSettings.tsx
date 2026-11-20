@@ -163,6 +163,7 @@ async function compressUploadedKV(file: File) {
 }
 
 export default function EventSettings() {
+  const [settingsTab, setSettingsTab] = useState<'led' | 'event'>('led')
   const [eventName, setEventName] = useState('Johor Meetup X')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
@@ -272,7 +273,7 @@ export default function EventSettings() {
     return () => { cancelled = true }
   }, [savePayloadPatch])
 
-  async function saveSettings() {
+  async function saveEventDetails() {
     setSaving(true)
     setError('')
     setMessage('')
@@ -280,12 +281,22 @@ export default function EventSettings() {
       event_name: eventName.trim() || 'Johor Meetup X',
       event_date: eventDate.trim(),
       event_location: eventLocation.trim(),
-      theme_colors: themeColors,
     }
     try {
       await savePayloadPatch(eventPatch)
-      setMessage('Event details saved. Updated event details are available on the live LED output.')
+      setMessage('Event details saved and synced to the dashboard and LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save event details.') }
+    setSaving(false)
+  }
+
+  async function saveThemeColors() {
+    setSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      await savePayloadPatch({ theme_colors: themeColors })
+      setMessage('LED theme colors saved and synced to the display.')
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save LED theme colors.') }
     setSaving(false)
   }
 
