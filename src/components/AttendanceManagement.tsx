@@ -122,7 +122,7 @@ export default function AttendanceManagement() {
       ['Participant code', 'Name', 'Category', 'Email', 'Phone', 'Attendance status', 'Check-in time (MYT)', 'Method'],
       ...participants.map((participant) => {
         const checkIn = checkInsByParticipant.get(participant.id)
-        return [participant.participant_code, participant.full_name, participant.category, participant.email ?? '', participant.phone ?? '', checkIn ? 'Checked in' : 'Not checked in', checkIn ? new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(checkIn.checked_in_at)) : '', checkIn?.check_in_method ?? '']
+        return [participant.participant_code, participant.full_name, categoryName(categories, participant.category), participant.email ?? '', participant.phone ?? '', checkIn ? 'Checked in' : 'Not checked in', checkIn ? new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(checkIn.checked_in_at)) : '', checkIn?.check_in_method ?? '']
       }),
     ]
     const csv = `\uFEFF${rows.map((row) => row.map((cell) => csvCell(String(cell))).join(',')).join('\r\n')}`
