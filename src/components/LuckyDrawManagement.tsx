@@ -59,6 +59,8 @@ export default function LuckyDrawManagement() {
   const restHandlerRef = useRef<(event: WheelRestEvent) => void>(() => undefined)
   const roundRef = useRef<string | null>(null)
   const categoryRef = useRef<string | null>(null)
+  const spinLockRef = useRef(false)
+  const winnerActionLockRef = useRef(false)
 
   const eligiblePool = useMemo(() => pool.filter((participant) => !excludedIds.has(participant.id)), [pool, excludedIds])
 
@@ -355,7 +357,8 @@ export default function LuckyDrawManagement() {
   const spinCandidates = useCallback(async (candidates: Participant[]) => {
     const activeRoundId = roundRef.current
     const activeCategoryId = categoryRef.current
-    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinning || candidates.length === 0) return
+    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinning || spinLockRef.current || candidates.length === 0) return
+    spinLockRef.current = true
     const index = pickIndex(candidates.length)
     const chosen = candidates[index]
     const { data, error: insertError } = await supabase.from('draw_winners').insert({
@@ -366,6 +369,7 @@ export default function LuckyDrawManagement() {
       notes: 'Awaiting operator confirmation',
     }).select('id').single()
     if (insertError || !data) {
+      spinLockRef.current = false
       setError(insertError?.message ?? 'This guest could not be selected. Refresh the draw pool and try again.')
       return
     }
@@ -376,6 +380,7 @@ export default function LuckyDrawManagement() {
     setSpinning(true)
     updateWheelItems(candidates)
     restHandlerRef.current = (event) => {
+      spinLockRef.current = false
       setSpinning(false)
       const winner = eligibleRef.current[event.currentIndex]
       if (!winner) return
@@ -393,46 +398,68 @@ export default function LuckyDrawManagement() {
   }
 
   async function acceptWinner() {
-    if (!pendingWinner || !pendingWinnerRowId) return
+    if (!pendingWinner || !pendingWinnerRowId || winnerActionLockRef.current) return
+    winnerActionLockRef.current = true
     setSavingWinner(true)
-    const winnerName = pendingWinner.full_name
-    const remaining = eligiblePool.filter((participant) => participant.id !== pendingWinner.id)
-    const { error: updateError } = await supabase.from('draw_winners').update({ notes: 'Confirmed by operator' }).eq('id', pendingWinnerRowId)
-    if (updateError) setError(updateError.message)
-    else {
+    try {
+      const winnerName = pendingWinner.full_name
+      const remaining = eligiblePool.filter((participant) => participant.id !== pendingWinner.id)
+      const { error: updateError } = await supabase.from('draw_winners').update({ notes: 'Confirmed by operator' }).eq('id', pendingWinnerRowId)
+      if (updateError) {
+        setError(updateError.message)
+        return
+      }
       setExcludedIds((current) => new Set([...current, pendingWinner.id]))
       setPendingWinner(null)
       setPendingWinnerRowId(null)
       setMessage(`${winnerName} confirmed and removed from the draw pool.`)
-      if (!remaining.length) await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
+      if (!remaining.length) {
+        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
+        if (roundError) setError(`Winner confirmed, but the draw round could not be closed: ${roundError.message}`)
+      }
       await refreshWinnerHistory()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to confirm this winner.')
+    } finally {
+      winnerActionLockRef.current = false
+      setSavingWinner(false)
     }
-    setSavingWinner(false)
   }
 
   async function skipWinner() {
-    if (!pendingWinner || !pendingWinnerRowId) return
+    if (!pendingWinner || !pendingWinnerRowId || winnerActionLockRef.current) return
+    winnerActionLockRef.current = true
     setSavingWinner(true)
-    const { data: authData } = await supabase.auth.getUser()
-    const { error: updateError } = await supabase.from('draw_winners').update({ status: 'skipped', skipped_at: new Date().toISOString(), skipped_by: authData.user?.id ?? null, notes: 'Skipped by operator' }).eq('id', pendingWinnerRowId)
-    if (updateError) {
-      setError(updateError.message)
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+      if (authError || !authData.user) {
+        setError(authError?.message ?? 'Sign in again before skipping this winner.')
+        return
+      }
+      const { error: updateError } = await supabase.from('draw_winners').update({ status: 'skipped', skipped_at: new Date().toISOString(), skipped_by: authData.user.id, notes: 'Skipped by operator' }).eq('id', pendingWinnerRowId)
+      if (updateError) {
+        setError(updateError.message)
+        return
+      }
+      const skippedId = pendingWinner.id
+      const remaining = eligiblePool.filter((participant) => participant.id !== skippedId)
+      setExcludedIds((current) => new Set([...current, skippedId]))
+      setPendingWinner(null)
+      setPendingWinnerRowId(null)
+      await refreshWinnerHistory()
+      if (!remaining.length) {
+        setMessage('That guest was skipped. There are no more guests in this pool.')
+        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
+        if (roundError) setError(`Guest skipped, but the draw round could not be closed: ${roundError.message}`)
+        return
+      }
+      setMessage('Guest skipped and removed from this pool. Spin again when ready.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Unable to skip this winner.')
+    } finally {
+      winnerActionLockRef.current = false
       setSavingWinner(false)
-      return
     }
-    const skippedId = pendingWinner.id
-    const remaining = eligiblePool.filter((participant) => participant.id !== skippedId)
-    setExcludedIds((current) => new Set([...current, skippedId]))
-    setPendingWinner(null)
-    setPendingWinnerRowId(null)
-    setSavingWinner(false)
-    await refreshWinnerHistory()
-    if (!remaining.length) {
-      setMessage('That guest was skipped. There are no more guests in this pool.')
-      await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
-      return
-    }
-    setMessage('Guest skipped and removed from this pool. Spin again when ready.')
   }
 
   async function reloadHistory() {
