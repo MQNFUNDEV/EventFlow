@@ -4,7 +4,7 @@
 **Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
 **Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
 
-> **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised internal-operator scope below. Gemini has stopped work. Its original Phase 3 branch and commit are preserved; the approved operator-only implementation was integrated through PR #6. Do not reintroduce the cancelled QR/public-registration scope. This file and the matching GitHub issue are the current source of truth.
+> **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised internal-operator scope below. Gemini has stopped work. Its original Phase 3 branch and commit are preserved; the approved operator-only implementation was integrated through PR #6 and the Attendance QR-scanner scope correction was merged through PR #7. Do not reintroduce the cancelled QR/public-registration scope. This file and the matching GitHub issue are the current source of truth.
 
 ## Product scope (confirmed by owner)
 
@@ -54,7 +54,7 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [ ] Later cleanup: review and retire deprecated `guest-pass` and `send-invitations` functions only after code-reference/dependency review. Do not block current operator work on this cleanup.
 
 ### Phase 3 — LED / on-stage operator features
-**IMPLEMENTATION MERGED; automated CI passed. Live LED smoke test remains pending.** PR #6 merged into `main` as `4eba170a51fbeeafbbc4d192902640a9f144e8f0`.
+**IMPLEMENTATION AND QR-SCOPE CLEANUP MERGED; automated CI passed. Live LED smoke test remains pending.** PR #6 merged into `main` as `4eba170a51fbeeafbbc4d192902640a9f144e8f0`; Attendance QR-scanner removal merged through PR #7 as `57d833d78a0c027de92206549f9ab7cd3bf38173`.
 
 - [x] Blackout scene control and pure-black output stage.
 - [x] Automatic application of theme colors, welcome artwork/backgrounds, and scene backgrounds.
@@ -62,11 +62,15 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [x] `assets_updated_at` cache-version updates when welcome artwork and scene backgrounds are uploaded.
 - [x] Remove walk-in registration URL, QR generation/display, and QR-specific UI from the Phase 3 implementation.
 - [x] Keep Manual Check-in as a non-QR informational display for the staffed check-in desk.
+- [x] Remove the camera-based QR scanner and QR-token lookup from the Attendance page; rename the Overview action to Manual Check-in.
+- [x] Make all new Attendance-page check-ins explicitly use `check_in_method = 'manual'`.
+- [x] Change the database default for `attendance.check_in_method` to `manual` via migration `20261120051204_set_manual_attendance_default`; historical QR values are retained unchanged.
 - [x] Align the migration file to the production-applied version `20261120031308`; production migration history confirms this version is already applied.
-- [x] GitHub Actions run #11 passed `npm ci`, `npm run lint`, and `npm run build` on the Phase 3 branch before merge.
+- [x] GitHub Actions run #11 passed `npm ci`, `npm run lint`, and `npm run build` on the Phase 3 branch before PR #6 merged.
+- [x] PR #7 CI run #18 passed `npm ci`, `npm run lint`, and `npm run build` before merge.
 - [ ] Perform a live two-screen smoke test: change LED scene from the operator control, verify output follows, enable blackout, then update theme/artwork/background settings and verify they apply without a browser refresh.
 
-Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-onstage-features` and original commit `5079bca38ca01530a001b640f8797a98d8bf767a` were preserved. The corrected implementation is in PR #6 / merge commit above.
+Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-onstage-features` and original commit `5079bca38ca01530a001b640f8797a98d8bf767a` were preserved. Duplicate PR #5 was also closed without merging. The corrected implementation is in PR #6 and the Attendance scope correction is in PR #7.
 
 **Removed from Phase 3:** walk-in registration URL, QR generation/display, QR-based registration/check-in. Do not reintroduce these.
 
@@ -84,6 +88,7 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 Production migrations applied:
 - `20261120033919_add_missing_foreign_key_indexes`
 - `20261120033944_remove_redundant_select_policies`
+- `20261120051204_set_manual_attendance_default`
 
 Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
 
@@ -109,9 +114,9 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 ## Agent coordination / change safety
 
 1. Human owner is the final authority and Super Admin.
-2. Gemini is currently the Phase 3 implementer. Continue from its existing working branch and preserve all uncommitted/in-progress changes.
+2. Gemini has stopped work. Its original Phase 3 branch and commit remain preserved for audit; the accepted Phase 3 implementation is merged through PR #6 and #7. Do not restart or overwrite Gemini's branch.
 3. Other agents must read this roadmap and the current GitHub issue before coding.
-4. Do not make conflicting edits to Gemini-owned Phase 3 files while Gemini is actively changing them. Coordinate by reporting the branch/commit and file list first.
+4. Gemini is no longer actively changing Phase 3 files. Any further changes must use a dedicated branch and pull request, with the human owner remaining the final authority.
 5. Use dedicated branches and pull requests; do not push directly to `main` for feature work.
 6. Do not reset, force-push, deploy functions, apply migrations, or delete production data without reconciliation and explicit owner approval.
 7. Keep GitHub, production Supabase, and Hive Mind status synchronized after each meaningful milestone.
