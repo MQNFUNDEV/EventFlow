@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Monitor, MoveRight, QrCode, RefreshCw, Users as UsersIcon } from 'lucide-react'
+import { Copy, Monitor, MoveRight, Power, RefreshCw, Users as UsersIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './LedDisplay.css'
 
-export type DisplayScene = 'welcome' | 'lucky_draw' | 'attendance' | 'manual_checkin'
+export type DisplayScene = 'welcome' | 'lucky_draw' | 'attendance' | 'blackout'
+
+function mapScene(rawScene: unknown): DisplayScene {
+  if (rawScene === 'blackout') return 'blackout'
+  if (rawScene === 'attendance') return 'attendance'
+  if (rawScene === 'lucky_draw' || rawScene === 'winner_announcement') return 'lucky_draw'
+  return 'welcome'
+}
 
 export default function LedDisplayControl() {
   const [liveScene, setLiveScene] = useState<DisplayScene | null>(null)
@@ -18,7 +25,7 @@ export default function LedDisplayControl() {
     const { data, error: queryError } = await supabase.from('display_state').select('scene').eq('id', 1).maybeSingle()
     if (queryError) setError(queryError.message)
     else if (data?.scene) {
-      const mapped: DisplayScene = data.scene === 'manual_checkin' ? 'manual_checkin' : data.scene === 'attendance' ? 'attendance' : data.scene === 'lucky_draw' || data.scene === 'winner_announcement' ? 'lucky_draw' : 'welcome'
+      const mapped = mapScene(data.scene)
       setLiveScene(mapped)
       setPreviewScene(mapped)
       setError('')
@@ -28,7 +35,20 @@ export default function LedDisplayControl() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadScene() }, 0)
-    return () => window.clearTimeout(timer)
+    const channel = supabase
+      .channel('led-control-display-state')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
+        const nextRow = change.new as { scene?: unknown } | null
+        if (nextRow?.scene) {
+          setLiveScene(mapScene(nextRow.scene))
+        }
+      })
+      .subscribe()
+
+    return () => {
+      window.clearTimeout(timer)
+      void supabase.removeChannel(channel)
+    }
   }, [loadScene])
 
   async function publishPreview() {
@@ -54,13 +74,20 @@ export default function LedDisplayControl() {
     }
   }
 
-  const previewLabel = previewScene === 'welcome' ? 'Welcome Page' : previewScene === 'attendance' ? 'Attendance Roll' : previewScene === 'manual_checkin' ? 'Manual Check-in' : 'Lucky Draw Sessions'
+  const previewLabel = previewScene === 'welcome'
+    ? 'Welcome Page'
+    : previewScene === 'attendance'
+      ? 'Attendance Roll'
+      : previewScene === 'blackout'
+          ? 'Blackout'
+          : 'Lucky Draw Sessions'
+
   const sceneButton = (scene: DisplayScene, title: string, description: string) => {
     const live = liveScene === scene
     const preview = previewScene === scene
     return <button className={`led-scene-button ${live ? 'is-live' : ''} ${preview && !live ? 'is-preview' : ''}`} onClick={() => { setPreviewScene(scene); setMessage(''); setError('') }} disabled={loading || saving} aria-pressed={preview}>
       <span className={`led-live-indicator ${live ? 'is-on-air' : preview ? 'is-preview-label' : ''}`}>{live ? <><span className="led-live-dot" /> LIVE NOW</> : preview ? 'PREVIEW SELECTED' : ''}</span>
-      <span className={`led-scene-icon ${scene === 'lucky_draw' ? 'draw' : scene === 'manual_checkin' ? 'manual' : ''}`}>{scene === 'welcome' ? <Monitor size={34} /> : scene === 'attendance' ? <UsersIcon size={34} /> : scene === 'manual_checkin' ? <QrCode size={34} /> : <span>★</span>}</span>
+      <span className={`led-scene-icon ${scene === 'lucky_draw' ? 'draw' : scene === 'blackout' ? 'blackout' : ''}`}>{scene === 'welcome' ? <Monitor size={34} /> : scene === 'attendance' ? <UsersIcon size={34} /> : scene === 'blackout' ? <Power size={34} /> : <span>★</span>}</span>
       <strong>{title}</strong><small>{description}</small>
     </button>
   }
@@ -80,7 +107,7 @@ export default function LedDisplayControl() {
       {sceneButton('lucky_draw', 'Lucky Draw Sessions', 'Show the draw session on the event display')}
       <div className="led-secondary-scenes">
         {sceneButton('attendance', 'Attendance Roll', 'Scroll through guests who are checked in')}
-        {sceneButton('manual_checkin', 'Manual Check-in', 'Display a QR for walk-in guest registration')}
+        {sceneButton('blackout', 'Blackout', 'Fade the venue LED screen to pure black for stage safety')}
       </div>
     </section>
     {loading && <p className="led-loading">Connecting to the live display…</p>}
