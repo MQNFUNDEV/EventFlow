@@ -580,7 +580,7 @@ function App() {
                         </div>
                         <div className="activity-details">
                           <strong>{activity.type === 'winner' ? `Winner: ${activity.full_name}` : activity.full_name}</strong>
-                          <span>{activity.type === 'winner' ? `${activity.detail} · ${timeAgo(activity.occurred_at)}` : `${activity.category} checked in · ${timeAgo(activity.occurred_at)}`}</span>
+                          <span>{activity.type === 'winner' ? `${activity.detail} · ${timeAgo(activity.occurred_at)}` : `${dashboardMetrics?.categoryStats.find((category) => category.id === activity.category)?.name ?? activity.category} checked in · ${timeAgo(activity.occurred_at)}`}</span>
                         </div>
                         <div className={`activity-check ${activity.type === 'winner' ? 'is-winner' : ''}`}>
                           {activity.type === 'winner' ? <Gift size={16} /> : <CheckCircle2 size={16} />}
