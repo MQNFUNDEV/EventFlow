@@ -5,6 +5,7 @@ import './LuckyDrawMachine.css'
 
 /**
  * EventFlow Lucky Draw — first construction pass.
+ * GitHub Pages deployment verification trigger: 2026-11-21.
  * Scene units are inches. The enclosure is a 10 × 10 × 10 inch acrylic cube.
  * The scene is deliberately limited to the box and its right-side lever.
  */
