@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Download, RefreshCw, Search, Users } from 'lucide-react'
+import { Check, Download, RefreshCw, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './AttendanceManagement.css'
 
