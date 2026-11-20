@@ -20,7 +20,7 @@ export default function LuckyDrawMachine() {
 
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
     // Elevated three-quarter view: above the object, with the right face visible.
-    camera.position.set(15.5, 15.5, 18)
+    camera.position.set(13, 22.8, 13)
     camera.lookAt(0, 4.8, 0)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
