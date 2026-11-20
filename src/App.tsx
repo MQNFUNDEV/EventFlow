@@ -633,7 +633,7 @@ function App() {
                       <ArrowUpRight size={16} />
                     </button>
                     <button onClick={() => navigateToPage('Attendance')}>
-                      <div className="quick-icon green"><ScanLine size={20} /></div>
+                      <div className="quick-icon green"><ClipboardCheck size={20} /></div>
                       <span><strong>Manual Check-in</strong><small>Search for a participant and record arrival</small></span>
                       <ArrowUpRight size={16} />
                     </button>
