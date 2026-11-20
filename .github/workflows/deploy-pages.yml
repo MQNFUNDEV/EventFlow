@@ -27,17 +27,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Validate public Supabase configuration
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-        run: |
-          test -n "$VITE_SUPABASE_URL" || (echo "Missing GitHub repository variable VITE_SUPABASE_URL" && exit 1)
-          test -n "$VITE_SUPABASE_ANON_KEY" || (echo "Missing GitHub repository variable VITE_SUPABASE_ANON_KEY" && exit 1)
       - name: Build production frontend
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: https://wypjyzpiunkrrpodylpo.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_ADQHYjzn8dDI6c1bb11ZxA_6iG2ndA2
         run: npm run build
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
