@@ -4,7 +4,7 @@
 **Repository:** https://github.com/MQNFUNDEV/EventFlow  
 **Production web app:** https://mqnfundev.github.io/EventFlow/  
 **Current application version:** 1.3.1  
-**Production baseline:** `main` at `ce0f6b7f9fe857da8c995dc9c5002d1441897e59`
+**Production baseline:** `main` at `7a048955dd852dba46e482abbb8afc5011fcb46f`
 
 > This document supersedes earlier roadmap status where it conflicts with the current repository, deployment, or owner-approved scope. Treat the production database as live. Do not perform destructive data operations, schema changes, migrations, or Edge Function deployments without inspection, a recovery plan, and the required owner approval.
 
@@ -51,6 +51,7 @@ The legacy invitation table and QR-token column remain in the database for data 
 - LED display controls were consolidated and made more compact.
 - LED settings and event information use separate save paths.
 - Lucky Draw current-session winners are filtered by draw round; reset preserves historical winner records.
+- The Lucky Draw animation prototype received a transparent acrylic hopper, a denser paper pile and additional glass/lever styling. Its animation remains a presentation prototype and is not wired to select or confirm real winners.
 - Duplicate inner headings and redundant access banners were removed from Settings, LED Display, Admin Management, Attendance and Development Log.
 - Relevant refresh/export controls were retained.
 
