@@ -453,4 +453,4 @@ export default function EventSettings() {
       <button className="button-primary" onClick={() => void saveEventDetails()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save event details</>}</button>
     </section>}
   </main>
-}}
+}
