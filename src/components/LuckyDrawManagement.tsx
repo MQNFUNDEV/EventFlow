@@ -61,18 +61,23 @@ export default function LuckyDrawManagement() {
 
   const restoreActiveRound = useCallback(async () => {
     setLoading(true)
-    const { data: activeRound, error: roundError } = await supabase
+    const { data: activeRounds, error: roundError } = await supabase
       .from('draw_rounds')
       .select('id, name, pool_type, prize_category_id')
       .eq('status', 'drawing')
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .limit(2)
     if (roundError) {
       setError(roundError.message)
       setLoading(false)
       return
     }
+    if ((activeRounds ?? []).length > 1) {
+      setError('EventFlow found more than one active Lucky Draw session. Drawing is paused to protect the results. Contact an administrator before continuing.')
+      setLoading(false)
+      return
+    }
+    const activeRound = activeRounds?.[0]
     if (!activeRound) {
       setLoading(false)
       return
@@ -302,13 +307,6 @@ export default function LuckyDrawManagement() {
     // Prior winners remain in the historical round and must not be excluded here.
     const alreadyDrawn = new Set<string>()
     const available = categoryPool
-    if (!available.length) {
-      setPool(categoryPool)
-      setExcludedIds(alreadyDrawn)
-      setError('All checked-in guests in this pool have already been selected or skipped in a previous draw.')
-      setLoading(false)
-      return
-    }
 
     const round = await supabase.from('draw_rounds').insert({
       prize_category_id: category.id,
@@ -443,12 +441,14 @@ export default function LuckyDrawManagement() {
   async function startNewSession() {
     if (!roundId) return
     setLoading(true)
-    const { error: closeError } = await supabase.from('draw_rounds')
+    const { data: closedRound, error: closeError } = await supabase.from('draw_rounds')
       .update({ status: 'completed', updated_at: new Date().toISOString() })
       .eq('id', roundId)
       .eq('status', 'drawing')
-    if (closeError) {
-      setError(closeError.message)
+      .select('id')
+      .maybeSingle()
+    if (closeError || !closedRound) {
+      setError(closeError?.message ?? 'This draw session is no longer active. Refresh the page to load the current session safely.')
       setLoading(false)
       return
     }
@@ -620,14 +620,14 @@ export default function LuckyDrawManagement() {
         <div className="lucky-draw-controls">
           {pendingWinner ? <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{pendingWinner.category} · {pendingWinner.participant_code}</span></div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>Press spin to pick a checked-in guest.</span></div>}
           <button className="lucky-draw-spin-button" onClick={() => void startSpin()} disabled={!wheelReady || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length}>{spinning ? 'Spinning…' : wheelReady ? 'Spin the wheel' : 'Preparing wheel…'}</button>
-          {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Reload the checked-in list into a fresh pool; earlier winners can be drawn again."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Resetting draw pool…' : 'Update checked-in list'}</button>}
+          {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
           {pendingWinner && <div className="lucky-draw-winner-actions"><button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button><button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button></div>}
         </div>
       </div>
     </section>}
 
     <section className="panel lucky-draw-log-panel">
-      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong><button className="button-secondary" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Reset this session's winners list and load a fresh pool from currently checked-in guests. Previous session records remain saved."><RotateCw size={15} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Resetting…' : 'Reset winners & pool'}</button></div></div>
+      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong></div></div>
       {history.length ? <div className="lucky-draw-log-list">{history.map((winner, index) => <article className={`lucky-draw-log-row ${winner.status === 'skipped' ? 'is-skipped' : ''} ${index > 0 && history[index - 1].round.pool_type !== winner.round.pool_type ? 'is-category-break' : ''}`} key={winner.id}>
         <div className="lucky-draw-log-number"><Trophy size={17} /></div>
         <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : `${winner.round.pool_type[0].toUpperCase()}${winner.round.pool_type.slice(1)}s`} draw · {winner.round.name}</span></div>
