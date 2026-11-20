@@ -42,7 +42,7 @@ function LoginForm() {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
       },
     )
 
