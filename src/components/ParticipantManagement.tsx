@@ -5,10 +5,11 @@ import {
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
+import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './ParticipantManagement.css'
 
 type Role = 'super_admin' | 'event_admin' | 'front_desk'
-type Category = 'student' | 'staff'
+type Category = string
 
 type Participant = {
   id: string
@@ -72,6 +73,7 @@ export default function ParticipantManagement({
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
   const [form, setForm] = useState<ParticipantForm>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -96,6 +98,8 @@ export default function ParticipantManagement({
   useEffect(() => {
     let cancelled = false
     async function initialLoad() {
+      const { data: settings } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
+      if (!cancelled) setCategories(readParticipantCategories(settings?.payload))
       const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
       if (cancelled) return
       if (loadError) setError(loadError.message)
@@ -298,11 +302,9 @@ export default function ParticipantManagement({
               'staffstudent',
               'employmentstatus',
             ]).toLowerCase()
-            const categoryValue = rawCategory.includes('student') || rawCategory.includes('pupil')
-              ? 'student'
-              : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
-                ? 'staff'
-                : rawCategory
+            const matchedCategory = categories.find((item) => item.id.toLowerCase() === rawCategory || item.name.toLowerCase() === rawCategory)
+            const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil') ? categories.find((item) => item.id === 'student') : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer') ? categories.find((item) => item.id === 'staff') : undefined
+            const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
 
             const organisation = getValue(row, [
               'organisation',
@@ -319,7 +321,7 @@ export default function ParticipantManagement({
 
             if (
               !fullName ||
-              !['student', 'staff'].includes(categoryValue) ||
+              !categories.some((item) => item.id === categoryValue) ||
               (normalEmail && knownEmails.has(normalEmail)) ||
               (normalPhone && knownPhones.has(normalPhone))
             ) {
@@ -522,8 +524,7 @@ export default function ParticipantManagement({
                   })
                 }
               >
-                <option value="staff">Staff</option>
-                <option value="student">Student</option>
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
             </label>
 
@@ -625,8 +626,7 @@ export default function ParticipantManagement({
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="all">All categories</option>
-            <option value="student">Students</option>
-            <option value="staff">Staff</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
 
           <select
@@ -682,7 +682,7 @@ export default function ParticipantManagement({
                       <span
                         className={`participant-category ${participant.category}`}
                       >
-                        {participant.category === 'student'
+                        {categoryName(categories, participant.category)
                           ? 'Student'
                           : 'Staff'}
                       </span>
