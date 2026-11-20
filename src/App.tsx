@@ -524,9 +524,9 @@ function App() {
                         <div className={`stat-icon ${stat.color}`}>
                           <Icon size={20} />
                         </div>
-                        <button className="more-button" aria-label={`More about ${stat.label}`}>
+                        <span className="more-button" aria-hidden="true">
                           <MoreHorizontal size={19} />
-                        </button>
+                        </span>
                       </div>
                       <div className="stat-label">{stat.label}</div>
                       <div className="stat-value">{stat.value}</div>
