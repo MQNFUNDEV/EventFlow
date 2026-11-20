@@ -1,6 +1,6 @@
 # EventFlow — Current Scope & Development Roadmap
 
-**Last updated:** 2026-11-20 (Malaysia time; after PR #9 cleanup)  
+**Last updated:** 2026-11-20 (Malaysia time; after PR #12 password hardening)  
 **Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
 **Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
 
@@ -47,7 +47,7 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 
 - [x] Supabase project is active and remains the shared backend.
 - [x] Staff authentication remains in scope.
-- [x] `admin-management` v4 active (`verify_jwt: true`); `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers (`verify_jwt: true`).
+- [x] `admin-management` v5 active (`verify_jwt: true`); `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers (`verify_jwt: true`).
 - [x] No Vercel/Cloudflare/public URL setup required.
 - [x] No Resend/API key/sender setup or mass-email work required.
 - [x] No public attendee URL or QR-pass deployment required.
@@ -86,7 +86,8 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 - [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
 - [x] Remove active application references and deploy retired 410 Edge Function handlers with JWT verification enabled.
 - [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
-- [x] Enforce a 14+ character (maximum 72 UTF-8 bytes) app-level password policy (uppercase, lowercase, number, symbol, no spaces) for password reset and first-login changes, with matching server-side Edge Function validation.
+- [x] Enforce at least 14 characters, uppercase, lowercase, number, symbol, no spaces, and a maximum of 72 UTF-8 bytes for password reset and first-login changes, with matching server-side Edge Function validation in `admin-management` v5.
+- [x] Remove unused `html5-qrcode` and `qrcode` packages after confirming no active application imports remain (PR #11).
 - [ ] Re-run role-based access tests after RLS changes.
 
 Production migrations applied:
@@ -97,7 +98,9 @@ Production migrations applied:
 Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
 
 ### Phase 5 — Operator workflow testing
-**PENDING — CI passed after cleanup; authenticated role-based and live operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
+**PENDING — CI passed after cleanup and password hardening; authenticated role-based and live operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
+
+- [x] PR #9 retired public features; PR #11 removed unused QR dependencies; PR #12 moved password reset and first-login validation to the authenticated Edge Function. CI run #24 passed cleanup; run #34 passed the password-hardening changes (`npm ci`, lint, build).
 
 - [x] Cleanup PR #9 merged as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; GitHub Actions run #24 passed `npm ci`, `npm run lint`, and `npm run build`.
 
@@ -130,7 +133,7 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 ## Current known production notes
 
 - Cleanup PR #9 merged into `main` as `fbdc06c4b60cbc234fc8a79708cbd8d69b884146`; CI run #24 passed.
-- Deployed `guest-pass` and `send-invitations` are retained as inactive-by-design 410 handlers; JWT verification is enabled on both. They do not query or mutate data or send email.
+- Deployed `admin-management` v5 enforces the app password policy for reset and first-login changes. `guest-pass` v2 and `send-invitations` v3 are retired 410 handlers with JWT verification enabled; they do not query or mutate data or send email.
 - `admin-management` is deployed at v4 with the 14–72 character application password validation for first-login password changes.
 - Supabase project: `MaqnaEventFlow` (`wypjyzpiunkrrpodylpo`), Singapore region, currently `ACTIVE_HEALTHY`.
 - Edge Functions and JWT settings are listed under Phase 2 above.
