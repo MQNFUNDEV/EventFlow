@@ -39,7 +39,7 @@ export default function AttendanceManagement() {
   const [savingId, setSavingId] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const loadData = useCallback  const loadData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setError('')
     const [participantResult, checkInResult] = await Promise.all([
       supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name'),
