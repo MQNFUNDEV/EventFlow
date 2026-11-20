@@ -21,6 +21,8 @@ import { supabase } from './lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories } from './lib/participantCategories'
 import './App.css'
 
+declare const __APP_VERSION__: string
+
 const AdminManagement = lazy(() => import('./components/AdminManagement'))
 const ParticipantManagement = lazy(() => import('./components/ParticipantManagement'))
 const AttendanceManagement = lazy(() => import('./components/AttendanceManagement'))
@@ -696,8 +698,8 @@ function App() {
           </Suspense>
 
           <footer className="page-footer">
-            <span>MAQNA EVENTFLOW · JOHOR MEETUP X</span>
-            <span>EventFlow · Version 1.3.1</span>
+            <span>MAQNA EVENTFLOW · {eventName}</span>
+            <span>EventFlow · Version {__APP_VERSION__}</span>
           </footer>
         </div>
       </main>
