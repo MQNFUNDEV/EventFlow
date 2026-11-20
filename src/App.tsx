@@ -12,7 +12,6 @@ import {
   Menu,
   X,
   CircleHelp,
-  ScanLine,
   CheckCircle2,
   MoreHorizontal,
   LogOut,
@@ -489,7 +488,7 @@ function App() {
                   className="button-primary"
                   onClick={() => navigateToPage('Attendance')}
                 >
-                  <ScanLine size={18} />
+                  <ClipboardCheck size={18} />
                   Open Check-in
                 </button>
               )}
@@ -634,8 +633,8 @@ function App() {
                       <ArrowUpRight size={16} />
                     </button>
                     <button onClick={() => navigateToPage('Attendance')}>
-                      <div className="quick-icon green"><ScanLine size={20} /></div>
-                      <span><strong>Scan QR Code</strong><small>Open check-in module</small></span>
+                      <div className="quick-icon green"><ClipboardCheck size={20} /></div>
+                      <span><strong>Manual Check-in</strong><small>Record participant attendance</small></span>
                       <ArrowUpRight size={16} />
                     </button>
                     {canManageParticipants && (

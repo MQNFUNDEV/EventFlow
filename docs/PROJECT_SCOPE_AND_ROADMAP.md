@@ -18,7 +18,7 @@ EventFlow is an **internal operator system for staff only**. Operators use the e
 - Vercel, Cloudflare Pages, GitHub Pages, or other public frontend hosting.
 - Standalone Windows EXE / Tauri desktop packaging.
 
-Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` and `send-invitations` Edge Functions remain deployed at present but are deprecated/out of active scope; do not invoke or expand them. Remove them only in a separately reviewed cleanup after checking all code references and deployment dependencies.
+Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` and `send-invitations` Edge Function names are retained only as retired 410 tombstones with JWT verification enabled. They do not expose participant data, generate passes, or send email. The legacy invitation table and QR-token column are retained without application use to preserve existing data; no records or schema columns are deleted.
 
 ### In scope — preserve and complete
 
@@ -51,7 +51,9 @@ Do not reintroduce these tasks from earlier roadmap versions. The `guest-pass` a
 - [x] No Vercel/Cloudflare/public URL setup required.
 - [x] No Resend/API key/sender setup or mass-email work required.
 - [x] No public attendee URL or QR-pass deployment required.
-- [ ] Later cleanup: review and retire deprecated `guest-pass` and `send-invitations` functions only after code-reference/dependency review. Do not block current operator work on this cleanup.
+- [x] Remove public Guest Pass routing and UI, QR scanning/check-in, and invitation controls/queries from the active operator application.
+- [x] Retire both deployed public features with 410 responses and JWT verification; no data is queried, changed, or deleted.
+- [x] Preserve legacy invitation tracking table and participant QR-token column without active application references.
 
 ### Phase 3 — LED / on-stage operator features
 **IMPLEMENTATION MERGED; automated CI passed. Live LED smoke test remains pending.** PR #6 merged into `main` as `4eba170a51fbeeafbbc4d192902640a9f144e8f0`.
@@ -78,7 +80,8 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 - [x] Preserve non-duplicate policies on `admin_roles` (self-or-superadmin SELECT is broader than superadmin-only ALL) and `participants` (admin and front-desk INSERT predicates intentionally differ).
 - [x] Add and verify indexes for `development_log_entries.created_by`, `development_log_sessions.created_by`, and `participant_invitations.updated_by`.
 - [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
-- [ ] Review and retire deprecated invitation / guest-pass code and deployed functions safely.
+- [x] Remove active application references and deploy retired 410 Edge Function handlers with JWT verification enabled.
+- [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
 - [ ] Re-run role-based access tests after RLS changes.
 
 Production migrations applied:
@@ -88,7 +91,7 @@ Production migrations applied:
 Matching migration files are committed to `main`. No participant, attendance, event, or Lucky Draw records were deleted or reset. Work proceeded without a production backup at the owner's direction; destructive data cleanup remains prohibited.
 
 ### Phase 5 — Operator workflow testing
-**PENDING — no end-to-end operator workflow tests have been completed yet.** No public-domain, email, QR, or desktop-package testing.
+**PENDING — cleanup build/CI is being run; live role-based and operator workflow tests remain outstanding.** No public-domain, email, QR, or desktop-package testing.
 
 - [ ] Verify staff sign-in, session handling, and role-based access for Super Admin, Event Admin, and Front Desk.
 - [ ] Test participant create/import/edit/search workflows.
@@ -109,7 +112,7 @@ Matching migration files are committed to `main`. No participant, attendance, ev
 ## Agent coordination / change safety
 
 1. Human owner is the final authority and Super Admin.
-2. Gemini is currently the Phase 3 implementer. Continue from its existing working branch and preserve all uncommitted/in-progress changes.
+2. Gemini has stopped work. Preserve its original Phase 3 branch and commit as historical reference; the active implementation is on main.
 3. Other agents must read this roadmap and the current GitHub issue before coding.
 4. Do not make conflicting edits to Gemini-owned Phase 3 files while Gemini is actively changing them. Coordinate by reporting the branch/commit and file list first.
 5. Use dedicated branches and pull requests; do not push directly to `main` for feature work.
