@@ -26,8 +26,9 @@ jobs:
         run: npm ci
       - name: Report npm audit findings
         run: |
-          npm audit --json > npm-audit.json || true
-          node -e 'const fs = require("node:fs"); try { const audit = JSON.parse(fs.readFileSync("npm-audit.json", "utf8")); const items = Object.entries(audit.vulnerabilities || {}); const total = audit.metadata?.vulnerabilities?.total ?? 0; console.log("npm audit: " + total + " total vulnerabilities"); for (const [name, item] of items) console.log(name + ": " + item.severity + ", direct=" + item.isDirect + ", fixAvailable=" + JSON.stringify(item.fixAvailable)); } catch { console.log("npm audit report unavailable; check registry/network logs."); }'
+          npm audit --json > npm-audit-full.json || true
+          npm audit --omit=optional --json > npm-audit-required.json || true
+          node -e 'const fs = require("node:fs"); for (const [label, file] of [["full tree", "npm-audit-full.json"], ["excluding optional dependencies", "npm-audit-required.json"]]) { try { const audit = JSON.parse(fs.readFileSync(file, "utf8")); const items = Object.entries(audit.vulnerabilities || {}); console.log("npm audit (" + label + "): " + (audit.metadata?.vulnerabilities?.total ?? 0) + " total vulnerabilities"); for (const [name, item] of items) { const advisories = (item.via || []).filter(v => typeof v === "object").map(v => v.title + " [" + v.range + "]").join("; "); console.log(name + ": " + item.severity + ", direct=" + item.isDirect + ", fixAvailable=" + JSON.stringify(item.fixAvailable) + (advisories ? ", advisories=" + advisories : "")); } } catch { console.log("npm audit report unavailable for " + label + "."); } }'
       - name: Run ESLint
         run: npm run lint
       - name: Build production frontend
