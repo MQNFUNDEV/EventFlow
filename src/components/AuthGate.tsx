@@ -1,9 +1,16 @@
-﻿
+
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 const allowedRoles = ['super_admin', 'event_admin', 'front_desk']
+
+function meetsPasswordPolicy(password: string) {
+  return password.length >= 14 && password.length <= 128 &&
+    /[a-z]/.test(password) && /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) &&
+    !/\s/.test(password)
+}
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -186,8 +193,8 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
     event.preventDefault()
     setError('')
 
-    if (password.length < 12) {
-      setError('Your new password must contain at least 12 characters.')
+    if (!meetsPasswordPolicy(password)) {
+      setError('Use 14–128 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
       return
     }
 
@@ -295,8 +302,8 @@ function FirstLoginPasswordForm() {
     setError('')
     setSuccess('')
 
-    if (password.length < 12) {
-      setError('Your new password must contain at least 12 characters.')
+    if (!meetsPasswordPolicy(password)) {
+      setError('Use 14–128 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces.')
       return
     }
 

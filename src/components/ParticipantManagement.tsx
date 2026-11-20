@@ -1,7 +1,7 @@
-﻿import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Plus, Search, RefreshCw, Pencil, UserX, UserCheck,
-  Upload, Users, X, CheckCircle2,
+  Upload, Users, X,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -40,13 +40,6 @@ type ParticipantInsert = {
   category: Category
   organisation: string | null
   notes: string | null
-}
-
-type InvitationRecord = {
-  participant_id: string
-  status: 'pending' | 'sent' | 'failed'
-  sent_at: string | null
-  last_error: string | null
 }
 
 const emptyForm: ParticipantForm = {
@@ -90,58 +83,27 @@ export default function ParticipantManagement({
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [invitationRecords, setInvitationRecords] = useState<Record<string, InvitationRecord>>({})
-  const [selectedForInvitation, setSelectedForInvitation] = useState<Set<string>>(() => new Set())
-  const [sendingInvitations, setSendingInvitations] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const loadParticipants = useCallback(async () => {
-    const [participantResult, invitationResult] = await Promise.all([
-      supabase.from('participants').select('*').order('created_at', { ascending: false }),
-      supabase.from('participant_invitations').select('participant_id, status, sent_at, last_error'),
-    ])
-
-    if (participantResult.error) {
-      setError(participantResult.error.message)
-    } else if (invitationResult.error) {
-      setError(invitationResult.error.message)
-    } else {
-      setParticipants((participantResult.data ?? []) as Participant[])
-      setInvitationRecords(Object.fromEntries((invitationResult.data ?? []).map((record) => [record.participant_id, record as InvitationRecord])))
-      setError('')
-    }
+    const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
+    if (loadError) setError(loadError.message)
+    else { setParticipants((data ?? []) as Participant[]); setError('') }
 
     setLoading(false)
   }, [])
 
-    useEffect(() => {
+  useEffect(() => {
     let cancelled = false
-
-    async function fetchInitialParticipants() {
-      const [participantResult, invitationResult] = await Promise.all([
-        supabase.from('participants').select('*').order('created_at', { ascending: false }),
-        supabase.from('participant_invitations').select('participant_id, status, sent_at, last_error'),
-      ])
-
+    async function initialLoad() {
+      const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
       if (cancelled) return
-
-      if (participantResult.error) {
-        setError(participantResult.error.message)
-      } else if (invitationResult.error) {
-        setError(invitationResult.error.message)
-      } else {
-        setParticipants((participantResult.data ?? []) as Participant[])
-        setInvitationRecords(Object.fromEntries((invitationResult.data ?? []).map((record) => [record.participant_id, record as InvitationRecord])))
-      }
-
+      if (loadError) setError(loadError.message)
+      else setParticipants((data ?? []) as Participant[])
       setLoading(false)
     }
-
-    void fetchInitialParticipants()
-
-    return () => {
-      cancelled = true
-    }
+    void initialLoad()
+    return () => { cancelled = true }
   }, [])
 
   function openAddForm() {
@@ -421,34 +383,6 @@ export default function ParticipantManagement({
     })
   }
 
-  async function sendInvitations(resend = false) {
-    const selected = participants.filter((participant) => selectedForInvitation.has(participant.id))
-    const eligible = selected.filter((participant) => participant.email?.trim() && (resend ? invitationRecords[participant.id]?.status === 'sent' : invitationRecords[participant.id]?.status !== 'sent'))
-    if (eligible.length === 0) {
-      setError('Select at least one participant with an email address.')
-      return
-    }
-    setSendingInvitations(true)
-    setError('')
-    setMessage('')
-    const { data, error: sendError } = await supabase.functions.invoke('send-invitations', {
-      body: { participant_ids: eligible.map((participant) => participant.id), resend },
-    })
-    if (sendError) {
-      setError(sendError.message.includes('Failed to send a request')
-        ? 'Invitation delivery is not configured yet. An administrator must deploy the invitation sender and configure the email provider.'
-        : sendError.message)
-    } else {
-      const failed = Number(data?.failed ?? 0)
-      const sent = Number(data?.sent ?? 0)
-      const skipped = Number(data?.skipped ?? 0)
-      setMessage(`${sent} invitation(s) sent${failed ? `; ${failed} could not be sent` : ''}${skipped ? `; ${skipped} already-sent invitation(s) skipped` : ''}.${eligible.length < selected.length ? ` ${selected.length - eligible.length} selected participant(s) were not eligible for this action.` : ''}`)
-      setSelectedForInvitation(new Set())
-      await loadParticipants()
-    }
-    setSendingInvitations(false)
-  }
-
   const filteredParticipants = participants.filter((participant) => {
     const term = search.trim().toLowerCase()
 
@@ -509,11 +443,6 @@ export default function ParticipantManagement({
               </button>
             </>
           )}
-
-          {canManage && <>
-            <button className="participant-primary-button" type="button" onClick={() => void sendInvitations()} disabled={sendingInvitations || !participants.some((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim())}>{sendingInvitations ? 'Sending...' : `Send unsent invitation${participants.filter((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim()).length === 1 ? '' : 's'} (${participants.filter((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status !== 'sent' && participant.email?.trim()).length})`}</button>
-            <button className="participant-secondary-button" type="button" onClick={() => void sendInvitations(true)} disabled={sendingInvitations || !participants.some((participant) => selectedForInvitation.has(participant.id) && invitationRecords[participant.id]?.status === 'sent' && participant.email?.trim())}>Resend sent invitation</button>
-          </>}
 
           <button
             className="participant-secondary-button"
@@ -725,12 +654,10 @@ export default function ParticipantManagement({
             <table className="participant-table">
               <thead>
                 <tr>
-                  {canManage && <th><input aria-label="Select all visible participants" type="checkbox" checked={filteredParticipants.length > 0 && filteredParticipants.every((participant) => selectedForInvitation.has(participant.id))} onChange={(event) => setSelectedForInvitation((current) => { const next = new Set(current); for (const participant of filteredParticipants) { if (event.target.checked) next.add(participant.id); else next.delete(participant.id) } return next })} /></th>}
                   <th>Participant</th>
                   <th>Contact</th>
                   <th>Category</th>
                   <th>Status</th>
-                  {canManage && <th>Invitation</th>}
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -738,7 +665,6 @@ export default function ParticipantManagement({
               <tbody>
                 {filteredParticipants.map((participant) => (
                   <tr key={participant.id}>
-                    {canManage && <td><input aria-label={`Select ${participant.full_name} for invitation`} type="checkbox" checked={selectedForInvitation.has(participant.id)} onChange={(event) => setSelectedForInvitation((current) => { const next = new Set(current); if (event.target.checked) next.add(participant.id); else next.delete(participant.id); return next })} /></td>}
                     <td>
                       <strong>{participant.full_name}</strong>
                       <small>{participant.participant_code}</small>
@@ -769,7 +695,6 @@ export default function ParticipantManagement({
                         {participant.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    {canManage && <td>{invitationRecords[participant.id]?.status === 'sent' ? <span className="participant-status active"><CheckCircle2 size={14} /> Sent</span> : invitationRecords[participant.id]?.status === 'failed' ? <span className="participant-status inactive" title={invitationRecords[participant.id].last_error ?? undefined}>Failed</span> : <span className="participant-status inactive">Not sent</span>}</td>}
 
                     <td>
                       <div className="participant-row-actions">
