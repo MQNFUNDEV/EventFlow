@@ -86,6 +86,7 @@ Superseded Gemini PR #4 was closed without merging. Its branch `gemini/phase-3-o
 - [ ] Rotate/revoke the Supabase secret key exposed in historical Git commits; removing a file from the latest tree does not invalidate it. Rotation requires an owner action in Supabase settings.
 - [x] Remove active application references and deploy retired 410 Edge Function handlers with JWT verification enabled.
 - [x] Preserve legacy database tables/columns and all records; no destructive schema changes.
+- [x] Enforce a 14–128 character app-level password policy (uppercase, lowercase, number, symbol, no spaces) for password reset and first-login changes, with matching Edge Function validation.
 - [ ] Re-run role-based access tests after RLS changes.
 
 Production migrations applied:

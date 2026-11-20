@@ -15,6 +15,13 @@ const json = (body: unknown, status = 200) =>
 const allowedRoles = ["super_admin", "event_admin", "front_desk"];
 const creatableRoles = ["event_admin", "front_desk"];
 
+function meetsPasswordPolicy(password: string) {
+  return password.length >= 14 && password.length <= 128 &&
+    /[a-z]/.test(password) && /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) &&
+    !/\\s/.test(password);
+}
+
 function generateTemporaryPassword() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -61,8 +68,8 @@ Deno.serve(async (req: Request) => {
       }
 
       const newPassword = body?.newPassword;
-      if (typeof newPassword !== "string" || newPassword.length < 12 || newPassword.length > 128) {
-        return json({ error: "Your new password must be at least 12 characters." }, 400);
+      if (typeof newPassword !== "string" || !meetsPasswordPolicy(newPassword)) {
+        return json({ error: "Use 14–128 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
       }
 
       const { error: updateError } = await admin.auth.admin.updateUserById(caller.id, {
