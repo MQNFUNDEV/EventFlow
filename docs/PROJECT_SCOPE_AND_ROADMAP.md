@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-11-20 (Malaysia time)  
 **Repository:** https://github.com/MQNFUNDEV/Maqna-Eventflow  
-**Current main commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
+**Phase 1 merge commit:** `d25fccda8d2f4e3fa9ff36c3d3dcd07b34f2f971`
 
 > **Agent coordination notice — read before making further changes.** The human owner has confirmed the revised scope below. Gemini is currently working on Phase 3. Preserve Gemini's in-progress work and branch; do not overwrite, reset, or rebase another agent's uncommitted work. This file and the matching GitHub issue are the current source of truth.
 
