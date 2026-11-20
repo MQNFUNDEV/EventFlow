@@ -8,7 +8,6 @@ import {
   Settings,
   Plus,
   ArrowUpRight,
-  CalendarDays,
   Activity,
   Menu,
   X,
