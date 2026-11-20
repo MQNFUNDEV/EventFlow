@@ -42,7 +42,8 @@ function LoginForm() {
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        redirectTo: window.location.origin,
+        // GitHub Pages hosts this project below /EventFlow/, not at the domain root.
+        redirectTo: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
       },
     )
 
