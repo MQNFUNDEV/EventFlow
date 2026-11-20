@@ -63,10 +63,16 @@ export default function LuckyDrawMachine() {
         <div className="ld-machine-shadow" />
         <div className="ld-machine">
           <div className="ld-hopper">
-            <div className="ld-hopper-rim" />
+            <div className="ld-hopper-glass-back" />
             <div className="ld-hopper-mouth">
-              {Array.from({ length: 12 }, (_, index) => <span className={`ld-slip ld-slip-${index + 1}`} key={index} />)}
+              <div className="ld-hopper-paper-pile">
+                {Array.from({ length: 28 }, (_, index) => <span className={`ld-slip ld-slip-${index + 1}`} key={index} />)}
+              </div>
             </div>
+            <div className="ld-hopper-glass-left" />
+            <div className="ld-hopper-glass-right" />
+            <div className="ld-hopper-glass-front" />
+            <div className="ld-hopper-rim" />
             <div className="ld-hopper-front"><b>EVENTFLOW</b><small>LUCKY DRAW</small></div>
           </div>
           <div className="ld-machine-body">

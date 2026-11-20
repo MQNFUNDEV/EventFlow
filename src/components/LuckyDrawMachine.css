@@ -76,3 +76,38 @@
 .ld-machine-reset{width:35px;border:1px solid #e2e7ef;background:#fff;color:#75839a}.ld-machine-reset:hover{background:#f5f7fb}
 @media(max-width:650px){.ld-machine-preview{padding:14px}.ld-machine-preview-head{flex-direction:column}.ld-machine-stage{height:350px}.ld-machine-scene{transform:scale(.78)}.ld-machine-caption{bottom:10px}.ld-machine-preview-footer{align-items:flex-start;flex-direction:column}.ld-machine-actions{width:100%}.ld-machine-replay{flex:1}}
 @media(prefers-reduced-motion:reduce){.ld-machine-preview *{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+
+/* Refinement: transparent acrylic hopper with a growing paper reservoir */
+.ld-hopper{height:120px;top:0;left:54px;width:205px;transform:translateZ(19px);filter:drop-shadow(0 7px 5px #30204b22)}
+.ld-hopper-glass-back{position:absolute;z-index:0;top:10px;left:16px;width:173px;height:76px;background:linear-gradient(145deg,#ffffff78,#dff5ff28 52%,#ffffff36);clip-path:polygon(8% 0,92% 0,100% 100%,0 100%);border-top:2px solid #ffffffd9}
+.ld-hopper-mouth{z-index:2;top:5px;left:17px;width:171px;height:71px;border:5px solid #f6bd58;background:linear-gradient(145deg,#44315f,#6e4c85 70%,#39284f);box-shadow:inset 0 3px 8px #20132f88,0 2px 0 #b87537;overflow:hidden;transform:rotateX(13deg)}
+.ld-hopper-paper-pile{position:absolute;inset:5px 3px 2px;overflow:hidden;border-radius:50%;transform:rotate(-2deg)}
+.ld-slip{width:31px;height:17px;border-radius:1px;background:linear-gradient(145deg,#fffef4,#f4dfad);border:1px solid #d8bd83;box-shadow:1px 2px 2px #21163266}
+.ld-slip:after{content:"";position:absolute;left:5px;right:5px;top:5px;height:1px;background:#cdbb98;box-shadow:0 3px #e3d4b8}
+.ld-slip-1{--x:4%;--y:56%;--r:-17deg}.ld-slip-2{--x:22%;--y:48%;--r:11deg}.ld-slip-3{--x:41%;--y:57%;--r:-9deg}.ld-slip-4{--x:62%;--y:46%;--r:18deg}.ld-slip-5{--x:79%;--y:57%;--r:-14deg}
+.ld-slip-6{--x:12%;--y:38%;--r:21deg}.ld-slip-7{--x:31%;--y:35%;--r:-19deg}.ld-slip-8{--x:51%;--y:38%;--r:8deg}.ld-slip-9{--x:70%;--y:32%;--r:-23deg}.ld-slip-10{--x:84%;--y:38%;--r:13deg}
+.ld-slip-11{--x:1%;--y:22%;--r:14deg}.ld-slip-12{--x:19%;--y:18%;--r:-8deg}.ld-slip-13{--x:39%;--y:22%;--r:24deg}.ld-slip-14{--x:58%;--y:17%;--r:-16deg}.ld-slip-15{--x:77%;--y:19%;--r:9deg}
+.ld-slip-16{--x:10%;--y:5%;--r:-22deg}.ld-slip-17{--x:30%;--y:4%;--r:12deg}.ld-slip-18{--x:49%;--y:5%;--r:-11deg}.ld-slip-19{--x:68%;--y:4%;--r:17deg}.ld-slip-20{--x:87%;--y:6%;--r:-7deg}
+.ld-slip-21{--x:9%;--y:68%;--r:8deg}.ld-slip-22{--x:29%;--y:67%;--r:-13deg}.ld-slip-23{--x:48%;--y:68%;--r:19deg}.ld-slip-24{--x:68%;--y:66%;--r:-17deg}
+.ld-slip-25{--x:17%;--y:52%;--r:42deg}.ld-slip-26{--x:45%;--y:48%;--r:-37deg}.ld-slip-27{--x:65%;--y:57%;--r:33deg}.ld-slip-28{--x:82%;--y:49%;--r:-31deg}
+.ld-hopper-glass-left,.ld-hopper-glass-right{position:absolute;z-index:3;top:15px;width:26px;height:75px;background:linear-gradient(110deg,#ffffff8a,#c8efff24 55%,#ffffff70);border:1px solid #ffffffa8;box-shadow:inset 0 0 8px #ffffff80}
+.ld-hopper-glass-left{left:7px;clip-path:polygon(35% 0,100% 0,100% 100%,0 82%)}
+.ld-hopper-glass-right{right:7px;clip-path:polygon(0 0,65% 0,100% 82%,0 100%)}
+.ld-hopper-glass-front{position:absolute;z-index:4;left:15px;top:57px;width:175px;height:43px;background:linear-gradient(180deg,#e9faff32,#ffffff55);border:1.5px solid #ffffffb8;border-top:2px solid #ffffffd9;clip-path:polygon(0 0,100% 0,94% 100%,6% 100%);box-shadow:inset 0 0 12px #ffffff66;pointer-events:none}
+.ld-hopper-rim{z-index:5;inset:0 0 22px;background:linear-gradient(180deg,#ffdb83 0 13%,#f5ad4d 14% 25%,#ffffff20 26% 100%);clip-path:polygon(12% 0,88% 0,100% 100%,0 100%);border:0;filter:drop-shadow(0 3px 1px #b96e2b);pointer-events:none}
+.ld-hopper-front{z-index:6;bottom:0;height:25px;left:13px;width:179px;background:linear-gradient(90deg,#e99032,#ffd879 45%,#e99032);border:1px solid #c77b32;box-shadow:0 3px 0 #b66c30,inset 0 1px #fff8}
+.phase-loading .ld-slip{animation:ld-paper-settle 1.55s cubic-bezier(.18,.72,.25,1) both}
+.phase-loading .ld-slip:nth-child(3n){animation-delay:.08s}
+.phase-loading .ld-slip:nth-child(3n + 1){animation-delay:.16s}
+@keyframes ld-paper-settle{0%{opacity:0;transform:translate3d(var(--drift,0),-100px,0) rotate(calc(var(--r,0deg) + 28deg)) scale(.82)}55%{opacity:1}78%{transform:translateY(-3px) rotate(calc(var(--r,0deg) - 5deg))}100%{opacity:1;transform:translateY(0) rotate(var(--r,0deg))}}
+/* Mechanical lever: defined hinge, chrome shaft, weighted grip and spring return */
+.ld-lever{top:104px;right:-1px;width:65px;height:92px;transform:translateZ(45px);transform-origin:21px 70px;filter:drop-shadow(2px 4px 2px #24183b55)}
+.ld-lever-socket{left:3px;bottom:5px;width:39px;height:30px;background:radial-gradient(ellipse at 35% 25%,#ffe9a8,#d88c3f 58%,#8c4c2b);border:3px solid #a45c32;box-shadow:inset 0 2px 3px #fff8,0 2px 0 #623b35}
+.ld-lever-socket:after{content:"";position:absolute;inset:5px;border-radius:50%;border:1px solid #ffe7a0aa}
+.ld-lever-arm{left:18px;bottom:23px;width:11px;height:65px;border-radius:8px;background:linear-gradient(90deg,#737d91 0%,#e9edf5 24%,#fff 48%,#aab3c3 72%,#687386 100%);border:1px solid #647087;box-shadow:inset 1px 0 #fff,1px 2px 2px #33254a55;transform:rotate(7deg);transform-origin:50% 92%}
+.ld-lever-arm i{left:3px;width:2px;background:#ffffffd9}
+.ld-lever-knob{top:-1px;left:11px;width:31px;height:31px;border:2px solid #ffe7a2;background:radial-gradient(circle at 32% 24%,#fff2c3 0 8%,#ffc45b 25%,#e68a31 65%,#a94f28 100%);box-shadow:inset -3px -4px 5px #8f482c66,0 4px 0 #82452e,0 6px 7px #34204466}
+.phase-pulling .ld-lever,.phase-shaking .ld-lever,.phase-ejecting .ld-lever,.phase-revealing .ld-lever{animation:ld-lever-action 1.05s cubic-bezier(.28,.76,.24,1) both}
+@keyframes ld-lever-action{0%{transform:translateZ(45px) rotate(0)}22%{transform:translateZ(45px) rotate(5deg)}55%{transform:translateZ(45px) rotate(43deg)}72%{transform:translateZ(45px) rotate(39deg)}88%{transform:translateZ(45px) rotate(-5deg)}100%{transform:translateZ(45px) rotate(0)}}
+@media(prefers-reduced-motion:reduce){.phase-loading .ld-slip{animation:none!important}}
