@@ -156,13 +156,21 @@ export default function LuckyDrawManagement() {
     if (wheelInstance.current && !spinning) wheelInstance.current.items = eligiblePool.map(participantWheelItem)
   }, [eligiblePool, roundId, prizeCategoryId, spinning])
 
-  const refreshWinnerHistory = useCallback(async () => {
+  const refreshWinnerHistory = useCallback(async (targetRoundId: string | null = roundId) => {
+    if (!targetRoundId) {
+      setHistory([])
+      return
+    }
     const { data, error: historyError } = await supabase
       .from('draw_winners')
       .select('id, participant_id, status, drawn_at, notes, participants!inner(full_name, category), draw_rounds!inner(name, pool_type)')
+      .eq('draw_round_id', targetRoundId)
       .order('drawn_at', { ascending: false })
       .limit(30)
-    if (historyError) return
+    if (historyError) {
+      setError(historyError.message)
+      return
+    }
     setHistory((data ?? []).map((row) => ({
       id: row.id,
       participant_id: row.participant_id,
@@ -172,7 +180,7 @@ export default function LuckyDrawManagement() {
       participant: getRelated(row.participants) ?? { full_name: 'Guest', category: '' },
       round: getRelated(row.draw_rounds) ?? { name: 'Lucky Draw', pool_type: 'everyone' },
     })) as Winner[])
-  }, [])
+  }, [roundId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void refreshWinnerHistory() }, 0)
@@ -533,8 +541,8 @@ export default function LuckyDrawManagement() {
     setExcludedIds(new Set())
     setPendingWinner(null)
     setPendingWinnerRowId(null)
-    setMessage(`Pool reset with ${refreshedPool.length} checked-in ${refreshedPool.length === 1 ? 'guest' : 'guests'}. Previous winners are eligible again; the winners log is preserved.`)
-    await refreshWinnerHistory()
+    setMessage(`Fresh pool ready with ${refreshedPool.length} checked-in ${refreshedPool.length === 1 ? 'guest' : 'guests'}. The current winners list has been reset; previous session records remain saved.`)
+    await refreshWinnerHistory(nextRound.id)
     setUpdatingOutput(false)
   }
 
@@ -572,7 +580,7 @@ export default function LuckyDrawManagement() {
     </section>}
 
     <section className="panel lucky-draw-log-panel">
-      <div className="lucky-draw-log-heading"><div><h3>Winners log</h3><p>Previous results stay recorded here when you reset the draw pool.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong><button className="button-secondary" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh pool from the currently checked-in guests. Previous winner records stay in this log."><RotateCw size={15} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Resetting…' : 'Reset winners & pool'}</button></div></div>
+      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong><button className="button-secondary" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Reset this session's winners list and load a fresh pool from currently checked-in guests. Previous session records remain saved."><RotateCw size={15} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Resetting…' : 'Reset winners & pool'}</button></div></div>
       {history.length ? <div className="lucky-draw-log-list">{history.map((winner, index) => <article className={`lucky-draw-log-row ${winner.status === 'skipped' ? 'is-skipped' : ''} ${index > 0 && history[index - 1].round.pool_type !== winner.round.pool_type ? 'is-category-break' : ''}`} key={winner.id}>
         <div className="lucky-draw-log-number"><Trophy size={17} /></div>
         <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : `${winner.round.pool_type[0].toUpperCase()}${winner.round.pool_type.slice(1)}s`} draw · {winner.round.name}</span></div>
