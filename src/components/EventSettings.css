@@ -82,7 +82,7 @@
 }
 
 @media (max-width: 480px) {
-  .event-settings-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  .event-settings-tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; }
   .event-settings-tabs button { padding: 0 8px; }
 }
 
