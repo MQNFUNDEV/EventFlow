@@ -17,10 +17,12 @@ The frontend is publicly downloadable. Never place Supabase service-role keys, s
 
 ### GitHub Actions configuration
 
-The Pages deployment workflow expects these repository Actions secrets:
+The Pages deployment workflow expects these repository Actions variables (Settings → Secrets and variables → Actions → Variables):
 
 - `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY` (use the project's publishable key or legacy anon key; never a service-role/secret key)
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (the Supabase publishable key; safe for browser use, never substitute a service-role/secret key)
+
+These are public client configuration values, not privileged secrets. The workflow reads them as Actions variables so no privileged credential is needed for the frontend build.
 
 GitHub Pages must be enabled with **GitHub Actions** as the build and deployment source. Supabase Auth must allow the deployed site URL as a redirect URL.
 
