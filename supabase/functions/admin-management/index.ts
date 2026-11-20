@@ -16,7 +16,7 @@ const allowedRoles = ["super_admin", "event_admin", "front_desk"];
 const creatableRoles = ["event_admin", "front_desk"];
 
 function meetsPasswordPolicy(password: string) {
-  return password.length >= 14 && password.length <= 72 &&
+  return password.length >= 14 && new TextEncoder().encode(password).length <= 72 &&
     /[a-z]/.test(password) && /[A-Z]/.test(password) &&
     /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password) &&
     !/\s/.test(password);
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
     if (action === "complete-password-reset") {
       const newPassword = body?.newPassword;
       if (typeof newPassword !== "string" || !meetsPasswordPolicy(newPassword)) {
-        return json({ error: "Use 14–72 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
+        return json({ error: "Use 14 or more characters, up to 72 UTF-8 bytes, with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
       }
 
       const { error: updateError } = await admin.auth.admin.updateUserById(caller.id, {
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
       const newPassword = body?.newPassword;
       if (typeof newPassword !== "string" || !meetsPasswordPolicy(newPassword)) {
-        return json({ error: "Use 14–72 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
+        return json({ error: "Use 14 or more characters, up to 72 UTF-8 bytes, with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
       }
 
       const { error: updateError } = await admin.auth.admin.updateUserById(caller.id, {
