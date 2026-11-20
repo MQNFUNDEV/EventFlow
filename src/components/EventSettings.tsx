@@ -12,11 +12,14 @@ type EventPayload = {
   theme_colors?: string[]
   scene_backgrounds?: Partial<Record<BackgroundScene, SceneBackground>>
   assets_updated_at?: string
+  participant_categories?: ParticipantCategory[]
   [key: string]: unknown
 }
 
 type BackgroundScene = 'lucky_draw' | 'attendance' | 'manual_checkin'
 type SceneBackground = { mode: 'theme' | 'key_visual' | 'custom'; path: string }
+type ParticipantCategory = { id: string; name: string }
+const DEFAULT_CATEGORIES: ParticipantCategory[] = [{ id: 'staff', name: 'MEC STAFF' }, { id: 'student', name: 'MEC STUDENT' }]
 const BACKGROUND_SCENES: { id: BackgroundScene; name: string }[] = [
   { id: 'lucky_draw', name: 'Lucky Draw' },
   { id: 'attendance', name: 'Attendance Roll' },
@@ -163,7 +166,9 @@ async function compressUploadedKV(file: File) {
 }
 
 export default function EventSettings() {
-  const [settingsTab, setSettingsTab] = useState<'led' | 'event'>('led')
+  const [settingsTab, setSettingsTab] = useState<'led' | 'event' | 'pool'>('event')
+  const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_CATEGORIES)
+  const [categoryCount, setCategoryCount] = useState(2)
   const [eventName, setEventName] = useState('Johor Meetup X')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
@@ -224,6 +229,9 @@ export default function EventSettings() {
         setEventName(values.event_name ?? 'Johor Meetup X')
         setEventDate(values.event_date ?? '')
         setEventLocation(values.event_location ?? '')
+        const savedCategories = Array.isArray(values.participant_categories) ? values.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : []
+        setParticipantCategories(savedCategories.length ? savedCategories : DEFAULT_CATEGORIES)
+        setCategoryCount(savedCategories.length || DEFAULT_CATEGORIES.length)
         setPosterPath(savedPoster && !isDataImage(savedPoster) ? savedPoster : '')
         let posterUrl = KV_PATH
         if (savedPoster) {
@@ -286,6 +294,51 @@ export default function EventSettings() {
       await savePayloadPatch(eventPatch)
       setMessage('Event details saved and synced to the dashboard and LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save event details.') }
+    setSaving(false)
+  }
+
+  function resizeCategories(count: number) {
+    setCategoryCount(count)
+    setParticipantCategories((current) => {
+      const next = [...current]
+      while (next.length < count) {
+        const index = next.length + 1
+        next.push({ id: `pool_${index}`, name: `CATEGORY ${index}` })
+      }
+      return next
+    })
+  }
+
+  async function savePoolSettings() {
+    setSaving(true)
+    setError('')
+    setMessage('')
+    const cleaned = participantCategories.slice(0, categoryCount).map((category) => ({ ...category, name: category.name.trim() }))
+    const names = cleaned.map((category) => category.name.toLocaleLowerCase())
+    if (cleaned.length < 1 || cleaned.length > 10 || cleaned.some((category) => !category.name) || new Set(names).size !== names.length) {
+      setError('Enter a name for every category. Category names must be unique.')
+      setSaving(false)
+      return
+    }
+    try {
+      const { data: latestSettings, error: settingsError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
+      if (settingsError) throw settingsError
+      const latestPayload = latestSettings?.payload && typeof latestSettings.payload === 'object' ? latestSettings.payload as EventPayload : {}
+      const previousCategories = Array.isArray(latestPayload.participant_categories) ? latestPayload.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : DEFAULT_CATEGORIES
+      const removedIds = previousCategories.filter((category) => !cleaned.some((item) => item.id === category.id)).map((category) => category.id)
+      if (removedIds.length) {
+        const { count, error: countError } = await supabase.from('participants').select('id', { count: 'exact', head: true }).in('category', removedIds)
+        if (countError) throw countError
+        if ((count ?? 0) > 0) throw new Error('A category cannot be removed while participants are assigned to it. Reassign those participants first.')
+        const { count: drawCount, error: drawCountError } = await supabase.from('draw_rounds').select('id', { count: 'exact', head: true }).in('pool_type', removedIds)
+        if (drawCountError) throw drawCountError
+        if ((drawCount ?? 0) > 0) throw new Error('A category used by an existing Lucky Draw session cannot be removed. Rename it instead to preserve the draw history.')
+      }
+      await savePayloadPatch({ participant_categories: cleaned })
+      setParticipantCategories(cleaned)
+      setCategoryCount(cleaned.length)
+      setMessage('Pool settings saved. Participant, attendance and Lucky Draw category options will use these names.')
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save pool settings.') }
     setSaving(false)
   }
 
@@ -415,6 +468,7 @@ export default function EventSettings() {
     <nav className="event-settings-tabs" aria-label="Settings sections" role="tablist">
       <button type="button" role="tab" aria-selected={settingsTab === 'led'} className={settingsTab === 'led' ? 'active' : ''} onClick={() => { setSettingsTab('led'); setError(''); setMessage('') }}>LED Settings</button>
       <button type="button" role="tab" aria-selected={settingsTab === 'event'} className={settingsTab === 'event' ? 'active' : ''} onClick={() => { setSettingsTab('event'); setError(''); setMessage('') }}>Event Settings</button>
+      <button type="button" role="tab" aria-selected={settingsTab === 'pool'} className={settingsTab === 'pool' ? 'active' : ''} onClick={() => { setSettingsTab('pool'); setError(''); setMessage('') }}>Pool Settings</button>
     </nav>
     {error && <div className="event-settings-message error" role="alert">{error}</div>}
     {message && <div className="event-settings-message success" role="status">{message}</div>}
@@ -443,7 +497,13 @@ export default function EventSettings() {
         <div className="event-settings-actions"><label className="event-settings-upload button-secondary"><Upload size={16} /> Upload KV image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadKV(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>{!keyVisualIsFullHd && <><button className="button-secondary" onClick={() => void generateFill()} disabled={loading || generating || scanning || saving}><ImagePlus size={16} /> {generating ? 'Generating fill…' : 'Regenerate 16:9 fill'}</button><button className="button-primary" onClick={() => void saveFill()} disabled={loading || saving || !generatedFill}>{saving ? 'Saving…' : <><Save size={16} /> {backgroundPath ? 'Replace LED Welcome Page fill' : 'Save for LED Welcome Page'}</>}</button></>}</div>
         <p className="event-settings-hint">Changes sync automatically to the live LED output screen. The original poster file remains unchanged.</p>
       </section>
-    </> : <section className="panel event-settings-card">
+    </> : settingsTab === 'pool' ? <section className="panel event-settings-card">
+      <div className="event-settings-card-heading"><div><h3>Participant pool categories</h3><p>Set how many participant categories this event uses. These names appear in participant records, attendance filters and Lucky Draw pools.</p></div></div>
+      <label className="pool-category-count">Number of categories<select value={categoryCount} onChange={(event) => resizeCategories(Number(event.target.value))} disabled={loading || saving}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
+      <div className="pool-category-fields">{participantCategories.slice(0, categoryCount).map((category, index) => <label key={category.id}>Category {index + 1} name<input value={category.name} maxLength={60} onChange={(event) => setParticipantCategories((current) => current.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item))} placeholder={`Category ${index + 1}`} disabled={loading || saving} /></label>)}</div>
+      <p className="event-settings-hint">Category IDs stay stable when names are changed. You cannot remove a category that still has participants assigned to it.</p>
+      <button className="button-primary" onClick={() => void savePoolSettings()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save pool settings</>}</button>
+    </section> : <section className="panel event-settings-card">
       <div className="event-settings-card-heading"><div><h3>Event details</h3><p>Manage the event identity and venue information shown in the dashboard and LED display.</p></div></div>
       <div className="event-settings-fields">
         <label>Event name<input value={eventName} onChange={(event) => setEventName(event.target.value)} placeholder="Johor Meetup X" disabled={loading} /></label>
