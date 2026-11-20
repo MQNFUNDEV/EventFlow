@@ -6,7 +6,6 @@ import {
   Gift,
   Monitor,
   Settings,
-  Plus,
   ArrowUpRight,
   Activity,
   Menu,
