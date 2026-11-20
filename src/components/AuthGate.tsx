@@ -205,7 +205,9 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
 
     setLoading(true)
 
-    const { error } = await supabase.auth.updateUser({ password })
+    const { error } = await supabase.functions.invoke('admin-management', {
+      body: { action: 'complete-password-reset', newPassword: password },
+    })
 
     if (error) {
       setError('Unable to update your password. Your reset link may have expired. Request a new one.')
@@ -254,10 +256,11 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
               type="password"
               autoComplete="new-password"
               required
-              minLength={12}
+              minLength={14}
+              maxLength={128}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 12 characters"
+              placeholder="14–128 characters with mixed character types"
               style={styles.input}
             />
 
@@ -269,7 +272,8 @@ function PasswordResetForm({ onComplete }: { onComplete: () => void }) {
               type="password"
               autoComplete="new-password"
               required
-              minLength={12}
+              minLength={14}
+              maxLength={128}
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="Enter your password again"
@@ -351,10 +355,11 @@ function FirstLoginPasswordForm() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={12}
+          minLength={14}
+          maxLength={128}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="At least 12 characters"
+          placeholder="14–128 characters with mixed character types"
           style={styles.input}
         />
 
@@ -364,7 +369,8 @@ function FirstLoginPasswordForm() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={12}
+          minLength={14}
+          maxLength={128}
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
           placeholder="Enter your new password again"

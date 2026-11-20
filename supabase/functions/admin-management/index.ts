@@ -56,6 +56,26 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const action = body?.action;
 
+    // Password recovery is restricted to the currently authenticated account.
+    // Apply the same strong password policy server-side as the first-login flow.
+    if (action === "complete-password-reset") {
+      const newPassword = body?.newPassword;
+      if (typeof newPassword !== "string" || !meetsPasswordPolicy(newPassword)) {
+        return json({ error: "Use 14–128 characters with uppercase and lowercase letters, a number, and a symbol. Do not include spaces." }, 400);
+      }
+
+      const { error: updateError } = await admin.auth.admin.updateUserById(caller.id, {
+        password: newPassword,
+        app_metadata: {
+          ...(caller.app_metadata ?? {}),
+          must_change_password: false,
+          temporary_password_expires_at: null,
+        },
+      });
+      if (updateError) return json({ error: updateError.message }, 400);
+      return json({ success: true, message: "Password updated. Sign in again with your new password." });
+    }
+
     // First-login password change is available to the signed-in account itself.
     if (action === "complete-first-login") {
       if (caller.app_metadata?.must_change_password !== true) {
