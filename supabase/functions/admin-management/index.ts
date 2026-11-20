@@ -1,4 +1,5 @@
-import { createClient, type User } from "npm:@supabase/supabase-js@2";
+import { createSupabaseContext } from "npm:@supabase/server@1";
+import type { User } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,23 +36,42 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !serviceRoleKey) {
-      console.error("Missing Supabase server environment variables.");
+    const secretKeysRaw = Deno.env.get("SUPABASE_SECRET_KEYS");
+    let secretKeys: Record<string, string> = {};
+    try {
+      secretKeys = JSON.parse(secretKeysRaw ?? "{}");
+    } catch {
+      console.error("Supabase secret-key environment is not valid JSON.");
       return json({ error: "Server configuration is incomplete." }, 500);
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
+    const eventflowSecretKey = secretKeys["eventflowbackend"];
+    if (!supabaseUrl || !eventflowSecretKey) {
+      console.error("Missing Supabase URL or EventFlow backend secret key.");
+      return json({ error: "Server configuration is incomplete." }, 500);
+    }
+
+    // Keep the platform JWT check enabled. The SDK independently validates the
+    // signed-in user's JWT and creates a separate privileged client using the
+    // named EventFlow secret key (aliased as default only inside this context).
+    const { data: context, error: contextError } = await createSupabaseContext(req, {
+      auth: "user",
+      cors: "disabled",
+      env: {
+        secretKeys: { ...secretKeys, default: eventflowSecretKey },
+      },
     });
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!token) return json({ error: "Authentication required." }, 401);
+    if (contextError || !context) {
+      return json({ error: "Your session is invalid or expired." }, contextError?.status ?? 401);
+    }
 
-    const { data: authData, error: authError } = await admin.auth.getUser(token);
+    const admin = context.supabaseAdmin;
+    const { data: authData, error: authError } = await context.supabase.auth.getUser();
     const caller = authData.user;
-    if (authError || !caller) return json({ error: "Your session is invalid or expired." }, 401);
+    if (authError || !caller) {
+      return json({ error: "Your session is invalid or expired." }, 401);
+    }
 
     const body = await req.json();
     const action = body?.action;
