@@ -93,7 +93,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       const row=Math.floor(slot/6)
       const home={
         x:(column-2.5)*1.22+(Math.random()-.5)*.24,
-        y:.06+layer*.19+(Math.random()-.5)*.025,
+        y:.06+layer*.125+(Math.random()-.5)*.004,
         z:(row-2.5)*1.22+(Math.random()-.5)*.24,
         rx:(Math.random()-.5)*.24,
         ry:Math.random()*Math.PI,
