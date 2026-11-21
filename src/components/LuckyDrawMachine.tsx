@@ -4,12 +4,13 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import './LuckyDrawMachine.css'
 
 export type BoxPhase = 'idle' | 'loading' | 'loaded' | 'cranking' | 'shaking' | 'reveal'
-type Props = { totalNames?: number; categoryLabel?: string; phase?: BoxPhase; startedAt?: number; animationId?: number }
+export type MachineCameraView = { position: [number, number, number]; target: [number, number, number] }
+type Props = { totalNames?: number; categoryLabel?: string; phase?: BoxPhase; startedAt?: number; animationId?: number; cameraView?: MachineCameraView | null; onCameraChange?: (view: MachineCameraView) => void; interactiveCamera?: boolean }
 
-export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No category selected', phase = 'idle', startedAt = 0, animationId = 0 }: Props) {
+export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No category selected', phase = 'idle', startedAt = 0, animationId = 0, cameraView = null, onCameraChange, interactiveCamera = true }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const propsRef = useRef({ totalNames, categoryLabel, phase, startedAt, animationId })
-  useEffect(() => { propsRef.current = { totalNames, categoryLabel, phase, startedAt, animationId } }, [totalNames, categoryLabel, phase, startedAt, animationId])
+  const propsRef = useRef({ totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera })
+  useEffect(() => { propsRef.current = { totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera } }, [totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera])
 
   useEffect(() => {
     const host = hostRef.current
@@ -67,12 +68,11 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(4.08,1.32),new THREE.MeshBasicMaterial({map:texture,toneMapped:false})); screen.position.z=.185; counter.add(screen)
     function paint(label:string,count:number) {
       if(!ctx)return
-      ctx.fillStyle='#080b0f';ctx.fillRect(0,0,640,210)
-      ctx.fillStyle='#aab5c2';ctx.font='800 28px Arial';ctx.textAlign='left';ctx.fillText('NAME COUNTER',26,42)
-      ctx.fillStyle='#fff';ctx.font='700 34px Arial';ctx.textAlign='center'
-      const trimmed=label.length>23?label.slice(0,21)+'…':label
-      ctx.fillText(trimmed.toUpperCase(),360,104)
-      ctx.fillStyle='#ff263c';ctx.shadowColor='#ff1b35';ctx.shadowBlur=16;ctx.font='900 122px "Courier New",monospace';ctx.fillText(String(count).padStart(3,'0'),360,218);ctx.shadowBlur=0
+      ctx.fillStyle='#080b0f';ctx.fillRect(0,0,720,260)
+      ctx.fillStyle='#fff';ctx.textAlign='center'
+      const trimmed=label.length>19?label.slice(0,17)+'…':label
+      ctx.font='900 48px Arial';ctx.fillText(trimmed.toUpperCase(),360,76)
+      ctx.fillStyle='#ff263c';ctx.shadowColor='#ff1b35';ctx.shadowBlur=18;ctx.font='900 148px "Courier New",monospace';ctx.fillText(String(count).padStart(3,'0'),360,238);ctx.shadowBlur=0
       texture.needsUpdate=true
     }
     paint(propsRef.current.categoryLabel,0)
@@ -99,13 +99,16 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
         }
       }
       const slot=slots[slotIndex]
+      const yaw=Math.random()*Math.PI
+      const projectedExtent=.93*(Math.abs(Math.cos(yaw))+Math.abs(Math.sin(yaw)))
+      const maxCenter=half-thick-.12-projectedExtent
       const home={
-        x:(slot.column-2)*1.96+(Math.random()-.5)*.16,
+        x:Math.max(-maxCenter,Math.min(maxCenter,(slot.column-2)*1.82+(Math.random()-.5)*.24)),
         y:.075+layer*.124,
-        z:(slot.row-2)*1.96+(Math.random()-.5)*.16,
-        rx:(Math.random()-.5)*.10,
-        ry:(Math.random()-.5)*Math.PI,
-        rz:(Math.random()-.5)*.10,
+        z:Math.max(-maxCenter,Math.min(maxCenter,(slot.row-2)*1.82+(Math.random()-.5)*.24)),
+        rx:(Math.random()-.5)*.08,
+        ry:yaw,
+        rz:(Math.random()-.5)*.08,
       }
       // Every layer is constrained to the 10-unit enclosure; no stack can
       // grow through the lid or float above the acrylic walls.
@@ -132,16 +135,32 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const grip=new THREE.Mesh(new THREE.SphereGeometry(.43,32,24),new THREE.MeshStandardMaterial({color:0x303943,metalness:.35,roughness:.24}));grip.position.set(.34,3.42,0);lever.add(grip)
 
     const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.ShadowMaterial({opacity:.14}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;floor.receiveShadow=true;scene.add(floor)
-    const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(.35,4.8,0);controls.enableDamping=true;controls.dampingFactor=.06;controls.minDistance=12;controls.maxDistance=42;controls.maxPolarAngle=Math.PI*.48;controls.update()
+    const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(.35,4.8,0);controls.enableDamping=true;controls.dampingFactor=.06;controls.minDistance=12;controls.maxDistance=42;controls.maxPolarAngle=Math.PI*.48;controls.enableRotate=interactiveCamera;controls.enableZoom=interactiveCamera;controls.enablePan=interactiveCamera;controls.update()
+    let lastAppliedCamera=''
+    controls.addEventListener('end',()=>{
+      if(!propsRef.current.interactiveCamera||!propsRef.current.onCameraChange)return
+      propsRef.current.onCameraChange({position:[camera.position.x,camera.position.y,camera.position.z],target:[controls.target.x,controls.target.y,controls.target.z]})
+    })
     function resize(){const w=Math.max(hostElement.clientWidth,1),h=Math.max(hostElement.clientHeight,1);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)}
     const observer=new ResizeObserver(resize);observer.observe(host);resize()
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let frame=0
     let previousPhase: BoxPhase='idle'
     let crankStartedAt=0
+    let lastFrameAt=performance.now()
+    const paperVelocity=paperHomes.map(()=>new THREE.Vector3())
+    let shakeWasActive=false
     const render=()=>{
       const p=propsRef.current, now=performance.now()
+      const dt=Math.min(.04,Math.max(.001,(now-lastFrameAt)/1000));lastFrameAt=now
+      if(p.cameraView){
+        const signature=JSON.stringify(p.cameraView)
+        if(signature!==lastAppliedCamera){camera.position.set(...p.cameraView.position);controls.target.set(...p.cameraView.target);controls.update();lastAppliedCamera=signature}
+      }
       if(p.phase!==previousPhase){if(p.phase==='cranking')crankStartedAt=now;previousPhase=p.phase}
+      const shakingNow=p.phase==='shaking'
+      if(shakingNow&&!shakeWasActive)paperVelocity.forEach((v)=>v.set((Math.random()-.5)*5,(Math.random()-.5)*1.2,(Math.random()-.5)*5))
+      shakeWasActive=shakingNow
       const elapsed=p.phase==='loading'&&p.startedAt?Math.max(0,Date.now()-p.startedAt):0
       const duration=14000
       const progress=p.phase==='loading'?Math.min(1,elapsed/duration):p.phase==='idle'?0:1
@@ -153,6 +172,25 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
         paper.visible=i<visiblePapers
         const home=paperHomes[i]
         const shaking=p.phase==='shaking'
+        const velocity=paperVelocity[i]
+        if(shaking){
+          velocity.y-=9.8*dt
+          paper.position.x+=velocity.x*dt
+          paper.position.y+=velocity.y*dt
+          paper.position.z+=velocity.z*dt
+          velocity.x*=Math.pow(.94,dt*60);velocity.z*=Math.pow(.94,dt*60)
+          const wallLimit=3.62
+          if(paper.position.x>wallLimit){paper.position.x=wallLimit;velocity.x=-Math.abs(velocity.x)*.32}
+          if(paper.position.x< -wallLimit){paper.position.x=-wallLimit;velocity.x=Math.abs(velocity.x)*.32}
+          if(paper.position.z>wallLimit){paper.position.z=wallLimit;velocity.z=-Math.abs(velocity.z)*.32}
+          if(paper.position.z< -wallLimit){paper.position.z=-wallLimit;velocity.z=Math.abs(velocity.z)*.32}
+          if(paper.position.y<home.y){paper.position.y=home.y;velocity.y=Math.abs(velocity.y)*.16;velocity.x+=(Math.random()-.5)*.12;velocity.z+=(Math.random()-.5)*.12}
+          if(paper.position.y>9.72){paper.position.y=9.72;velocity.y=-Math.abs(velocity.y)*.2}
+        } else if(!shakeWasActive){
+          paper.position.x+=(home.x-paper.position.x)*Math.min(1,dt*5)
+          paper.position.y+=(home.y-paper.position.y)*Math.min(1,dt*5)
+          paper.position.z+=(home.z-paper.position.z)*Math.min(1,dt*5)
+        }
         // Gravity-driven feed: each slip drops from above the slot, then settles onto its pile layer.
         const releaseAt=(i/paperCount)*duration*.62
         const fallSeconds=Math.max(0,(elapsed-releaseAt)/1000)
@@ -160,9 +198,11 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
         const settledY=Math.max(home.y,gravityDrop)
         const impactAge=Math.max(0,fallSeconds-Math.sqrt(Math.max(0,(10+((i%5)*.22)-home.y)/4.9)))
         const bounce=impactAge>0?Math.exp(-impactAge*7)*Math.sin(impactAge*18)*.055:0
-        paper.position.x=home.x+(shaking?Math.sin(now/95+i)*.1:0)
-        paper.position.y=(p.phase==='loading'?Math.max(home.y,settledY+bounce):home.y)+(shaking?Math.abs(Math.sin(now/85+i))*.12:0)
-        paper.position.z=home.z+(shaking?Math.cos(now/105+i)*.1:0)
+        if(p.phase==='loading'){
+          paper.position.x=home.x
+          paper.position.y=Math.max(home.y,settledY+bounce)
+          paper.position.z=home.z
+        }
         const fallingNow=p.phase==='loading'&&fallSeconds>0&&settledY>home.y+.02
         paper.rotation.set(home.rx+(fallingNow?Math.sin(now/75+i)*.08:0)+(shaking?Math.sin(now/110+i)*.08:0),home.ry+(fallingNow?Math.sin(now/90+i)*.12:0),home.rz+(fallingNow?Math.cos(now/80+i)*.08:0)+(shaking?Math.sin(now/100+i)*.16:0))
       })

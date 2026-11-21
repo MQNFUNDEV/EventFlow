@@ -418,7 +418,7 @@ export default function LuckyDrawManagement() {
   const spinCandidates = useCallback(async (candidates: Participant[]) => {
     const activeRoundId = roundRef.current
     const activeCategoryId = categoryRef.current
-    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinning || spinLockRef.current || candidates.length === 0) return
+    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinLockRef.current || candidates.length === 0) return
     spinLockRef.current = true
     const index = pickIndex(candidates.length)
     const chosen = candidates[index]
@@ -431,7 +431,9 @@ export default function LuckyDrawManagement() {
     }).select('id').single()
     if (insertError || !data) {
       spinLockRef.current = false
-      setError(insertError?.message ?? 'This guest could not be selected. Refresh the draw pool and try again.')
+      leverActionLockRef.current = false
+      setBoxPhase('loaded')
+      setError(insertError?.message ?? 'This guest could not be selected. Try pulling again.')
       return
     }
     setError('')
@@ -442,15 +444,24 @@ export default function LuckyDrawManagement() {
     updateWheelItems(candidates)
     restHandlerRef.current = (event) => {
       spinLockRef.current = false
+      leverActionLockRef.current = false
       setSpinning(false)
-      const winner = eligibleRef.current[event.currentIndex]
-      if (!winner) return
+      const winner = chosen
       setPendingWinner(winner)
       setBoxPhase('reveal'); void publishBoxState({ box_phase: 'reveal' })
       setMessage('Winner selected. Confirm them or skip and spin again.')
       void refreshWinnerHistory()
     }
-    wheelInstance.current.spinToItem(index, spinLength, true, 6, 1)
+    try {
+      wheelInstance.current.spinToItem(index, spinLength, true, 6, 1)
+    } catch (spinError) {
+      spinLockRef.current = false
+      leverActionLockRef.current = false
+      setSpinning(false)
+      setPendingWinnerRowId(null)
+      setError(spinError instanceof Error ? spinError.message : 'The wheel could not start. Try pulling again.')
+      return
+    }
     void refreshWinnerHistory()
   }, [refreshWinnerHistory, spinning])
 
@@ -492,7 +503,12 @@ export default function LuckyDrawManagement() {
   }
 
   async function startSpin() {
-    if (!wheelReady || spinning || !eligiblePool.length) return
+    if (!wheelReady || !wheelInstance.current || spinning || !eligiblePool.length) {
+      leverActionLockRef.current = false
+      setBoxPhase('loaded')
+      setError('The draw wheel is still preparing. Please pull again in a moment.')
+      return
+    }
     await spinCandidates(eligiblePool)
   }
 
@@ -513,6 +529,8 @@ export default function LuckyDrawManagement() {
       setPendingWinnerRowId(null)
       setBoxPhase('loaded')
       setBoxLoadingComplete(true)
+      leverActionLockRef.current = false
+      spinLockRef.current = false
       void publishBoxState({ box_phase: 'loaded' })
       setMessage(`${winnerName} confirmed and removed from the draw pool. Ready for the next pull.`)
       if (!remaining.length) {
@@ -550,6 +568,8 @@ export default function LuckyDrawManagement() {
       setPendingWinnerRowId(null)
       setBoxPhase('loaded')
       setBoxLoadingComplete(true)
+      leverActionLockRef.current = false
+      spinLockRef.current = false
       void publishBoxState({ box_phase: 'loaded' })
       await refreshWinnerHistory()
       if (!remaining.length) {
@@ -740,7 +760,7 @@ export default function LuckyDrawManagement() {
     <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from guests who have checked in. Every selected guest is removed from future spins.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
     {error && <div className="lucky-draw-message error" role="alert">{error}</div>}
     {message && <div className="lucky-draw-message success" role="status">{message}</div>}
-    <LuckyDrawMachine totalNames={pool.length || selectedCategoryCheckIns || 0} categoryLabel={poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType)} phase={boxPhase} startedAt={boxStartedAt} animationId={boxAnimationId} />
+    <LuckyDrawMachine totalNames={pool.length || selectedCategoryCheckIns || 0} categoryLabel={poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType)} phase={boxPhase} startedAt={boxStartedAt} animationId={boxAnimationId} onCameraChange={(view) => { void publishBoxState({ machine_camera: view }) }} />
     <section className="panel lucky-draw-setup">
       <label>Session name<input value={roundName} onChange={(event) => setRoundName(event.target.value)} disabled={Boolean(roundId)} /><small className="lucky-draw-field-hint">Shown as the heading on the live LED screen. Set it before loading the guest pool.</small></label>
       <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name} checked in</option>)}</select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>

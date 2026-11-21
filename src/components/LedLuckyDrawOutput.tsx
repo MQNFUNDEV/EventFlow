@@ -39,7 +39,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [spinFlashes, setSpinFlashes] = useState<SpinFlash[]>([])
   const [soundReady, setSoundReady] = useState(false)
-  const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0 })
+  const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, cameraView: null })
   const wheelContainer = useRef<HTMLDivElement>(null)
   const wheelInstance = useRef<Wheel | null>(null)
   const entriesRef = useRef<DrawEntry[]>([])
@@ -98,6 +98,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
         phase,
         startedAt: typeof payload.box_started_at === 'number' ? payload.box_started_at : 0,
         animationId: typeof payload.box_animation_id === 'number' ? payload.box_animation_id : 0,
+        cameraView: payload.machine_camera && typeof payload.machine_camera === 'object' ? payload.machine_camera as { position: [number,number,number]; target: [number,number,number] } : null,
       })
     }
     void loadBoxState()
@@ -261,7 +262,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
       {'DRAW'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
     </div>
     <div className="led-lucky-machine-stage">
-      <LuckyDrawMachine totalNames={boxState.total} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} />
+      <LuckyDrawMachine totalNames={boxState.total} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} cameraView={boxState.cameraView} interactiveCamera={false} />
     </div>
     {wheelSpinning && <div className="led-spin-flash-layer" aria-hidden="true">{spinFlashes.map((flash) => <span key={flash.id} style={{ left: `${flash.left}%`, top: `${flash.top}%`, '--flash-size': `${flash.size}px`, '--flash-color': flash.color, '--flash-delay': `${flash.delay}ms` } as CSSProperties}>{flash.name}</span>)}</div>}
     {winner && <div className="led-lucky-winner-backdrop" role="status" aria-live="assertive">
