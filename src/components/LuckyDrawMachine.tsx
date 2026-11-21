@@ -15,6 +15,7 @@ export default function LuckyDrawMachine() {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    const hostElement = host
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color('#f2f4f7')
@@ -154,14 +155,14 @@ export default function LuckyDrawMachine() {
     controls.update()
 
     function resize() {
-      const width = Math.max(host.clientWidth, 1)
-      const height = Math.max(host.clientHeight, 1)
+      const width = Math.max(hostElement.clientWidth, 1)
+      const height = Math.max(hostElement.clientHeight, 1)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
       renderer.setSize(width, height, false)
     }
     const observer = new ResizeObserver(resize)
-    observer.observe(host)
+    observer.observe(hostElement)
     resize()
 
     let frame = 0
@@ -176,11 +177,11 @@ export default function LuckyDrawMachine() {
       window.cancelAnimationFrame(frame)
       observer.disconnect()
       controls.dispose()
-      scene.traverse((object) => {
+      scene.traverse((object: any) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
           object.geometry.dispose()
           const materials = Array.isArray(object.material) ? object.material : [object.material]
-          materials.forEach((material) => material.dispose())
+          materials.forEach((material: any) => material.dispose())
         }
       })
       renderer.dispose()
