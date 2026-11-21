@@ -79,7 +79,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
 
     // Paper slips, pre-built as real meshes. They accumulate inside the transparent cube.
     const paperMat = new THREE.MeshStandardMaterial({color:0xfff4d9,roughness:.88,side:THREE.DoubleSide})
-    const papers: Array<{ visible: boolean; position: THREE.Vector3; rotation: THREE.Euler }> = []
+    const papers: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
     const paperCount=120
     for(let i=0;i<paperCount;i++){
       const paper=new THREE.Mesh(new THREE.PlaneGeometry(.78,.38),paperMat.clone())
