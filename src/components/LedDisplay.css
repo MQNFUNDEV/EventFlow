@@ -672,7 +672,6 @@
   .led-lucky-sound-toggle,
   .led-lucky-sound-state { top: auto; right: 3vw; bottom: 2vh; padding: 4px 7px; font-size: 8px; }
   .led-lucky-output .led-output-bottom { bottom: 3.5vh; padding: 0 64px; box-sizing: border-box; font-size: 10px; }
-  .led-lucky-winner { border-radius: 50%; }
   .led-lucky-winner strong { font-size: clamp(22px, 3.7vh, 40px); }
 
   .led-control-heading {
