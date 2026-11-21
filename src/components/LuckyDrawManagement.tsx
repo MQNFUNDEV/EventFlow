@@ -82,7 +82,8 @@ export default function LuckyDrawManagement() {
       .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
       .eq('draw_round_id', targetRoundId)
       .not('queue_position', 'is', null)
-      .order('queue_position', { ascending: true })
+      .order('queue_position', { ascending: false })
+      .limit(30)
     if (queueError) { setError(queueError.message); return }
     setWinnerQueue((data ?? []).map((row) => {
       const participant = getRelated(row.participants)
@@ -98,7 +99,7 @@ export default function LuckyDrawManagement() {
           category: participant.category,
         },
       } : null
-    }).filter((entry): entry is QueueEntry => Boolean(entry)))
+    }).filter((entry): entry is QueueEntry => Boolean(entry)).sort((a, b) => a.queue_position - b.queue_position))
   }, [roundId])
 
   const replenishWinnerQueue = useCallback(async (targetRoundId: string) => {
@@ -108,11 +109,17 @@ export default function LuckyDrawManagement() {
       .eq('queue_status', 'pending')
     if (countError) { setError(countError.message); return }
     let pendingCount = count ?? 0
-    const { data: available, error: availableError } = await supabase.from('draw_entries')
-      .select('id, participant_id')
-      .eq('draw_round_id', targetRoundId)
-      .eq('queue_status', 'available')
-    if (availableError) { setError(availableError.message); return }
+    const remaining: Array<{ id: string; participant_id: string }> = []
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error: availableError } = await supabase.from('draw_entries')
+        .select('id, participant_id')
+        .eq('draw_round_id', targetRoundId)
+        .eq('queue_status', 'available')
+        .range(offset, offset + 999)
+      if (availableError) { setError(availableError.message); return }
+      remaining.push(...(data ?? []))
+      if ((data ?? []).length < 1000) break
+    }
     const { data: lastPosition, error: positionError } = await supabase.from('draw_entries')
       .select('queue_position')
       .eq('draw_round_id', targetRoundId)
@@ -122,7 +129,6 @@ export default function LuckyDrawManagement() {
       .maybeSingle()
     if (positionError) { setError(positionError.message); return }
     let nextPosition = (lastPosition?.queue_position ?? 0) + 1
-    const remaining = [...(available ?? [])]
     while (pendingCount < 10 && remaining.length) {
       const index = pickIndex(remaining.length)
       const candidate = remaining.splice(index, 1)[0]
@@ -181,7 +187,8 @@ export default function LuckyDrawManagement() {
         .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
         .eq('draw_round_id', activeRound.id)
         .not('queue_position', 'is', null)
-        .order('queue_position', { ascending: true }),
+        .order('queue_position', { ascending: false })
+        .limit(30),
     ])
     const restoreError = entriesResult.error ?? winnersResult.error ?? queueResult.error
     if (restoreError) {
@@ -208,7 +215,7 @@ export default function LuckyDrawManagement() {
         queue_status: row.queue_status as QueueEntry['queue_status'],
         participant: { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category },
       } : null
-    }).filter((entry): entry is QueueEntry => Boolean(entry))
+    }).filter((entry): entry is QueueEntry => Boolean(entry)).sort((a, b) => a.queue_position - b.queue_position)
     const previousDraws = winnersResult.data ?? []
     const removedParticipants = new Set(previousDraws
       .filter((winner) => winner.status === 'skipped' || winner.notes === 'Confirmed by operator')
@@ -518,11 +525,17 @@ export default function LuckyDrawManagement() {
         setMessage('The winner list is already active. The pending queue has been topped up to 10 where participants remain.')
         return
       }
-      const { data: available, error: availableError } = await supabase.from('draw_entries')
-        .select('id')
-        .eq('draw_round_id', roundId)
-        .eq('queue_status', 'available')
-      if (availableError) throw availableError
+      const available: Array<{ id: string }> = []
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error: availableError } = await supabase.from('draw_entries')
+          .select('id')
+          .eq('draw_round_id', roundId)
+          .eq('queue_status', 'available')
+          .range(offset, offset + 999)
+        if (availableError) throw availableError
+        available.push(...(data ?? []))
+        if ((data ?? []).length < 1000) break
+      }
       const { data: lastPosition, error: positionError } = await supabase.from('draw_entries')
         .select('queue_position')
         .eq('draw_round_id', roundId)
@@ -532,7 +545,7 @@ export default function LuckyDrawManagement() {
         .maybeSingle()
       if (positionError) throw positionError
       let nextPosition = (lastPosition?.queue_position ?? 0) + 1
-      const candidates = [...(available ?? [])]
+      const candidates = [...available]
       const amount = Math.min(10, candidates.length)
       for (let index = 0; index < amount; index += 1) {
         const selected = candidates.splice(pickIndex(candidates.length), 1)[0]
@@ -903,7 +916,7 @@ export default function LuckyDrawManagement() {
         <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
       </div>
       <div className="lucky-draw-queue-panel">
-        <div className="lucky-draw-queue-heading"><div><strong>Winner List</strong><span>{winnerQueue.filter((entry) => entry.queue_status === 'pending').length} pending · {winnerQueue.length} generated</span></div>
+        <div className="lucky-draw-queue-heading"><div><strong>Winner List</strong><span>{winnerQueue.filter((entry) => entry.queue_status === 'pending').length} pending · latest {winnerQueue.length} shown</span></div>
           <button className="button-primary" onClick={() => void generateWinnerList()} disabled={!roundId || generatingQueue || Boolean(pendingWinner) || winnerQueue.some((entry) => entry.queue_status === 'pending')}>
             <Users size={16} /> {generatingQueue ? 'Generating…' : winnerQueue.length ? 'Generate next list' : 'Generate Winner List'}
           </button>
