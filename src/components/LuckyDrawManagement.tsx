@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Check, Play, RefreshCw, RotateCw, Trophy, Users, X } from 'lucide-react'
-import { Wheel, type WheelItem, type WheelRestEvent } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LuckyDrawManagement.css'
@@ -19,10 +18,6 @@ function pickIndex(length: number) {
   const sample = new Uint32Array(1)
   do { crypto.getRandomValues(sample) } while (sample[0] >= limit)
   return sample[0] % length
-}
-
-function participantWheelItem(participant: Participant): WheelItem {
-  return { label: participant.full_name, value: participant.id }
 }
 
 function formatDrawnAt(value: string) {
@@ -50,7 +45,6 @@ export default function LuckyDrawManagement() {
   const [savingWinner, setSavingWinner] = useState(false)
   const [updatingOutput, setUpdatingOutput] = useState(false)
   const [spinning, setSpinning] = useState(false)
-  const [wheelReady, setWheelReady] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [boxPhase, setBoxPhase] = useState<BoxPhase>('idle')
@@ -58,10 +52,6 @@ export default function LuckyDrawManagement() {
   const [boxAnimationId, setBoxAnimationId] = useState(0)
   const [boxLoadingComplete, setBoxLoadingComplete] = useState(false)
   const boxTimerRef = useRef<number | null>(null)
-  const wheelContainer = useRef<HTMLDivElement>(null)
-  const wheelInstance = useRef<Wheel | null>(null)
-  const eligibleRef = useRef<Participant[]>([])
-  const restHandlerRef = useRef<(event: WheelRestEvent) => void>(() => undefined)
   const roundRef = useRef<string | null>(null)
   const categoryRef = useRef<string | null>(null)
   const spinLockRef = useRef(false)
@@ -218,11 +208,9 @@ export default function LuckyDrawManagement() {
   }, [poolType])
 
   useEffect(() => {
-    eligibleRef.current = eligiblePool
     roundRef.current = roundId
     categoryRef.current = prizeCategoryId
-    if (wheelInstance.current && !spinning) wheelInstance.current.items = eligiblePool.map(participantWheelItem)
-  }, [eligiblePool, roundId, prizeCategoryId, spinning])
+  }, [roundId, prizeCategoryId])
 
   const refreshWinnerHistory = useCallback(async (targetRoundId: string | null = roundId) => {
     if (!targetRoundId) {
@@ -266,42 +254,6 @@ export default function LuckyDrawManagement() {
     void loadTheme()
     return () => { cancelled = true }
   }, [])
-
-  useEffect(() => {
-    if (!wheelContainer.current) return
-    const wheel = new Wheel(wheelContainer.current, {
-      items: eligibleRef.current.map(participantWheelItem),
-      isInteractive: false,
-      pointerAngle: 0,
-      radius: 0.98,
-      itemLabelAlign: 'right',
-      itemLabelRadius: 0.95,
-      itemLabelRadiusMax: 0.08,
-      itemLabelFont: 'Manrope, sans-serif',
-      itemLabelFontSizeMax: 64,
-      itemLabelColors: ['#ffffff'],
-      itemLabelStrokeColor: '#07111f',
-      itemLabelStrokeWidth: 2,
-      itemBackgroundColors: themeColors,
-      lineColor: '#ffffff',
-      lineWidth: 2,
-      borderColor: themeColors[3],
-      borderWidth: 4,
-      onRest: (event: WheelRestEvent) => restHandlerRef.current(event),
-    })
-    wheelInstance.current = wheel
-    setWheelReady(true)
-    return () => {
-      wheel.remove()
-      wheelInstance.current = null
-      setWheelReady(false)
-    }
-  }, [roundId, themeColors])
-
-  function updateWheelItems(participants: Participant[]) {
-    eligibleRef.current = participants
-    if (wheelInstance.current) wheelInstance.current.items = participants.map(participantWheelItem)
-  }
 
   const loadPool = useCallback(async () => {
     setLoading(true)
@@ -418,10 +370,12 @@ export default function LuckyDrawManagement() {
   const spinCandidates = useCallback(async (candidates: Participant[]) => {
     const activeRoundId = roundRef.current
     const activeCategoryId = categoryRef.current
-    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinLockRef.current || candidates.length === 0) return
+    if (!activeRoundId || !activeCategoryId || spinLockRef.current || candidates.length === 0) {
+      leverActionLockRef.current = false
+      return
+    }
     spinLockRef.current = true
-    const index = pickIndex(candidates.length)
-    const chosen = candidates[index]
+    const chosen = candidates[pickIndex(candidates.length)]
     const { data, error: insertError } = await supabase.from('draw_winners').insert({
       draw_round_id: activeRoundId,
       prize_category_id: activeCategoryId,
@@ -433,37 +387,19 @@ export default function LuckyDrawManagement() {
       spinLockRef.current = false
       leverActionLockRef.current = false
       setBoxPhase('loaded')
+      void publishBoxState({ box_phase: 'loaded' })
       setError(insertError?.message ?? 'This guest could not be selected. Try pulling again.')
       return
     }
     setError('')
-    setMessage('The wheel is spinning…')
-    setPendingWinner(null)
+    setPendingWinner(chosen)
     setPendingWinnerRowId(data.id)
-    setSpinning(true)
-    updateWheelItems(candidates)
-    restHandlerRef.current = () => {
-      spinLockRef.current = false
-      leverActionLockRef.current = false
-      setSpinning(false)
-      const winner = chosen
-      setPendingWinner(winner)
-      setBoxPhase('reveal'); void publishBoxState({ box_phase: 'reveal' })
-      setMessage('Winner selected. Confirm them or skip and spin again.')
-      void refreshWinnerHistory()
-    }
-    try {
-      wheelInstance.current.spinToItem(index, spinLength, true, 6, 1)
-    } catch (spinError) {
-      spinLockRef.current = false
-      leverActionLockRef.current = false
-      setSpinning(false)
-      setPendingWinnerRowId(null)
-      setError(spinError instanceof Error ? spinError.message : 'The wheel could not start. Try pulling again.')
-      return
-    }
+    setBoxPhase('reveal')
+    leverActionLockRef.current = false
+    void publishBoxState({ box_phase: 'reveal' })
+    setMessage('Winner revealed. Confirm them or skip and draw again.')
     void refreshWinnerHistory()
-  }, [refreshWinnerHistory, spinning])
+  }, [refreshWinnerHistory])
 
   async function resetBox() {
     if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
@@ -486,7 +422,7 @@ export default function LuckyDrawManagement() {
   }
 
   async function pullBoxLever() {
-    if (!roundId || !boxLoadingComplete || spinning || !eligiblePool.length || pendingWinner || leverActionLockRef.current) return
+    if (!roundId || !boxLoadingComplete || !eligiblePool.length || pendingWinner || leverActionLockRef.current) return
     leverActionLockRef.current = true
     setBoxPhase('cranking')
     await publishBoxState({ box_phase: 'cranking' })
@@ -494,19 +430,19 @@ export default function LuckyDrawManagement() {
       setBoxPhase('shaking')
       void publishBoxState({ box_phase: 'shaking' })
       const shakeTimer = window.setTimeout(() => {
-        leverActionLockRef.current = false
         void startSpin()
-      }, 1600)
+      }, 4200)
       leverTimersRef.current.push(shakeTimer)
     }, 2400)
     leverTimersRef.current.push(crankTimer)
   }
 
   async function startSpin() {
-    if (!wheelReady || !wheelInstance.current || spinning || !eligiblePool.length) {
+    if (spinning || !eligiblePool.length) {
       leverActionLockRef.current = false
       setBoxPhase('loaded')
-      setError('The draw wheel is still preparing. Please pull again in a moment.')
+      void publishBoxState({ box_phase: 'loaded' })
+      setError('No eligible guests remain in this draw pool.')
       return
     }
     await spinCandidates(eligiblePool)
@@ -773,23 +709,18 @@ export default function LuckyDrawManagement() {
       <div><strong>Lucky Draw Box</strong><span>{boxPhase === 'loading' ? 'Paper slips are entering the box…' : boxPhase === 'loaded' ? 'All name slips are inside. Ready to pull.' : boxPhase === 'cranking' ? 'Lever is cranking…' : boxPhase === 'shaking' ? 'Mixing the name slips…' : boxPhase === 'reveal' ? 'Winner revealed.' : 'Reset the box, set a category, then start the paper feed.'}</span></div>
       <div className="lucky-draw-box-actions">
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
-        <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
-        <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length}>Pull lever</button>
+        <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
+        <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
       </div>
-    </section>
-
-    {roundId && <section className="panel lucky-draw-wheel-panel">
-      <div className="lucky-draw-round-title"><span>{roundName}</span><small>{pool.length} checked-in guests loaded</small></div>
-      <div className="lucky-draw-wheel-layout">
-        <div className={`lucky-draw-wheel-wrap ${spinning ? 'is-spinning' : ''}`}><span className="lucky-draw-pointer" aria-hidden="true" /><div className="lucky-draw-wheel" ref={wheelContainer} aria-label="Lucky draw participant wheel" />{!eligiblePool.length && <div className="lucky-draw-wheel-empty">No guests left in this pool</div>}</div>
-        <div className="lucky-draw-controls">
-          {pendingWinner ? <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>Press spin to pick a checked-in guest.</span></div>}
-          <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!wheelReady || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length}>{spinning ? 'Cranking…' : !boxLoadingComplete ? 'Load papers first' : 'Pull lever'}</button>
-          {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
-          {pendingWinner && <div className="lucky-draw-winner-actions"><button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button><button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button></div>}
+      {pendingWinner ? <div className="lucky-draw-controls lucky-draw-winner-review">
+        <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>
+        <div className="lucky-draw-winner-actions">
+          <button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button>
+          <button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button>
         </div>
-      </div>
-    </section>}
+      </div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>{boxLoadingComplete ? 'Pull the lever when ready.' : 'Load the papers before pulling the lever.'}</span></div>}
+      {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
+    </section>
 
     <section className="panel lucky-draw-log-panel">
       <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong></div></div>
