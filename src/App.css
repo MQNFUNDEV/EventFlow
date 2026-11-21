@@ -787,9 +787,9 @@
   margin: 21px 0 17px;
 }
 
- .category-stats {
+.category-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 

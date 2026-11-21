@@ -2,7 +2,6 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import type { DisplayScene } from './LedDisplayControl'
 import LedLuckyDrawOutput from './LedLuckyDrawOutput'
 import { supabase } from '../lib/supabase'
-import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LedDisplay.css'
 
 type Attendee = { participant_id: string; checked_in_at: string; participant: { full_name: string; category: string } }
@@ -17,7 +16,6 @@ type DisplayPayload = {
   event_location?: unknown
   scene_backgrounds?: unknown
   assets_updated_at?: unknown
-  participant_categories?: unknown
 }
 
 const BACKGROUND_SCENES: BackgroundScene[] = ['lucky_draw', 'attendance', 'manual_checkin']
@@ -55,7 +53,6 @@ function isExactFullHd(image: HTMLImageElement) {
 export default function LedDisplayOutput() {
   const [scene, setScene] = useState<DisplayScene>('welcome')
   const [attendees, setAttendees] = useState<Attendee[]>([])
-  const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
   const [generatedWelcomeFill, setGeneratedWelcomeFill] = useState('')
   const [welcomePoster, setWelcomePoster] = useState(DEFAULT_KV_URL)
   const [welcomePosterIsFullHd, setWelcomePosterIsFullHd] = useState(false)
@@ -125,7 +122,6 @@ export default function LedDisplayOutput() {
       if (cancelled || !row) return
       const payload: DisplayPayload = row.payload && typeof row.payload === 'object' ? row.payload as DisplayPayload : {}
       const nextAssetsVersion = typeof payload.assets_updated_at === 'string' ? payload.assets_updated_at : ''
-      setParticipantCategories(readParticipantCategories(payload))
 
       const nextEventDetails = {
         name: typeof payload.event_name === 'string' && payload.event_name.trim() ? payload.event_name.trim() : 'Johor Meetup X',
@@ -245,7 +241,7 @@ export default function LedDisplayOutput() {
           {!welcomePosterIsFullHd && (generatedWelcomeFill ? <img className="led-generated-fill" src={generatedWelcomeFill} alt="" /> : <img className="led-welcome-backdrop" src={welcomePoster} alt="" />)}
           <img className="led-welcome-poster" src={welcomePoster} alt="Event key visual" />
         </div>
-      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} categories={participantCategories} /> : scene === 'manual_checkin' ? <>
+      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} /> : scene === 'manual_checkin' ? <>
         <div className="led-manual-checkin-brand"><div className="led-output-brand">MAQNA EVENTFLOW</div></div>
         <div className="led-manual-checkin-event"><h2>{eventDetails.name}</h2><p>{eventDetails.date || 'Date to be announced'} <span>·</span> {eventDetails.venue || 'Venue to be announced'}</p></div>
         <div className="led-manual-checkin-copy"><span className="led-manual-checkin-kicker">GUEST ARRIVAL</span><h1>Manual Check-in</h1><p>Please proceed to the check-in desk.</p></div>
@@ -253,7 +249,7 @@ export default function LedDisplayOutput() {
       </> : <>
         <div className="led-attendance-heading"><div className="led-output-brand">{eventDetails.name.toUpperCase()}</div><h1>Our Guests Are Here</h1><p>{attendees.length} checked in and counting</p></div>
         {attendees.length ? <div className="led-credits-window" aria-label="List of checked-in guests">
-          <div className="led-credits-track">{repeatedAttendees.map((guest, index) => <div className="led-credit-name" key={`${guest.participant_id}-${index}`}><strong>{guest.participant.full_name}</strong><span>{categoryName(participantCategories, guest.participant.category)}</span></div>)}</div>
+          <div className="led-credits-track">{repeatedAttendees.map((guest, index) => <div className="led-credit-name" key={`${guest.participant_id}-${index}`}><strong>{guest.participant.full_name}</strong><span>{guest.participant.category}</span></div>)}</div>
         </div> : <div className="led-attendance-empty">Waiting for the first guests to check in</div>}
       </>}
       {scene !== 'lucky_draw' && scene !== 'blackout' && !(scene === 'welcome' && welcomePosterIsFullHd) && scene !== 'manual_checkin' && <div className="led-output-bottom">MAQNA EVENTFLOW</div>}

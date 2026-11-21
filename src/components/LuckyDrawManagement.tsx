@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Check, RefreshCw, RotateCw, Trophy, Users, X } from 'lucide-react'
 import { Wheel, type WheelItem, type WheelRestEvent } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
-import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LuckyDrawManagement.css'
-import LuckyDrawMachine from './LuckyDrawMachine'
 
-type PoolType = string
-type Participant = { id: string; full_name: string; participant_code: string; category: string }
+type PoolType = 'everyone' | 'student' | 'staff'
+type Participant = { id: string; full_name: string; participant_code: string; category: 'student' | 'staff' }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
 type ThemePayload = { theme_colors?: unknown }
 
@@ -35,8 +33,7 @@ function getRelated<T>(value: T | T[] | null | undefined) {
 
 export default function LuckyDrawManagement() {
   const [poolType, setPoolType] = useState<PoolType>('everyone')
-  const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
-  const [checkedInCounts, setCheckedInCounts] = useState<Record<string, number> | null>(null)
+  const [checkedInCounts, setCheckedInCounts] = useState<{ student: number; staff: number } | null>(null)
   const [roundName, setRoundName] = useState('Lucky Draw Session')
   const [roundId, setRoundId] = useState<string | null>(null)
   const [prizeCategoryId, setPrizeCategoryId] = useState<string | null>(null)
@@ -59,8 +56,6 @@ export default function LuckyDrawManagement() {
   const restHandlerRef = useRef<(event: WheelRestEvent) => void>(() => undefined)
   const roundRef = useRef<string | null>(null)
   const categoryRef = useRef<string | null>(null)
-  const spinLockRef = useRef(false)
-  const winnerActionLockRef = useRef(false)
 
   const eligiblePool = useMemo(() => pool.filter((participant) => !excludedIds.has(participant.id)), [pool, excludedIds])
 
@@ -111,7 +106,7 @@ export default function LuckyDrawManagement() {
         id: row.participant_id,
         full_name: participant.full_name,
         participant_code: participant.participant_code,
-        category: participant.category,
+        category: participant.category as 'student' | 'staff',
       } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const previousDraws = winnersResult.data ?? []
@@ -142,7 +137,6 @@ export default function LuckyDrawManagement() {
 
   useEffect(() => {
     let cancelled = false
-    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
     async function loadCategoryPreview() {
       const { data, error: attendanceError } = await supabase.from('attendance')
         .select('participant_id, participants!inner(category, is_active)')
@@ -150,9 +144,10 @@ export default function LuckyDrawManagement() {
       if (cancelled || attendanceError) return
       const counts = (data ?? []).reduce((total, row) => {
         const participant = getRelated(row.participants)
-        if (participant?.category) total[participant.category] = (total[participant.category] ?? 0) + 1
+        if (participant?.category === 'student') total.student += 1
+        if (participant?.category === 'staff') total.staff += 1
         return total
-      }, {} as Record<string, number>)
+      }, { student: 0, staff: 0 })
       setCheckedInCounts(counts)
     }
     void loadCategoryPreview()
@@ -285,13 +280,13 @@ export default function LuckyDrawManagement() {
     }
     const checkedInParticipants = (attendance ?? []).map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
+      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category as 'student' | 'staff' } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const categoryPool = checkedInParticipants.filter((participant) => poolType === 'everyone' || participant.category === poolType).sort((a, b) => a.id.localeCompare(b.id))
     if (!categoryPool.length) {
       setPool([])
       setExcludedIds(new Set())
-      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw.`)
+      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : `${poolType}s`} are available for this draw.`)
       setLoading(false)
       return
     }
@@ -357,8 +352,7 @@ export default function LuckyDrawManagement() {
   const spinCandidates = useCallback(async (candidates: Participant[]) => {
     const activeRoundId = roundRef.current
     const activeCategoryId = categoryRef.current
-    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinning || spinLockRef.current || candidates.length === 0) return
-    spinLockRef.current = true
+    if (!activeRoundId || !activeCategoryId || !wheelInstance.current || spinning || candidates.length === 0) return
     const index = pickIndex(candidates.length)
     const chosen = candidates[index]
     const { data, error: insertError } = await supabase.from('draw_winners').insert({
@@ -369,7 +363,6 @@ export default function LuckyDrawManagement() {
       notes: 'Awaiting operator confirmation',
     }).select('id').single()
     if (insertError || !data) {
-      spinLockRef.current = false
       setError(insertError?.message ?? 'This guest could not be selected. Refresh the draw pool and try again.')
       return
     }
@@ -380,7 +373,6 @@ export default function LuckyDrawManagement() {
     setSpinning(true)
     updateWheelItems(candidates)
     restHandlerRef.current = (event) => {
-      spinLockRef.current = false
       setSpinning(false)
       const winner = eligibleRef.current[event.currentIndex]
       if (!winner) return
@@ -398,68 +390,46 @@ export default function LuckyDrawManagement() {
   }
 
   async function acceptWinner() {
-    if (!pendingWinner || !pendingWinnerRowId || winnerActionLockRef.current) return
-    winnerActionLockRef.current = true
+    if (!pendingWinner || !pendingWinnerRowId) return
     setSavingWinner(true)
-    try {
-      const winnerName = pendingWinner.full_name
-      const remaining = eligiblePool.filter((participant) => participant.id !== pendingWinner.id)
-      const { error: updateError } = await supabase.from('draw_winners').update({ notes: 'Confirmed by operator' }).eq('id', pendingWinnerRowId)
-      if (updateError) {
-        setError(updateError.message)
-        return
-      }
+    const winnerName = pendingWinner.full_name
+    const remaining = eligiblePool.filter((participant) => participant.id !== pendingWinner.id)
+    const { error: updateError } = await supabase.from('draw_winners').update({ notes: 'Confirmed by operator' }).eq('id', pendingWinnerRowId)
+    if (updateError) setError(updateError.message)
+    else {
       setExcludedIds((current) => new Set([...current, pendingWinner.id]))
       setPendingWinner(null)
       setPendingWinnerRowId(null)
       setMessage(`${winnerName} confirmed and removed from the draw pool.`)
-      if (!remaining.length) {
-        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
-        if (roundError) setError(`Winner confirmed, but the draw round could not be closed: ${roundError.message}`)
-      }
+      if (!remaining.length) await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
       await refreshWinnerHistory()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unable to confirm this winner.')
-    } finally {
-      winnerActionLockRef.current = false
-      setSavingWinner(false)
     }
+    setSavingWinner(false)
   }
 
   async function skipWinner() {
-    if (!pendingWinner || !pendingWinnerRowId || winnerActionLockRef.current) return
-    winnerActionLockRef.current = true
+    if (!pendingWinner || !pendingWinnerRowId) return
     setSavingWinner(true)
-    try {
-      const { data: authData, error: authError } = await supabase.auth.getUser()
-      if (authError || !authData.user) {
-        setError(authError?.message ?? 'Sign in again before skipping this winner.')
-        return
-      }
-      const { error: updateError } = await supabase.from('draw_winners').update({ status: 'skipped', skipped_at: new Date().toISOString(), skipped_by: authData.user.id, notes: 'Skipped by operator' }).eq('id', pendingWinnerRowId)
-      if (updateError) {
-        setError(updateError.message)
-        return
-      }
-      const skippedId = pendingWinner.id
-      const remaining = eligiblePool.filter((participant) => participant.id !== skippedId)
-      setExcludedIds((current) => new Set([...current, skippedId]))
-      setPendingWinner(null)
-      setPendingWinnerRowId(null)
-      await refreshWinnerHistory()
-      if (!remaining.length) {
-        setMessage('That guest was skipped. There are no more guests in this pool.')
-        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
-        if (roundError) setError(`Guest skipped, but the draw round could not be closed: ${roundError.message}`)
-        return
-      }
-      setMessage('Guest skipped and removed from this pool. Spin again when ready.')
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unable to skip this winner.')
-    } finally {
-      winnerActionLockRef.current = false
+    const { data: authData } = await supabase.auth.getUser()
+    const { error: updateError } = await supabase.from('draw_winners').update({ status: 'skipped', skipped_at: new Date().toISOString(), skipped_by: authData.user?.id ?? null, notes: 'Skipped by operator' }).eq('id', pendingWinnerRowId)
+    if (updateError) {
+      setError(updateError.message)
       setSavingWinner(false)
+      return
     }
+    const skippedId = pendingWinner.id
+    const remaining = eligiblePool.filter((participant) => participant.id !== skippedId)
+    setExcludedIds((current) => new Set([...current, skippedId]))
+    setPendingWinner(null)
+    setPendingWinnerRowId(null)
+    setSavingWinner(false)
+    await refreshWinnerHistory()
+    if (!remaining.length) {
+      setMessage('That guest was skipped. There are no more guests in this pool.')
+      await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
+      return
+    }
+    setMessage('Guest skipped and removed from this pool. Spin again when ready.')
   }
 
   async function reloadHistory() {
@@ -510,13 +480,13 @@ export default function LuckyDrawManagement() {
     }
     const checkedIn = (attendance ?? []).map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
+      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category as 'student' | 'staff' } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const refreshedPool = checkedIn
       .filter((participant) => poolType === 'everyone' || participant.category === poolType)
       .sort((a, b) => a.id.localeCompare(b.id))
     if (!refreshedPool.length) {
-      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw.`)
+      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : `${poolType}s`} are available for this draw.`)
       setUpdatingOutput(false)
       return
     }
@@ -624,7 +594,7 @@ export default function LuckyDrawManagement() {
   }
 
   const selectedCategoryCheckIns = checkedInCounts
-    ? poolType === 'everyone' ? Object.values(checkedInCounts).reduce((sum, count) => sum + count, 0) : checkedInCounts[poolType] ?? 0
+    ? poolType === 'everyone' ? checkedInCounts.student + checkedInCounts.staff : checkedInCounts[poolType]
     : null
   const checkedInNotInPool = roundId && selectedCategoryCheckIns !== null
     ? Math.max(0, selectedCategoryCheckIns - pool.length)
@@ -635,13 +605,12 @@ export default function LuckyDrawManagement() {
     <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from guests who have checked in. Every selected guest is removed from future spins.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
     {error && <div className="lucky-draw-message error" role="alert">{error}</div>}
     {message && <div className="lucky-draw-message success" role="status">{message}</div>}
-    <LuckyDrawMachine />
     <section className="panel lucky-draw-setup">
       <label>Session name<input value={roundName} onChange={(event) => setRoundName(event.target.value)} disabled={Boolean(roundId)} /><small className="lucky-draw-field-hint">Shown as the heading on the live LED screen. Set it before loading the guest pool.</small></label>
-      <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name} checked in</option>)}</select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>
+      <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option><option value="student">Students checked in</option><option value="staff">Staff checked in</option></select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>
       <button className="button-primary" onClick={() => void loadPool()} disabled={loading || Boolean(roundId)}><Users size={16} /> {loading ? 'Loading pool…' : roundId ? 'Session ready' : 'Load checked-in pool'}</button>
       {roundId && <button className="button-secondary" onClick={() => void startNewSession()} disabled={loading || spinning || savingWinner || Boolean(pendingWinner)}><RotateCw size={16} /> New draw session</button>}
-      <div className="lucky-draw-pool-count"><span>Available in current wheel</span><strong>{roundId ? eligiblePool.length : '—'}</strong>{checkedInNotInPool > 0 && <small>{checkedInNotInPool} checked-in {poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are not in this saved pool. Reset the pool to include them.</small>}</div>
+      <div className="lucky-draw-pool-count"><span>Available in current wheel</span><strong>{roundId ? eligiblePool.length : '—'}</strong>{checkedInNotInPool > 0 && <small>{checkedInNotInPool} checked-in {poolType === 'everyone' ? 'guests' : `${poolType}s`} are not in this saved pool. Reset the pool to include them.</small>}</div>
     </section>
 
     {roundId && <section className="panel lucky-draw-wheel-panel">
@@ -649,7 +618,7 @@ export default function LuckyDrawManagement() {
       <div className="lucky-draw-wheel-layout">
         <div className={`lucky-draw-wheel-wrap ${spinning ? 'is-spinning' : ''}`}><span className="lucky-draw-pointer" aria-hidden="true" /><div className="lucky-draw-wheel" ref={wheelContainer} aria-label="Lucky draw participant wheel" />{!eligiblePool.length && <div className="lucky-draw-wheel-empty">No guests left in this pool</div>}</div>
         <div className="lucky-draw-controls">
-          {pendingWinner ? <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>Press spin to pick a checked-in guest.</span></div>}
+          {pendingWinner ? <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{pendingWinner.category} · {pendingWinner.participant_code}</span></div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>Press spin to pick a checked-in guest.</span></div>}
           <button className="lucky-draw-spin-button" onClick={() => void startSpin()} disabled={!wheelReady || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length}>{spinning ? 'Spinning…' : wheelReady ? 'Spin the wheel' : 'Preparing wheel…'}</button>
           {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
           {pendingWinner && <div className="lucky-draw-winner-actions"><button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button><button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button></div>}
@@ -661,7 +630,7 @@ export default function LuckyDrawManagement() {
       <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong></div></div>
       {history.length ? <div className="lucky-draw-log-list">{history.map((winner, index) => <article className={`lucky-draw-log-row ${winner.status === 'skipped' ? 'is-skipped' : ''} ${index > 0 && history[index - 1].round.pool_type !== winner.round.pool_type ? 'is-category-break' : ''}`} key={winner.id}>
         <div className="lucky-draw-log-number"><Trophy size={17} /></div>
-        <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : categoryName(categories, winner.round.pool_type)} draw · {winner.round.name}</span></div>
+        <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : `${winner.round.pool_type[0].toUpperCase()}${winner.round.pool_type.slice(1)}s`} draw · {winner.round.name}</span></div>
         <div className="lucky-draw-log-meta"><span className={`lucky-draw-status ${winner.status === 'skipped' ? 'skipped' : winner.notes === 'Confirmed by operator' ? 'confirmed' : 'pending'}`}>{winner.status === 'skipped' ? 'Skipped' : winner.notes === 'Confirmed by operator' ? 'Confirmed winner' : 'Pending confirmation'}</span><time>{formatDrawnAt(winner.drawn_at)}</time></div>
       </article>)}</div> : <p className="lucky-draw-log-empty">No winners have been drawn yet.</p>}
     </section>

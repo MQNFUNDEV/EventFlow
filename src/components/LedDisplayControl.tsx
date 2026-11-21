@@ -96,9 +96,10 @@ export default function LedDisplayControl() {
   }
 
   return <div className="led-control-page">
-    <div className="led-control-heading">
+    <header className="led-control-heading">
+      <div><span className="led-control-eyebrow"><Monitor size={15} /> VENUE DISPLAY</span><h2>LED Display</h2><p>Select a screen to preview it, then press Fade to send it to the output.</p></div>
       <button className="button-secondary" onClick={() => void loadScene()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button>
-    </div>
+    </header>
     {error && <div className="led-message error" role="alert">{error}</div>}
     {message && <div className="led-message success" role="status">{message}</div>}
     <section className="led-scene-grid" aria-label="Choose a display scene, then fade it live">

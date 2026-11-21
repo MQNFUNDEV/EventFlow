@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, Download, RefreshCw, Search } from 'lucide-react'
+import { Check, Download, RefreshCw, Search, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './AttendanceManagement.css'
 
 type Participant = {
@@ -10,7 +9,7 @@ type Participant = {
   full_name: string
   email: string | null
   phone: string | null
-  category: string
+  category: 'student' | 'staff'
   is_active: boolean
 }
 type CheckIn = {
@@ -32,7 +31,6 @@ function csvCell(value: string | null | undefined) {
 
 export default function AttendanceManagement() {
   const [participants, setParticipants] = useState<Participant[]>([])
-  const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
   const [checkIns, setCheckIns] = useState<CheckIn[]>([])
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
@@ -56,7 +54,6 @@ export default function AttendanceManagement() {
 
   useEffect(() => {
     let cancelled = false
-    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
     async function initialLoad() {
       const [participantResult, checkInResult] = await Promise.all([
         supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name'),
@@ -122,7 +119,7 @@ export default function AttendanceManagement() {
       ['Participant code', 'Name', 'Category', 'Email', 'Phone', 'Attendance status', 'Check-in time (MYT)', 'Method'],
       ...participants.map((participant) => {
         const checkIn = checkInsByParticipant.get(participant.id)
-        return [participant.participant_code, participant.full_name, categoryName(categories, participant.category), participant.email ?? '', participant.phone ?? '', checkIn ? 'Checked in' : 'Not checked in', checkIn ? new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(checkIn.checked_in_at)) : '', checkIn?.check_in_method ?? '']
+        return [participant.participant_code, participant.full_name, participant.category, participant.email ?? '', participant.phone ?? '', checkIn ? 'Checked in' : 'Not checked in', checkIn ? new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(checkIn.checked_in_at)) : '', checkIn?.check_in_method ?? '']
       }),
     ]
     const csv = `\uFEFF${rows.map((row) => row.map((cell) => csvCell(String(cell))).join(',')).join('\r\n')}`
@@ -136,10 +133,17 @@ export default function AttendanceManagement() {
 
   return (
     <div className="attendance-page">
-      <div className="attendance-heading attendance-heading-actions">
+      <header className="attendance-heading">
+        <div>
+          <span className="attendance-eyebrow"><Users size={14} /> EVENT CHECK-IN</span>
+          <h2>Attendance</h2>
+          <p>Find a registered participant and record their arrival.</p>
+        </div>
+        <div className="attendance-heading-actions">
           <button className="button-secondary" onClick={() => void loadData()} disabled={loading}><RefreshCw size={16} /> Refresh</button>
           <button className="button-secondary" onClick={exportCsv} disabled={loading || participants.length === 0}><Download size={16} /> Export CSV</button>
-      </div>
+        </div>
+      </header>
 
       {error && <div className="attendance-alert error" role="alert">{error}</div>}
       {message && <div className="attendance-alert success" role="status">{message}</div>}
@@ -155,7 +159,7 @@ export default function AttendanceManagement() {
         <div className="attendance-toolbar">
           <label className="attendance-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, code, email or phone" /></label>
           <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="all">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <option value="all">All categories</option><option value="staff">Staff</option><option value="student">Students</option>
           </select>
           <select aria-label="Filter by attendance status" value={view} onChange={(event) => setView(event.target.value as typeof view)}>
             <option value="all">Everyone</option><option value="waiting">Not checked in</option><option value="checked_in">Checked in</option>
@@ -169,7 +173,7 @@ export default function AttendanceManagement() {
               const checkIn = checkInsByParticipant.get(participant.id)
               return <tr key={participant.id}>
                 <td><strong>{participant.full_name}</strong><small>{participant.participant_code}</small></td>
-                <td className="attendance-capitalize">{categoryName(categories, participant.category)}</td>
+                <td className="attendance-capitalize">{participant.category}</td>
                 <td><span className={`attendance-badge ${checkIn ? 'checked' : 'waiting'}`}>{checkIn ? 'Checked in' : 'Expected'}</span></td>
                 <td>{checkIn ? formatTime(checkIn.checked_in_at) : '—'}</td>
                 <td>{checkIn ? <span className="attendance-recorded"><Check size={15} /> Recorded</span> : <button className="button-primary attendance-checkin" onClick={() => void checkInParticipant(participant)} disabled={savingId === participant.id}>{savingId === participant.id ? 'Saving…' : 'Check in'}</button>}</td>
