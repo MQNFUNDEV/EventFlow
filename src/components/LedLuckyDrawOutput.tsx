@@ -18,6 +18,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', even
   const latestWinnerId = useRef<string | null>(null)
   const lastRoundId = useRef<string | null>(null)
   const lastRoundUpdatedAt = useRef<string | null>(null)
+  const polling = useRef(false)
   const audioContext = useRef<AudioContext | null>(null)
 
   useEffect(() => () => {
@@ -73,6 +74,79 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', even
     const timer = window.setInterval(() => { void loadBoxState() }, 650)
     return () => { active = false; window.clearInterval(timer) }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    async function pollWinner() {
+      if (!active || polling.current) return
+      polling.current = true
+      try {
+        const { data: activeRound, error: roundError } = await supabase
+          .from('draw_rounds')
+          .select('id, name, pool_type, updated_at')
+          .eq('status', 'drawing')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (!active) return
+        if (roundError) return
+        if (!activeRound) {
+          lastRoundId.current = null
+          lastRoundUpdatedAt.current = null
+          latestWinnerId.current = null
+          setRound(null)
+          setWinner(null)
+          return
+        }
+
+        const roundChanged = activeRound.id !== lastRoundId.current
+        if (roundChanged) {
+          lastRoundId.current = activeRound.id
+          latestWinnerId.current = null
+          setWinner(null)
+        }
+        if (roundChanged || activeRound.updated_at !== lastRoundUpdatedAt.current) {
+          lastRoundUpdatedAt.current = activeRound.updated_at
+          setRound(activeRound)
+        }
+
+        const { data: winnerRows, error: winnerError } = await supabase
+          .from('draw_winners')
+          .select('id, participant_id, status, notes, participants!inner(full_name, category)')
+          .eq('draw_round_id', activeRound.id)
+          .order('drawn_at', { ascending: false })
+          .limit(1)
+        if (!active || winnerError) return
+        const latest = winnerRows?.[0]
+        if (!latest) {
+          latestWinnerId.current = null
+          setWinner(null)
+          return
+        }
+        if (latest.status === 'skipped' || latest.notes === 'Confirmed by operator') {
+          latestWinnerId.current = latest.id
+          setWinner(null)
+          return
+        }
+
+        // The selected database row remains hidden until the operator's machine
+        // completes its crank and shake sequence and publishes the reveal phase.
+        if (boxState.phase !== 'reveal' || latest.id === latestWinnerId.current) return
+        latestWinnerId.current = latest.id
+        const participant = related(latest.participants)
+        setWinner({
+          participant_id: latest.participant_id,
+          name: participant?.full_name ?? 'Guest',
+          category: participant?.category ?? '',
+        })
+      } finally {
+        polling.current = false
+      }
+    }
+    void pollWinner()
+    const timer = window.setInterval(() => { void pollWinner() }, 900)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [boxState.phase])
 
   const themeStyle = {
     '--led-theme-1': themeColors[0], '--led-theme-2': themeColors[1], '--led-theme-3': themeColors[2], '--led-theme-4': themeColors[3], '--led-theme-5': themeColors[4],
