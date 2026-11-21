@@ -1,6 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  BookOpen,
   CheckCircle2,
   Clock3,
   Pause,
@@ -523,16 +522,6 @@ function DevelopmentLog() {
   return (
     <div className="development-log">
       <div className="devlog-intro">
-        <div>
-          <div className="devlog-eyebrow">
-            <BookOpen size={15} /> PRIVATE ADMINISTRATIVE RECORD
-          </div>
-          <h2>Development &amp; Overtime Log</h2>
-          <p>
-            Record development work, testing, technical changes and session
-            duration. All displayed times use Malaysia time (MYT, UTC+8).
-          </p>
-        </div>
         <button
           className="button-secondary"
           onClick={() => void loadData()}

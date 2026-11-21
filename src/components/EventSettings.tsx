@@ -12,11 +12,14 @@ type EventPayload = {
   theme_colors?: string[]
   scene_backgrounds?: Partial<Record<BackgroundScene, SceneBackground>>
   assets_updated_at?: string
+  participant_categories?: ParticipantCategory[]
   [key: string]: unknown
 }
 
 type BackgroundScene = 'lucky_draw' | 'attendance' | 'manual_checkin'
 type SceneBackground = { mode: 'theme' | 'key_visual' | 'custom'; path: string }
+type ParticipantCategory = { id: string; name: string }
+const DEFAULT_CATEGORIES: ParticipantCategory[] = [{ id: 'staff', name: 'MEC STAFF' }, { id: 'student', name: 'MEC STUDENT' }]
 const BACKGROUND_SCENES: { id: BackgroundScene; name: string }[] = [
   { id: 'lucky_draw', name: 'Lucky Draw' },
   { id: 'attendance', name: 'Attendance Roll' },
@@ -163,6 +166,9 @@ async function compressUploadedKV(file: File) {
 }
 
 export default function EventSettings() {
+  const [settingsTab, setSettingsTab] = useState<'led' | 'event' | 'pool'>('event')
+  const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_CATEGORIES)
+  const [categoryCount, setCategoryCount] = useState(2)
   const [eventName, setEventName] = useState('Johor Meetup X')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
@@ -223,6 +229,9 @@ export default function EventSettings() {
         setEventName(values.event_name ?? 'Johor Meetup X')
         setEventDate(values.event_date ?? '')
         setEventLocation(values.event_location ?? '')
+        const savedCategories = Array.isArray(values.participant_categories) ? values.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : []
+        setParticipantCategories(savedCategories.length ? savedCategories : DEFAULT_CATEGORIES)
+        setCategoryCount(savedCategories.length || DEFAULT_CATEGORIES.length)
         setPosterPath(savedPoster && !isDataImage(savedPoster) ? savedPoster : '')
         let posterUrl = KV_PATH
         if (savedPoster) {
@@ -272,7 +281,7 @@ export default function EventSettings() {
     return () => { cancelled = true }
   }, [savePayloadPatch])
 
-  async function saveSettings() {
+  async function saveEventDetails() {
     setSaving(true)
     setError('')
     setMessage('')
@@ -280,12 +289,67 @@ export default function EventSettings() {
       event_name: eventName.trim() || 'Johor Meetup X',
       event_date: eventDate.trim(),
       event_location: eventLocation.trim(),
-      theme_colors: themeColors,
     }
     try {
       await savePayloadPatch(eventPatch)
-      setMessage('Event details saved. Updated event details are available on the live LED output.')
+      setMessage('Event details saved and synced to the dashboard and LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save event details.') }
+    setSaving(false)
+  }
+
+  function resizeCategories(count: number) {
+    setCategoryCount(count)
+    setParticipantCategories((current) => {
+      const next = [...current]
+      while (next.length < count) {
+        const index = next.length + 1
+        next.push({ id: `pool_${index}`, name: `CATEGORY ${index}` })
+      }
+      return next
+    })
+  }
+
+  async function savePoolSettings() {
+    setSaving(true)
+    setError('')
+    setMessage('')
+    const cleaned = participantCategories.slice(0, categoryCount).map((category) => ({ ...category, name: category.name.trim() }))
+    const names = cleaned.map((category) => category.name.toLocaleLowerCase())
+    if (cleaned.length < 1 || cleaned.length > 10 || cleaned.some((category) => !category.name) || new Set(names).size !== names.length) {
+      setError('Enter a name for every category. Category names must be unique.')
+      setSaving(false)
+      return
+    }
+    try {
+      const { data: latestSettings, error: settingsError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
+      if (settingsError) throw settingsError
+      const latestPayload = latestSettings?.payload && typeof latestSettings.payload === 'object' ? latestSettings.payload as EventPayload : {}
+      const previousCategories = Array.isArray(latestPayload.participant_categories) ? latestPayload.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : DEFAULT_CATEGORIES
+      const removedIds = previousCategories.filter((category) => !cleaned.some((item) => item.id === category.id)).map((category) => category.id)
+      if (removedIds.length) {
+        const { count, error: countError } = await supabase.from('participants').select('id', { count: 'exact', head: true }).in('category', removedIds)
+        if (countError) throw countError
+        if ((count ?? 0) > 0) throw new Error('A category cannot be removed while participants are assigned to it. Reassign those participants first.')
+        const { count: drawCount, error: drawCountError } = await supabase.from('draw_rounds').select('id', { count: 'exact', head: true }).in('pool_type', removedIds)
+        if (drawCountError) throw drawCountError
+        if ((drawCount ?? 0) > 0) throw new Error('A category used by an existing Lucky Draw session cannot be removed. Rename it instead to preserve the draw history.')
+      }
+      await savePayloadPatch({ participant_categories: cleaned })
+      setParticipantCategories(cleaned)
+      setCategoryCount(cleaned.length)
+      setMessage('Pool settings saved. Participant, attendance and Lucky Draw category options will use these names.')
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save pool settings.') }
+    setSaving(false)
+  }
+
+  async function saveThemeColors() {
+    setSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      await savePayloadPatch({ theme_colors: themeColors })
+      setMessage('LED theme colors saved and synced to the display.')
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save LED theme colors.') }
     setSaving(false)
   }
 
@@ -400,41 +464,53 @@ export default function EventSettings() {
   }
 
   return <main className="event-settings-page">
-    <header className="event-settings-heading"><div><span className="event-settings-eyebrow">EVENT CONFIGURATION</span><h2>Event Settings</h2><p>Update event details, LED theme colors, and venue-screen artwork.</p></div><button className="button-secondary" onClick={() => window.location.reload()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></header>
+    <div className="event-settings-heading"><button className="button-secondary" onClick={() => window.location.reload()} disabled={loading || saving}><RefreshCw size={16} /> Refresh</button></div>
+    <nav className="event-settings-tabs" aria-label="Settings sections" role="tablist">
+      <button type="button" role="tab" aria-selected={settingsTab === 'led'} className={settingsTab === 'led' ? 'active' : ''} onClick={() => { setSettingsTab('led'); setError(''); setMessage('') }}>LED Settings</button>
+      <button type="button" role="tab" aria-selected={settingsTab === 'event'} className={settingsTab === 'event' ? 'active' : ''} onClick={() => { setSettingsTab('event'); setError(''); setMessage('') }}>Event Settings</button>
+      <button type="button" role="tab" aria-selected={settingsTab === 'pool'} className={settingsTab === 'pool' ? 'active' : ''} onClick={() => { setSettingsTab('pool'); setError(''); setMessage('') }}>Pool Settings</button>
+    </nav>
     {error && <div className="event-settings-message error" role="alert">{error}</div>}
     {message && <div className="event-settings-message success" role="status">{message}</div>}
-    <section className="panel event-settings-card">
-      <div className="event-settings-card-heading"><div><h3>LED theme colors</h3><p>Choose five clearly distinct colors for the Lucky Draw and Attendance Roll scenes, or scan the KV for a separated, high contrast palette.</p></div></div>
-      <div className="event-theme-palette">
-        {themeColors.map((color, index) => <label key={index}><span>Color {index + 1}</span><div className="event-theme-color-control"><input aria-label={`Theme color ${index + 1}`} type="color" value={color} onChange={(event) => setThemeColors((current) => current.map((value, colorIndex) => colorIndex === index ? event.target.value : value))} /><code>{color.toUpperCase()}</code></div></label>)}
-      </div>
-      <div className="event-settings-actions"><button className="button-secondary" onClick={() => void scanKV()} disabled={loading || scanning || generating}><ScanLine size={16} /> {scanning ? 'Scanning KV…' : 'Scan KV colors'}</button><button className="button-primary" onClick={() => void saveSettings()} disabled={loading || saving}>{saving ? 'Saving…' : <><Palette size={16} /> Save theme colors</>}</button></div>
-      <div className="event-theme-preview" aria-label="Current LED color theme">{themeColors.map((color, index) => <span key={index} style={{ backgroundColor: color }} />)}</div>
-    </section>
-    <section className="panel event-settings-card">
-      <div className="event-settings-card-heading"><div><h3>Event details</h3><p>These details are shown in the operator dashboard and LED display.</p></div></div>
+    {settingsTab === 'led' ? <>
+      <section className="panel event-settings-card">
+        <div className="event-settings-card-heading"><div><h3>LED theme colors</h3><p>Choose five clearly distinct colors for the Lucky Draw and Attendance Roll scenes, or scan the KV for a separated, high contrast palette.</p></div></div>
+        <div className="event-theme-palette">
+          {themeColors.map((color, index) => <label key={index}><span>Color {index + 1}</span><div className="event-theme-color-control"><input aria-label={`Theme color ${index + 1}`} type="color" value={color} onChange={(event) => setThemeColors((current) => current.map((value, colorIndex) => colorIndex === index ? event.target.value : value))} /><code>{color.toUpperCase()}</code></div></label>)}
+        </div>
+        <div className="event-settings-actions"><button className="button-secondary" onClick={() => void scanKV()} disabled={loading || scanning || generating}><ScanLine size={16} /> {scanning ? 'Scanning KV…' : 'Scan KV colors'}</button><button className="button-primary" onClick={() => void saveThemeColors()} disabled={loading || saving}>{saving ? 'Saving…' : <><Palette size={16} /> Save theme colors</>}</button></div>
+        <div className="event-theme-preview" aria-label="Current LED color theme">{themeColors.map((color, index) => <span key={index} style={{ backgroundColor: color }} />)}</div>
+      </section>
+      <section className="panel event-settings-card">
+        <div className="event-settings-card-heading"><div><h3>LED scene backgrounds</h3><p>Choose the event KV or animated theme colors for each scene, or upload a separate background image.</p></div></div>
+        <div className="event-scene-background-list">{BACKGROUND_SCENES.map(({ id, name }) => <article className="event-scene-background-row" key={id}>
+          <div className="event-scene-background-title"><strong>{name}</strong><small>{sceneBackgrounds[id].mode === 'custom' && sceneBackgrounds[id].path ? 'Custom image uploaded' : sceneBackgrounds[id].mode === 'key_visual' ? 'Using event KV' : 'Using animated theme'}</small></div>
+          <label className="event-scene-background-mode">Background source<select value={sceneBackgrounds[id].mode} onChange={(event) => setSceneBackgrounds((current) => ({ ...current, [id]: { ...current[id], mode: event.target.value as SceneBackground['mode'] } }))} disabled={loading || saving}><option value="theme">Animated theme colors</option><option value="key_visual">Event key visual</option><option value="custom">Separate uploaded image</option></select></label>
+          <label className="event-settings-upload"><Upload size={15} /> {saving ? 'Saving…' : 'Upload background'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadSceneBackground(id, event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>
+        </article>)}</div>
+        <button className="button-primary" onClick={() => void saveSceneBackgroundSettings()} disabled={loading || saving}><Save size={16} /> {saving ? 'Saving…' : 'Save scene backgrounds'}</button>
+        <p className="event-settings-hint">Separate images are compressed before upload and apply automatically on the live LED output.</p>
+      </section>
+      <section className="panel event-settings-card">
+        <div className="event-settings-card-heading"><div><h3>Welcome screen artwork</h3><p>1920 × 1080 artwork fills the screen edge-to-edge. Other image sizes get an automatically generated 16:9 surround, with the original KV centered.</p></div></div>
+        <div className="event-settings-kv-preview">{keyVisualIsFullHd ? <img className="event-settings-fullhd-preview" src={keyVisual} alt="Full-screen 1920 by 1080 event key visual" /> : generatedFill ? <><img className="event-settings-fill-preview" src={generatedFill} alt="Generated 16:9 color fill" /><img className="event-settings-poster-preview" src={keyVisual} alt="Centered event key visual" /></> : <img src={keyVisual} alt="Preview of the current event key visual" />}</div>
+        <div className="event-settings-actions"><label className="event-settings-upload button-secondary"><Upload size={16} /> Upload KV image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadKV(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>{!keyVisualIsFullHd && <><button className="button-secondary" onClick={() => void generateFill()} disabled={loading || generating || scanning || saving}><ImagePlus size={16} /> {generating ? 'Generating fill…' : 'Regenerate 16:9 fill'}</button><button className="button-primary" onClick={() => void saveFill()} disabled={loading || saving || !generatedFill}>{saving ? 'Saving…' : <><Save size={16} /> {backgroundPath ? 'Replace LED Welcome Page fill' : 'Save for LED Welcome Page'}</>}</button></>}</div>
+        <p className="event-settings-hint">Changes sync automatically to the live LED output screen. The original poster file remains unchanged.</p>
+      </section>
+    </> : settingsTab === 'pool' ? <section className="panel event-settings-card">
+      <div className="event-settings-card-heading"><div><h3>Participant pool categories</h3><p>Set how many participant categories this event uses. These names appear in participant records, attendance filters and Lucky Draw pools.</p></div></div>
+      <label className="pool-category-count">Number of categories<select value={categoryCount} onChange={(event) => resizeCategories(Number(event.target.value))} disabled={loading || saving}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
+      <div className="pool-category-fields">{participantCategories.slice(0, categoryCount).map((category, index) => <label key={category.id}>Category {index + 1} name<input value={category.name} maxLength={60} onChange={(event) => setParticipantCategories((current) => current.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item))} placeholder={`Category ${index + 1}`} disabled={loading || saving} /></label>)}</div>
+      <p className="event-settings-hint">Category IDs stay stable when names are changed. You cannot remove a category that still has participants assigned to it.</p>
+      <button className="button-primary" onClick={() => void savePoolSettings()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save pool settings</>}</button>
+    </section> : <section className="panel event-settings-card">
+      <div className="event-settings-card-heading"><div><h3>Event details</h3><p>Manage the event identity and venue information shown in the dashboard and LED display.</p></div></div>
       <div className="event-settings-fields">
         <label>Event name<input value={eventName} onChange={(event) => setEventName(event.target.value)} placeholder="Johor Meetup X" disabled={loading} /></label>
         <label>Date and time<input value={eventDate} onChange={(event) => setEventDate(event.target.value)} placeholder="To be announced" disabled={loading} /></label>
         <label>Venue<input value={eventLocation} onChange={(event) => setEventLocation(event.target.value)} placeholder="To be announced" disabled={loading} /></label>
       </div>
-      <button className="button-primary" onClick={() => void saveSettings()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save event details</>}</button>
-    </section>
-    <section className="panel event-settings-card">
-      <div className="event-settings-card-heading"><div><h3>LED scene backgrounds</h3><p>Choose the event KV or animated theme colors for each scene, or upload a separate background image.</p></div></div>
-      <div className="event-scene-background-list">{BACKGROUND_SCENES.map(({ id, name }) => <article className="event-scene-background-row" key={id}>
-        <div className="event-scene-background-title"><strong>{name}</strong><small>{sceneBackgrounds[id].mode === 'custom' && sceneBackgrounds[id].path ? 'Custom image uploaded' : sceneBackgrounds[id].mode === 'key_visual' ? 'Using event KV' : 'Using animated theme'}</small></div>
-        <label className="event-scene-background-mode">Background source<select value={sceneBackgrounds[id].mode} onChange={(event) => setSceneBackgrounds((current) => ({ ...current, [id]: { ...current[id], mode: event.target.value as SceneBackground['mode'] } }))} disabled={loading || saving}><option value="theme">Animated theme colors</option><option value="key_visual">Event key visual</option><option value="custom">Separate uploaded image</option></select></label>
-        <label className="event-settings-upload"><Upload size={15} /> {saving ? 'Saving…' : 'Upload background'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadSceneBackground(id, event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>
-      </article>)}</div>
-      <button className="button-primary" onClick={() => void saveSceneBackgroundSettings()} disabled={loading || saving}><Save size={16} /> {saving ? 'Saving…' : 'Save scene backgrounds'}</button>
-      <p className="event-settings-hint">Separate images are compressed before upload and apply automatically on the live LED output.</p>
-    </section>
-    <section className="panel event-settings-card">
-        <div className="event-settings-card-heading"><div><h3>Welcome screen artwork</h3><p>1920 × 1080 artwork fills the screen edge-to-edge. Other image sizes get an automatically generated 16:9 surround, with the original KV centered.</p></div></div>
-      <div className="event-settings-kv-preview">{keyVisualIsFullHd ? <img className="event-settings-fullhd-preview" src={keyVisual} alt="Full-screen 1920 by 1080 event key visual" /> : generatedFill ? <><img className="event-settings-fill-preview" src={generatedFill} alt="Generated 16:9 color fill" /><img className="event-settings-poster-preview" src={keyVisual} alt="Centered event key visual" /></> : <img src={keyVisual} alt="Preview of the current event key visual" />}</div>
-      <div className="event-settings-actions"><label className="event-settings-upload button-secondary"><Upload size={16} /> Upload KV image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadKV(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>{!keyVisualIsFullHd && <><button className="button-secondary" onClick={() => void generateFill()} disabled={loading || generating || scanning || saving}><ImagePlus size={16} /> {generating ? 'Generating fill…' : 'Regenerate 16:9 fill'}</button><button className="button-primary" onClick={() => void saveFill()} disabled={loading || saving || !generatedFill}>{saving ? 'Saving…' : <><Save size={16} /> {backgroundPath ? 'Replace LED Welcome Page fill' : 'Save for LED Welcome Page'}</>}</button></>}</div>
-      <p className="event-settings-hint">Changes sync automatically to the live LED output screen. The original poster file remains unchanged.</p>
-    </section>
+      <button className="button-primary" onClick={() => void saveEventDetails()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save event details</>}</button>
+    </section>}
   </main>
 }

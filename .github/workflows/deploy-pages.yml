@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -25,6 +26,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       - name: Install dependencies
         run: npm ci
       - name: Build production frontend
@@ -32,6 +35,11 @@ jobs:
           VITE_SUPABASE_URL: https://wypjyzpiunkrrpodylpo.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ADQHYjzn8dDI6c1bb11ZxA_6iG2ndA2
         run: npm run build
+      - name: Verify deployment output
+        run: |
+          test -s dist/index.html
+          test -s dist/favicon.svg
+          grep -q '/EventFlow/assets/' dist/index.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

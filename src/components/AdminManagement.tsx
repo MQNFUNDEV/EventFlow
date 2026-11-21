@@ -225,11 +225,6 @@ useEffect(() => {
   return (
     <div className="admin-management">
       <div className="admin-management-heading">
-        <div>
-          <h2>Administrator Management</h2>
-          <p>Create accounts, assign roles and manage administrator access.</p>
-        </div>
-
         <button
           className="admin-refresh-button"
           onClick={() => void loadAdmins()}

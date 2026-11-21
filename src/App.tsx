@@ -6,7 +6,6 @@ import {
   Gift,
   Monitor,
   Settings,
-  Plus,
   ArrowUpRight,
   Activity,
   Menu,
@@ -19,7 +18,10 @@ import {
   Clock3,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories } from './lib/participantCategories'
 import './App.css'
+
+declare const __APP_VERSION__: string
 
 const AdminManagement = lazy(() => import('./components/AdminManagement'))
 const ParticipantManagement = lazy(() => import('./components/ParticipantManagement'))
@@ -78,7 +80,7 @@ type RecentActivityItem = {
   id: string
   type: 'checkin' | 'winner'
   full_name: string
-  category: 'student' | 'staff'
+  category: string
   occurred_at: string
   detail?: string
 }
@@ -86,10 +88,7 @@ type RecentActivityItem = {
 type DashboardMetrics = {
   totalParticipants: number
   checkedIn: number
-  students: number
-  staff: number
-  studentsCheckedIn: number
-  staffCheckedIn: number
+  categoryStats: { id: string; name: string; total: number; checkedIn: number }[]
   recentActivity: RecentActivityItem[]
 }
 
@@ -141,23 +140,21 @@ function App() {
     async function loadDashboardMetrics() {
       setDashboardLoading(true)
       setDashboardError('')
-      const [total, students, staff, checkedIn, studentsCheckedIn, staffCheckedIn, recent, recentWinners, eventSettings] = await Promise.all([
+      const [total, checkedIn, recent, recentWinners, eventSettings, categoryParticipants, categoryAttendance] = await Promise.all([
         supabase.from('participants').select('id', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('participants').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('category', 'student'),
-        supabase.from('participants').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('category', 'staff'),
         supabase.from('attendance').select('participant_id, participants!inner(id)', { count: 'exact', head: true }).eq('participants.is_active', true),
-        supabase.from('attendance').select('participant_id, participants!inner(id, category)', { count: 'exact', head: true }).eq('participants.is_active', true).eq('participants.category', 'student'),
-        supabase.from('attendance').select('participant_id, participants!inner(id, category)', { count: 'exact', head: true }).eq('participants.is_active', true).eq('participants.category', 'staff'),
         supabase.from('attendance').select('participant_id, checked_in_at, participants!inner(full_name, category, is_active)').eq('participants.is_active', true).order('checked_in_at', { ascending: false }).limit(5),
         supabase.from('draw_winners').select('id, drawn_at, notes, status, participants!inner(full_name, category), draw_rounds!inner(name, pool_type)').eq('notes', 'Confirmed by operator').order('drawn_at', { ascending: false }).limit(5),
         supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
+        supabase.from('participants').select('category').eq('is_active', true),
+        supabase.from('attendance').select('participants!inner(category, is_active)').eq('participants.is_active', true),
       ])
       if (cancelled) return
       const payload = eventSettings.data?.payload
       if (payload && typeof payload === 'object' && 'event_name' in payload && typeof payload.event_name === 'string' && payload.event_name.trim()) {
         setEventName(payload.event_name.trim())
       }
-      const queryError = total.error ?? students.error ?? staff.error ?? checkedIn.error ?? studentsCheckedIn.error ?? staffCheckedIn.error ?? recent.error ?? recentWinners.error
+      const queryError = total.error ?? checkedIn.error ?? recent.error ?? recentWinners.error ?? categoryParticipants.error ?? categoryAttendance.error
       if (queryError) {
         setDashboardError(queryError.message)
         setDashboardMetrics(null)
@@ -184,13 +181,18 @@ function App() {
             detail: round ? `${round.pool_type === 'everyone' ? 'Everyone' : `${round.pool_type[0].toUpperCase()}${round.pool_type.slice(1)}s`} draw · ${round.name}` : 'Lucky draw winner',
           }] : []
         })
+        const categories = readParticipantCategories(payload)
+        const participantCounts = new Map<string, number>()
+        const attendanceCounts = new Map<string, number>()
+        for (const row of categoryParticipants.data ?? []) participantCounts.set(row.category, (participantCounts.get(row.category) ?? 0) + 1)
+        for (const row of categoryAttendance.data ?? []) {
+          const participant = Array.isArray(row.participants) ? row.participants[0] : row.participants
+          if (participant?.category) attendanceCounts.set(participant.category, (attendanceCounts.get(participant.category) ?? 0) + 1)
+        }
         setDashboardMetrics({
           totalParticipants: total.count ?? 0,
           checkedIn: checkedIn.count ?? 0,
-          students: students.count ?? 0,
-          staff: staff.count ?? 0,
-          studentsCheckedIn: studentsCheckedIn.count ?? 0,
-          staffCheckedIn: staffCheckedIn.count ?? 0,
+          categoryStats: categories.map((category) => ({ id: category.id, name: category.name, total: participantCounts.get(category.id) ?? 0, checkedIn: attendanceCounts.get(category.id) ?? 0 })),
           recentActivity: [...checkInActivity, ...winnerActivity]
             .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())
             .slice(0, 6),
@@ -469,30 +471,11 @@ function App() {
         <div className="page-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">{displayRole.toUpperCase()} ACCESS</div>
               <h1>{activePage}</h1>
               <p>{pageDescription[activePage]}</p>
             </div>
 
-            <div className="heading-actions">
-              {canManageParticipants ? (
-                <button
-                  className="button-primary"
-                  onClick={() => navigateToPage('Participants')}
-                >
-                  <Plus size={18} />
-                  Add Participant
-                </button>
-              ) : (
-                <button
-                  className="button-primary"
-                  onClick={() => navigateToPage('Attendance')}
-                >
-                  <ClipboardCheck size={18} />
-                  Open Check-in
-                </button>
-              )}
-            </div>
+
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
@@ -573,14 +556,10 @@ function App() {
                   <div className="attendance-divider" />
 
                   <div className="category-stats">
-                    <div className="category-stat">
-                      <div className="category-icon student"><Users size={17} /></div>
-                      <div><strong>{dashboardMetrics ? `${dashboardMetrics.studentsCheckedIn} / ${dashboardMetrics.students}` : '—'}</strong><span>Students checked in</span></div>
-                    </div>
-                    <div className="category-stat">
-                      <div className="category-icon staff"><ClipboardCheck size={17} /></div>
-                      <div><strong>{dashboardMetrics ? `${dashboardMetrics.staffCheckedIn} / ${dashboardMetrics.staff}` : '—'}</strong><span>Staff checked in</span></div>
-                    </div>
+                    {(dashboardMetrics?.categoryStats ?? DEFAULT_PARTICIPANT_CATEGORIES.map((category) => ({ ...category, total: 0, checkedIn: 0 }))).map((category, index) => <div className="category-stat" key={category.id}>
+                      <div className={`category-icon ${index % 2 === 0 ? 'student' : 'staff'}`}>{index % 2 === 0 ? <Users size={17} /> : <ClipboardCheck size={17} />}</div>
+                      <div><strong>{dashboardMetrics ? `${category.checkedIn} / ${category.total}` : '—'}</strong><span>{category.name} checked in</span></div>
+                    </div>)}
                   </div>
                 </article>
 
@@ -603,7 +582,7 @@ function App() {
                         </div>
                         <div className="activity-details">
                           <strong>{activity.type === 'winner' ? `Winner: ${activity.full_name}` : activity.full_name}</strong>
-                          <span>{activity.type === 'winner' ? `${activity.detail} · ${timeAgo(activity.occurred_at)}` : `${activity.category === 'student' ? 'Student' : 'Staff'} checked in · ${timeAgo(activity.occurred_at)}`}</span>
+                          <span>{activity.type === 'winner' ? `${activity.detail} · ${timeAgo(activity.occurred_at)}` : `${dashboardMetrics?.categoryStats.find((category) => category.id === activity.category)?.name ?? activity.category} checked in · ${timeAgo(activity.occurred_at)}`}</span>
                         </div>
                         <div className={`activity-check ${activity.type === 'winner' ? 'is-winner' : ''}`}>
                           {activity.type === 'winner' ? <Gift size={16} /> : <CheckCircle2 size={16} />}
@@ -719,8 +698,8 @@ function App() {
           </Suspense>
 
           <footer className="page-footer">
-            <span>MAQNA EVENTFLOW · JOHOR MEETUP X</span>
-            <span>EventFlow · Version 1.3.1</span>
+            <span>MAQNA EVENTFLOW · {eventName}</span>
+            <span>EventFlow · Version {__APP_VERSION__}</span>
           </footer>
         </div>
       </main>
