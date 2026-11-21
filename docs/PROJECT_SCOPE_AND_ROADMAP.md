@@ -4,7 +4,7 @@
 **Repository:** https://github.com/MQNFUNDEV/EventFlow  
 **Production web app:** https://mqnfundev.github.io/EventFlow/  
 **Current application version:** 1.3.1  
-**Production baseline:** `main` at `ab313606025c2ad65bc1cf616c031c0915a077af`
+**Production baseline:** `main` at `7a048955dd852dba46e482abbb8afc5011fcb46f`
 
 > This document supersedes earlier roadmap status where it conflicts with the current repository, deployment, or owner-approved scope. Treat the production database as live. Do not perform destructive data operations, schema changes, migrations, or Edge Function deployments without inspection, a recovery plan, and the required owner approval.
 
@@ -52,7 +52,6 @@ The legacy invitation table and QR-token column remain in the database for data 
 - LED settings and event information use separate save paths.
 - Lucky Draw current-session winners are filtered by draw round; reset preserves historical winner records.
 - The Lucky Draw animation prototype received a transparent acrylic hopper, a denser paper pile and additional glass/lever styling. Its animation remains a presentation prototype and is not wired to select or confirm real winners.
-- PR #28 adds in-flight guards to prevent rapid duplicate Spin clicks and simultaneous Confirm/Skip actions within the same operator page instance. CI passed and the change was deployed. This is not a database-level lock against multiple browsers/operators.
 - Duplicate inner headings and redundant access banners were removed from Settings, LED Display, Admin Management, Attendance and Development Log.
 - Relevant refresh/export controls were retained.
 
@@ -66,7 +65,6 @@ These are implementation and CI/deployment confirmations. They do not constitute
 - The two retired functions remain active deployments only as protected 410 handlers.
 - Supabase Security Advisor reports leaked-password protection disabled. This is unavailable on the current Free plan; retain the compensating password and account controls. Do not upgrade solely for this feature without an owner decision.
 - Performance Advisor reports 22 unused-index notices and two multiple-permissive-policy notices. The latter relate to intentionally different role-specific access paths on `admin_roles` SELECT and `participants` INSERT. Do not remove indexes or combine policies without usage and authorization analysis.
-- A read-only Lucky Draw inspection found 14 active prize categories: the shared `Lucky Draw` category is linked to 18 rounds, while 13 historical session-specific categories each retain one round. Preserve these historical records; do not bulk-delete or deactivate them without owner review.
 - No production rows were deleted or modified during this inspection.
 
 ### Migration-history caution
