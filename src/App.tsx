@@ -127,6 +127,8 @@ function App() {
   const [dashboardError, setDashboardError] = useState('')
   const [dashboardReload, setDashboardReload] = useState(0)
   const [eventName, setEventName] = useState('Johor Meetup X')
+  const [eventDate, setEventDate] = useState('')
+  const [eventLocation, setEventLocation] = useState('')
   const [localTime, setLocalTime] = useState(() => new Date())
 
   useEffect(() => {
@@ -151,8 +153,10 @@ function App() {
       ])
       if (cancelled) return
       const payload = eventSettings.data?.payload
-      if (payload && typeof payload === 'object' && 'event_name' in payload && typeof payload.event_name === 'string' && payload.event_name.trim()) {
-        setEventName(payload.event_name.trim())
+      if (payload && typeof payload === 'object') {
+        setEventName(typeof payload.event_name === 'string' && payload.event_name.trim() ? payload.event_name.trim() : 'Johor Meetup X')
+        setEventDate(typeof payload.event_date === 'string' ? payload.event_date.trim() : '')
+        setEventLocation(typeof payload.event_location === 'string' ? payload.event_location.trim() : '')
       }
       const queryError = total.error ?? checkedIn.error ?? recent.error ?? recentWinners.error ?? categoryParticipants.error ?? categoryAttendance.error
       if (queryError) {
@@ -477,6 +481,7 @@ function App() {
               <section className="welcome-banner">
                 <div className="welcome-content">
                   <div className="welcome-project-name">{eventName}</div>
+                  {(eventDate || eventLocation) && <div className="welcome-event-details">{[eventDate, eventLocation].filter(Boolean).join(' · ')}</div>}
                   <div className="welcome-label">
                     <span className="welcome-spark">✦</span>
                     YOUR EVENT CONTROL CENTRE
