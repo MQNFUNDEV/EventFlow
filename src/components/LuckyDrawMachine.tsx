@@ -179,7 +179,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
           paper.position.y+=velocity.y*dt
           paper.position.z+=velocity.z*dt
           velocity.x*=Math.pow(.94,dt*60);velocity.z*=Math.pow(.94,dt*60)
-          const wallLimit=3.62
+          const wallLimit=3.45
           if(paper.position.x>wallLimit){paper.position.x=wallLimit;velocity.x=-Math.abs(velocity.x)*.32}
           if(paper.position.x< -wallLimit){paper.position.x=-wallLimit;velocity.x=Math.abs(velocity.x)*.32}
           if(paper.position.z>wallLimit){paper.position.z=wallLimit;velocity.z=-Math.abs(velocity.z)*.32}
