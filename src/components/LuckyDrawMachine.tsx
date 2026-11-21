@@ -12,7 +12,10 @@ import './LuckyDrawMachine.css'
 export default function LuckyDrawMachine({ totalNames = 0 }: { totalNames?: number }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const counterTargetRef = useRef(Math.max(0, Math.floor(totalNames)))
-  counterTargetRef.current = Math.max(0, Math.floor(totalNames))
+
+  useEffect(() => {
+    counterTargetRef.current = Math.max(0, Math.floor(totalNames))
+  }, [totalNames])
 
   useEffect(() => {
     const host = hostRef.current
