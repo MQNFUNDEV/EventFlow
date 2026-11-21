@@ -18,7 +18,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const scene = new THREE.Scene()
     scene.background = new THREE.Color('#f2f4f7')
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
-    camera.position.set(13, 22.8, 13)
+    camera.position.set(7, 16, 23)
     camera.lookAt(0, 4.8, 0)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -59,20 +59,20 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     for (const z of [-.22,.22]) { const lip = new THREE.Mesh(new THREE.BoxGeometry(2.35,.12,.055),new THREE.MeshStandardMaterial({color:0x778493,metalness:.75,roughness:.25})); lip.position.set(0,10.1,z); machine.add(lip) }
 
     // Front counter: category name plus a large red paper tally.
-    const counter = new THREE.Group(); counter.position.set(0,1.5,5.16); machine.add(counter)
-    const housing = new THREE.Mesh(new THREE.BoxGeometry(3.8,1.48,.25),new THREE.MeshStandardMaterial({color:0x202832,metalness:.78,roughness:.3})); counter.add(housing)
-    const bezel = new THREE.Mesh(new THREE.BoxGeometry(3.52,1.2,.055),new THREE.MeshStandardMaterial({color:0x090e14,metalness:.35,roughness:.22})); bezel.position.z=.15; counter.add(bezel)
-    const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=210
+    const counter = new THREE.Group(); counter.position.set(0,1.62,5.16); machine.add(counter)
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(4.65,1.82,.25),new THREE.MeshStandardMaterial({color:0x202832,metalness:.78,roughness:.3})); counter.add(housing)
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(4.34,1.52,.055),new THREE.MeshStandardMaterial({color:0x090e14,metalness:.35,roughness:.22})); bezel.position.z=.15; counter.add(bezel)
+    const canvas = document.createElement('canvas'); canvas.width=720; canvas.height=260
     const ctx = canvas.getContext('2d'); const texture = new THREE.CanvasTexture(canvas); texture.colorSpace=THREE.SRGBColorSpace
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.28,1.05),new THREE.MeshBasicMaterial({map:texture,toneMapped:false})); screen.position.z=.185; counter.add(screen)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(4.08,1.32),new THREE.MeshBasicMaterial({map:texture,toneMapped:false})); screen.position.z=.185; counter.add(screen)
     function paint(label:string,count:number) {
       if(!ctx)return
       ctx.fillStyle='#080b0f';ctx.fillRect(0,0,640,210)
-      ctx.fillStyle='#aab5c2';ctx.font='800 25px Arial';ctx.textAlign='left';ctx.fillText('NAME COUNTER',24,38)
-      ctx.fillStyle='#fff';ctx.font='700 31px Arial';ctx.textAlign='center'
+      ctx.fillStyle='#aab5c2';ctx.font='800 28px Arial';ctx.textAlign='left';ctx.fillText('NAME COUNTER',26,42)
+      ctx.fillStyle='#fff';ctx.font='700 34px Arial';ctx.textAlign='center'
       const trimmed=label.length>23?label.slice(0,21)+'…':label
-      ctx.fillText(trimmed.toUpperCase(),320,82)
-      ctx.fillStyle='#ff263c';ctx.shadowColor='#ff1b35';ctx.shadowBlur=16;ctx.font='900 104px "Courier New",monospace';ctx.fillText(String(count).padStart(3,'0'),320,166);ctx.shadowBlur=0
+      ctx.fillText(trimmed.toUpperCase(),360,104)
+      ctx.fillStyle='#ff263c';ctx.shadowColor='#ff1b35';ctx.shadowBlur=16;ctx.font='900 122px "Courier New",monospace';ctx.fillText(String(count).padStart(3,'0'),360,218);ctx.shadowBlur=0
       texture.needsUpdate=true
     }
     paint(propsRef.current.categoryLabel,0)

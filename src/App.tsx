@@ -201,18 +201,8 @@ function App() {
       setDashboardLoading(false)
     }
     void loadDashboardMetrics()
-    const refreshTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void loadDashboardMetrics()
-    }, 30000)
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void loadDashboardMetrics()
-    }
-    document.addEventListener('visibilitychange', refreshWhenVisible)
-    return () => {
-      cancelled = true
-      window.clearInterval(refreshTimer)
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
-    }
+    // Do not refetch dashboard data just because the browser tab becomes visible.
+    return () => { cancelled = true }
   }, [activePage, currentRole, dashboardReload])
 
   useEffect(() => {
@@ -479,6 +469,9 @@ function App() {
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
+          <div style={{ display: activePage === 'Lucky Draw' && canManageParticipants ? 'block' : 'none' }}>
+            <LuckyDrawManagement />
+          </div>
           {isOverview ? (
             <>
               <section className="welcome-banner">
@@ -667,7 +660,7 @@ function App() {
           ) : activePage === 'Attendance' ? (
             <AttendanceManagement />
           ) : activePage === 'Lucky Draw' && canManageParticipants ? (
-            <LuckyDrawManagement />
+            null
           ) : activePage === 'LED Display' && canManageParticipants ? (
             <LedDisplayControl />
           ) : activePage === 'Settings' && (isSuperAdmin || isEventAdmin) ? (
