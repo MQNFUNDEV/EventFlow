@@ -8,6 +8,7 @@ import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
+type ThemePayload = { theme_colors?: unknown }
 
 const DEFAULT_COLORS = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
 
@@ -250,7 +251,13 @@ export default function LuckyDrawManagement() {
       if (Array.isArray(payload.theme_colors) && payload.theme_colors.length === 5 && payload.theme_colors.every((color) => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))) setThemeColors(payload.theme_colors as string[])
     }
     void loadTheme()
-    return () => { cancelled = true }
+    const channel = supabase.channel('lucky-draw-theme-settings')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
+        const payload = change.new?.payload && typeof change.new.payload === 'object' ? change.new.payload as ThemePayload : {}
+        if (Array.isArray(payload.theme_colors) && payload.theme_colors.length === 5 && payload.theme_colors.every((color) => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))) setThemeColors(payload.theme_colors as string[])
+      })
+      .subscribe()
+    return () => { cancelled = true; void supabase.removeChannel(channel) }
   }, [])
 
   const loadPool = useCallback(async () => {
