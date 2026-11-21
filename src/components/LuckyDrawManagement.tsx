@@ -532,6 +532,7 @@ export default function LuckyDrawManagement() {
           .select('id')
           .eq('draw_round_id', roundId)
           .eq('queue_status', 'available')
+          .order('id', { ascending: true })
           .range(offset, offset + 999)
         if (availableError) throw availableError
         available.push(...(data ?? []))
