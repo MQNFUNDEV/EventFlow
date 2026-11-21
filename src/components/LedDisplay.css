@@ -735,3 +735,13 @@
     transform: none;
   }
 }
+
+.led-lucky-machine-stage{position:absolute;z-index:3;top:12vh;left:50%;width:min(76vw,1320px);height:76vh;transform:translateX(-50%);display:flex;align-items:center;justify-content:center}
+.led-lucky-machine-stage .ld-machine-preview{width:100%;height:100%;box-sizing:border-box;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;margin:0;padding:12px;border:1px solid #dbe3ed;border-radius:16px;background:#f2f4f7;box-shadow:0 18px 60px #0005}
+.led-lucky-machine-stage .ld-machine-preview-head{margin:0;padding:0 8px}
+.led-lucky-machine-stage .ld-machine-preview-head h2{font-size:clamp(14px,2vh,24px);margin:3px 0}
+.led-lucky-machine-stage .ld-machine-preview-head p{font-size:clamp(9px,1.1vh,13px)}
+.led-lucky-machine-stage .ld-machine-stage{height:100%;min-height:0}
+.led-lucky-machine-stage .ld-machine-preview-footer{padding:4px 8px 0}
+.led-lucky-machine-stage .ld-machine-hint{display:none}
+@media(max-aspect-ratio:4/3){.led-lucky-machine-stage{width:88vw;height:70vh;top:15vh}}

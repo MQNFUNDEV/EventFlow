@@ -3,6 +3,7 @@ import { Wheel, type WheelItem } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LedDisplay.css'
+import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 
 type DrawEntry = { participant_id: string; name: string; category: string }
 type DrawWinner = { id: string; participant_id: string; status: string; notes: string | null; participant: { full_name: string; category: string } }
@@ -32,13 +33,13 @@ function randomSpinFlashBatch(pool: DrawEntry[], colors: string[], batch: number
 
 export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', categories = DEFAULT_PARTICIPANT_CATEGORIES }: { eventName?: string; categories?: ParticipantCategory[] }) {
   const [round, setRound] = useState<DrawRound | null>(null)
-  const [entries, setEntries] = useState<DrawEntry[]>([])
   const [winner, setWinner] = useState<DrawEntry | null>(null)
   const [themeColors, setThemeColors] = useState(DEFAULT_THEME)
   const [wheelReady, setWheelReady] = useState(false)
   const [wheelSpinning, setWheelSpinning] = useState(false)
   const [spinFlashes, setSpinFlashes] = useState<SpinFlash[]>([])
   const [soundReady, setSoundReady] = useState(false)
+  const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0 })
   const wheelContainer = useRef<HTMLDivElement>(null)
   const wheelInstance = useRef<Wheel | null>(null)
   const entriesRef = useRef<DrawEntry[]>([])
@@ -82,6 +83,27 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
     oscillator.start(now)
     oscillator.stop(now + 0.27)
   }, [winner, soundReady])
+
+  useEffect(() => {
+    let active = true
+    async function loadBoxState() {
+      const { data } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
+      if (!active || !data?.payload || typeof data.payload !== 'object') return
+      const payload = data.payload as Record<string, unknown>
+      const rawPhase = payload.box_phase
+      const phase: BoxPhase = rawPhase === 'loading' || rawPhase === 'loaded' || rawPhase === 'cranking' || rawPhase === 'shaking' || rawPhase === 'reveal' ? rawPhase : 'idle'
+      setBoxState({
+        category: typeof payload.box_category === 'string' ? payload.box_category : 'No category selected',
+        total: typeof payload.box_total === 'number' ? Math.max(0, payload.box_total) : 0,
+        phase,
+        startedAt: typeof payload.box_started_at === 'number' ? payload.box_started_at : 0,
+        animationId: typeof payload.box_animation_id === 'number' ? payload.box_animation_id : 0,
+      })
+    }
+    void loadBoxState()
+    const timer = window.setInterval(() => { void loadBoxState() }, 650)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -143,7 +165,6 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
           latestWinnerId.current = null
           entriesRef.current = []
           setRound(null)
-          setEntries([])
           setWinner(null)
           return
         }
@@ -163,7 +184,6 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
             return { participant_id: row.participant_id, name: participant?.full_name ?? 'Guest', category: participant?.category ?? '' }
           })
           entriesRef.current = mappedEntries
-          setEntries(mappedEntries)
           setRound(activeRound)
         }
 
@@ -240,8 +260,8 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
     <div className="led-lucky-side-title is-right" role="img" aria-label="Draw">
       {'DRAW'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
     </div>
-    <div className="led-lucky-wheel-stage is-revealed">
-      <div className={`led-lucky-wheel-shell ${wheelSpinning ? 'is-spinning' : ''}`}><span className="led-lucky-pointer" /><div className="led-lucky-wheel" ref={wheelContainer} />{!entries.length && <div className="led-lucky-no-pool">Start a checked-in guest pool from the Lucky Draw tab</div>}</div>
+    <div className="led-lucky-machine-stage">
+      <LuckyDrawMachine totalNames={boxState.total} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} />
     </div>
     {wheelSpinning && <div className="led-spin-flash-layer" aria-hidden="true">{spinFlashes.map((flash) => <span key={flash.id} style={{ left: `${flash.left}%`, top: `${flash.top}%`, '--flash-size': `${flash.size}px`, '--flash-color': flash.color, '--flash-delay': `${flash.delay}ms` } as CSSProperties}>{flash.name}</span>)}</div>}
     {winner && <div className="led-lucky-winner-backdrop" role="status" aria-live="assertive">
