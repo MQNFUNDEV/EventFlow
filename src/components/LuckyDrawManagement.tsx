@@ -66,6 +66,8 @@ export default function LuckyDrawManagement() {
   const categoryRef = useRef<string | null>(null)
   const spinLockRef = useRef(false)
   const winnerActionLockRef = useRef(false)
+  const leverActionLockRef = useRef(false)
+  const leverTimersRef = useRef<number[]>([])
 
   async function publishBoxState(patch: Record<string, unknown>) {
     const { data, error: readError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
@@ -80,6 +82,11 @@ export default function LuckyDrawManagement() {
   }
 
   const eligiblePool = useMemo(() => pool.filter((participant) => !excludedIds.has(participant.id)), [pool, excludedIds])
+
+  useEffect(() => () => {
+    if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
+    leverTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+  }, [])
 
   const restoreActiveRound = useCallback(async () => {
     setLoading(true)
@@ -105,7 +112,8 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const [entriesResult, winnersResult] = await Promise.all([
+    const [displayStateResult, entriesResult, winnersResult] = await Promise.all([
+      supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
       supabase.from('draw_entries')
         .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
         .eq('draw_round_id', activeRound.id)
@@ -146,6 +154,39 @@ export default function LuckyDrawManagement() {
     setExcludedIds(removedParticipants)
     setPendingWinner(pendingParticipant)
     setPendingWinnerRowId(pendingParticipant ? pendingRow?.id ?? null : null)
+    const savedPayload = displayStateResult.data?.payload && typeof displayStateResult.data.payload === 'object'
+      ? displayStateResult.data.payload as Record<string, unknown>
+      : {}
+    const savedPhase = savedPayload.box_phase
+    const savedStartedAt = typeof savedPayload.box_started_at === 'number' ? savedPayload.box_started_at : 0
+    const feedElapsed = savedStartedAt ? Math.max(0, Date.now() - savedStartedAt) : 0
+    const isFeedStillRunning = savedPhase === 'loading' && feedElapsed < 14500
+    const hasLoadedBox = savedPhase === 'loaded' || savedPhase === 'cranking' || savedPhase === 'shaking' || savedPhase === 'reveal' || (savedPhase === 'loading' && !isFeedStillRunning)
+    if (pendingParticipant) {
+      setBoxPhase('reveal')
+      setBoxStartedAt(savedStartedAt)
+      setBoxLoadingComplete(true)
+    } else if (isFeedStillRunning) {
+      setBoxPhase('loading')
+      setBoxStartedAt(savedStartedAt)
+      setBoxLoadingComplete(false)
+      if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
+      boxTimerRef.current = window.setTimeout(() => {
+        setBoxPhase('loaded')
+        setBoxLoadingComplete(true)
+        void publishBoxState({ box_phase: 'loaded' })
+      }, Math.max(0, 14500 - feedElapsed))
+    } else if (hasLoadedBox) {
+      setBoxPhase('loaded')
+      setBoxStartedAt(savedStartedAt)
+      setBoxLoadingComplete(true)
+      void publishBoxState({ box_phase: 'loaded' })
+    } else {
+      setBoxPhase('idle')
+      setBoxStartedAt(0)
+      setBoxLoadingComplete(false)
+    }
+    setBoxAnimationId(typeof savedPayload.box_animation_id === 'number' ? savedPayload.box_animation_id : 0)
     setMessage(pendingParticipant
       ? 'Active draw restored. The last name is ready to confirm or skip.'
       : `Active draw restored with ${participants.length - removedParticipants.size} eligible guests.`)
@@ -434,14 +475,20 @@ export default function LuckyDrawManagement() {
   }
 
   async function pullBoxLever() {
-    if (!roundId || !boxLoadingComplete || spinning || !eligiblePool.length || pendingWinner) return
+    if (!roundId || !boxLoadingComplete || spinning || !eligiblePool.length || pendingWinner || leverActionLockRef.current) return
+    leverActionLockRef.current = true
     setBoxPhase('cranking')
     await publishBoxState({ box_phase: 'cranking' })
-    window.setTimeout(() => {
+    const crankTimer = window.setTimeout(() => {
       setBoxPhase('shaking')
       void publishBoxState({ box_phase: 'shaking' })
-      window.setTimeout(() => { void startSpin() }, 1600)
+      const shakeTimer = window.setTimeout(() => {
+        leverActionLockRef.current = false
+        void startSpin()
+      }, 1600)
+      leverTimersRef.current.push(shakeTimer)
     }, 2400)
+    leverTimersRef.current.push(crankTimer)
   }
 
   async function startSpin() {
@@ -464,7 +511,10 @@ export default function LuckyDrawManagement() {
       setExcludedIds((current) => new Set([...current, pendingWinner.id]))
       setPendingWinner(null)
       setPendingWinnerRowId(null)
-      setMessage(`${winnerName} confirmed and removed from the draw pool.`)
+      setBoxPhase('loaded')
+      setBoxLoadingComplete(true)
+      void publishBoxState({ box_phase: 'loaded' })
+      setMessage(`${winnerName} confirmed and removed from the draw pool. Ready for the next pull.`)
       if (!remaining.length) {
         const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
         if (roundError) setError(`Winner confirmed, but the draw round could not be closed: ${roundError.message}`)
@@ -498,6 +548,9 @@ export default function LuckyDrawManagement() {
       setExcludedIds((current) => new Set([...current, skippedId]))
       setPendingWinner(null)
       setPendingWinnerRowId(null)
+      setBoxPhase('loaded')
+      setBoxLoadingComplete(true)
+      void publishBoxState({ box_phase: 'loaded' })
       await refreshWinnerHistory()
       if (!remaining.length) {
         setMessage('That guest was skipped. There are no more guests in this pool.')
