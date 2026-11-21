@@ -9,8 +9,10 @@ import './LuckyDrawMachine.css'
  * Scene units are inches. The enclosure is a 10 × 10 × 10 inch acrylic cube.
  * The scene is deliberately limited to the box and its right-side lever.
  */
-export default function LuckyDrawMachine() {
+export default function LuckyDrawMachine({ totalNames = 0 }: { totalNames?: number }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const counterTargetRef = useRef(Math.max(0, Math.floor(totalNames)))
+  counterTargetRef.current = Math.max(0, Math.floor(totalNames))
 
   useEffect(() => {
     const host = hostRef.current
@@ -91,6 +93,67 @@ export default function LuckyDrawMachine() {
     addPanel(thickness, size, size, -half, half, 0) // left
     addPanel(thickness, size, size, half, half, 0) // right
 
+    // Compact front-mounted name counter: dark metal housing with a red LED-style ticker.
+    const counter = new THREE.Group()
+    counter.position.set(0, 1.45, half + 0.16)
+    machine.add(counter)
+
+    const counterHousing = new THREE.Mesh(
+      new THREE.BoxGeometry(3.05, 1.22, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0x202832, metalness: 0.78, roughness: 0.3 }),
+    )
+    counter.add(counterHousing)
+
+    const counterBezel = new THREE.Mesh(
+      new THREE.BoxGeometry(2.78, 0.91, 0.055),
+      new THREE.MeshStandardMaterial({ color: 0x090e14, metalness: 0.35, roughness: 0.22 }),
+    )
+    counterBezel.position.z = 0.15
+    counter.add(counterBezel)
+
+    const counterCanvas = document.createElement('canvas')
+    counterCanvas.width = 512
+    counterCanvas.height = 160
+    const counterContext = counterCanvas.getContext('2d')
+    const counterTexture = new THREE.CanvasTexture(counterCanvas)
+    counterTexture.colorSpace = THREE.SRGBColorSpace
+    const counterScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.55, 0.72),
+      new THREE.MeshBasicMaterial({ map: counterTexture, toneMapped: false }),
+    )
+    counterScreen.position.z = 0.185
+    counter.add(counterScreen)
+
+    function paintCounter(value: number) {
+      if (!counterContext) return
+      counterContext.fillStyle = '#080b0f'
+      counterContext.fillRect(0, 0, 512, 160)
+      counterContext.fillStyle = '#8d9aaa'
+      counterContext.font = '700 22px Arial, sans-serif'
+      counterContext.textAlign = 'left'
+      counterContext.fillText('NAME COUNTER', 24, 31)
+      counterContext.fillStyle = '#ff263c'
+      counterContext.shadowColor = '#ff1b35'
+      counterContext.shadowBlur = 14
+      counterContext.font = '900 94px "Courier New", monospace'
+      counterContext.textAlign = 'center'
+      counterContext.textBaseline = 'middle'
+      counterContext.fillText(String(value).padStart(3, '0'), 256, 101)
+      counterContext.shadowBlur = 0
+      counterTexture.needsUpdate = true
+    }
+    paintCounter(0)
+
+    const counterScrewMaterial = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.9, roughness: 0.2 })
+    for (const x of [-1.39, 1.39]) {
+      for (const y of [-0.48, 0.48]) {
+        const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 16), counterScrewMaterial)
+        screw.rotation.x = Math.PI / 2
+        screw.position.set(x, y, 0.17)
+        counter.add(screw)
+      }
+    }
+
     // One restrained mechanical lever, mounted directly to the right acrylic wall.
     const lever = new THREE.Group()
     lever.position.set(half + 0.13, 5.1, 0)
@@ -166,7 +229,26 @@ export default function LuckyDrawMachine() {
     resize()
 
     let frame = 0
+    let shownCount = 0
+    let countFrom = 1
+    let countTo = counterTargetRef.current
+    let countStartedAt = performance.now()
+    let lastTarget = countTo
     const render = () => {
+      const nextTarget = counterTargetRef.current
+      if (nextTarget !== lastTarget) {
+        lastTarget = nextTarget
+        countFrom = 1
+        countTo = nextTarget
+        countStartedAt = performance.now()
+      }
+      const progress = Math.min(1, Math.max(0, (performance.now() - countStartedAt) / 1900))
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const nextCount = countTo > 0 ? Math.max(1, Math.floor(countFrom + (countTo - countFrom) * eased)) : 0
+      if (nextCount !== shownCount) {
+        shownCount = nextCount
+        paintCounter(shownCount)
+      }
       controls.update()
       renderer.render(scene, camera)
       frame = window.requestAnimationFrame(render)
