@@ -82,22 +82,57 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const paperMaterials = paperPalette.map((color) => new THREE.MeshStandardMaterial({ color, roughness: .9, side: THREE.DoubleSide }))
     const papers: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
     const paperHomes: Array<{ x: number; y: number; z: number; rx: number; ry: number; rz: number }> = []
-    const paperCount=640
+    const paperCount=1920
     const paperGeometry=new THREE.BoxGeometry(1.48,.12,.92)
-    const papersPerLayer=36
+    // A small height-field acts as the inside of the box: every new slip is
+    // placed on the highest surface beneath its footprint, never at a free-floating Y.
+    const supportCells=40
+    const supportCellSize=size/supportCells
+    const supportHeight=new Float32Array(supportCells*supportCells)
+    const halfPaperX=.74, halfPaperZ=.46
     for(let i=0;i<paperCount;i++){
       const paper=new THREE.Mesh(paperGeometry,paperMaterials[i % paperMaterials.length])
-      const layer=Math.floor(i/papersPerLayer)
-      const slot=i%papersPerLayer
+      const slot=i%36
       const column=slot%6
       const row=Math.floor(slot/6)
+      const yaw=Math.random()*Math.PI
+      const cos=Math.abs(Math.cos(yaw)), sin=Math.abs(Math.sin(yaw))
+      const extentX=cos*halfPaperX+sin*halfPaperZ
+      const extentZ=sin*halfPaperX+cos*halfPaperZ
+      // Six-by-six batches spread across the floor; small jitter prevents a grid look.
+      const x=Math.max(-half+extentX+.08,Math.min(half-extentX-.08,(column-2.5)*1.22+(Math.random()-.5)*.34))
+      const z=Math.max(-half+extentZ+.08,Math.min(half-extentZ-.08,(row-2.5)*1.22+(Math.random()-.5)*.34))
+      const minX=Math.max(0,Math.floor((x-extentX+half)/supportCellSize))
+      const maxX=Math.min(supportCells-1,Math.floor((x+extentX+half)/supportCellSize))
+      const minZ=Math.max(0,Math.floor((z-extentZ+half)/supportCellSize))
+      const maxZ=Math.min(supportCells-1,Math.floor((z+extentZ+half)/supportCellSize))
+      let supportY=0
+      for(let gx=minX;gx<=maxX;gx++)for(let gz=minZ;gz<=maxZ;gz++){
+        const cellCenterX=-half+(gx+.5)*supportCellSize-x
+        const cellCenterZ=-half+(gz+.5)*supportCellSize-z
+        const localX=cellCenterX*Math.cos(yaw)+cellCenterZ*Math.sin(yaw)
+        const localZ=-cellCenterX*Math.sin(yaw)+cellCenterZ*Math.cos(yaw)
+        if(Math.abs(localX)<=halfPaperX&&Math.abs(localZ)<=halfPaperZ){
+          supportY=Math.max(supportY,supportHeight[gz*supportCells+gx])
+        }
+      }
       const home={
-        x:(column-2.5)*1.22+(Math.random()-.5)*.24,
-        y:.06+layer*.125+(Math.random()-.5)*.004,
-        z:(row-2.5)*1.22+(Math.random()-.5)*.24,
-        rx:(Math.random()-.5)*.24,
-        ry:Math.random()*Math.PI,
-        rz:(Math.random()-.5)*.24,
+        x,y:supportY+.06,z,
+        rx:(Math.random()-.5)*.12,
+        ry:yaw,
+        rz:(Math.random()-.5)*.12,
+      }
+      // Claim the cells beneath the sheet at its top surface. Later sheets
+      // collide with this support, creating a continuous packed pile.
+      for(let gx=minX;gx<=maxX;gx++)for(let gz=minZ;gz<=maxZ;gz++){
+        const cellCenterX=-half+(gx+.5)*supportCellSize-x
+        const cellCenterZ=-half+(gz+.5)*supportCellSize-z
+        const localX=cellCenterX*Math.cos(yaw)+cellCenterZ*Math.sin(yaw)
+        const localZ=-cellCenterX*Math.sin(yaw)+cellCenterZ*Math.cos(yaw)
+        if(Math.abs(localX)<=halfPaperX&&Math.abs(localZ)<=halfPaperZ){
+          const index=gz*supportCells+gx
+          supportHeight[index]=Math.max(supportHeight[index],supportY+.12)
+        }
       }
       paper.position.set(home.x,10+Math.random()*2,home.z)
       paper.rotation.set(home.rx,home.ry,home.rz)
