@@ -177,12 +177,10 @@ export default function LuckyDrawMachine() {
       window.cancelAnimationFrame(frame)
       observer.disconnect()
       controls.dispose()
-      scene.traverse((object: any) => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
-          object.geometry.dispose()
-          const materials = Array.isArray(object.material) ? object.material : [object.material]
-          materials.forEach((material: any) => material.dispose())
-        }
+      scene.traverse((object: { geometry?: { dispose: () => void }; material?: { dispose: () => void } | Array<{ dispose: () => void }> }) => {
+        object.geometry?.dispose()
+        const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : []
+        materials.forEach((material) => material.dispose())
       })
       renderer.dispose()
       renderer.domElement.remove()
