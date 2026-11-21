@@ -8,10 +8,8 @@ import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
-type ThemePayload = { theme_colors?: unknown }
 
 const DEFAULT_COLORS = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
-const spinLength = 10000
 
 function pickIndex(length: number) {
   const limit = 0x100000000 - (0x100000000 % length)
@@ -375,6 +373,7 @@ export default function LuckyDrawManagement() {
       return
     }
     spinLockRef.current = true
+    setSpinning(true)
     const chosen = candidates[pickIndex(candidates.length)]
     const { data, error: insertError } = await supabase.from('draw_winners').insert({
       draw_round_id: activeRoundId,
@@ -384,6 +383,7 @@ export default function LuckyDrawManagement() {
       notes: 'Awaiting operator confirmation',
     }).select('id').single()
     if (insertError || !data) {
+      setSpinning(false)
       spinLockRef.current = false
       leverActionLockRef.current = false
       setBoxPhase('loaded')
@@ -392,6 +392,7 @@ export default function LuckyDrawManagement() {
       return
     }
     setError('')
+    setSpinning(false)
     setPendingWinner(chosen)
     setPendingWinnerRowId(data.id)
     setBoxPhase('reveal')

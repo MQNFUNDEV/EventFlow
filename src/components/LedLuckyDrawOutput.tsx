@@ -5,22 +5,19 @@ import './LedDisplay.css'
 import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 
 type DrawEntry = { participant_id: string; name: string; category: string }
-type DrawWinner = { id: string; participant_id: string; status: string; notes: string | null; participant: { full_name: string; category: string } }
 type DrawRound = { id: string; name: string; pool_type: string; updated_at: string }
 const DEFAULT_THEME = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
 
 function related<T>(value: T | T[] | null | undefined) { return Array.isArray(value) ? value[0] : value }
 
-export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', categories = DEFAULT_PARTICIPANT_CATEGORIES }: { eventName?: string; categories?: ParticipantCategory[] }) {
+export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', eventDate = '', eventLocation = '', categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '' }: { eventName?: string; eventDate?: string; eventLocation?: string; categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string }) {
   const [round, setRound] = useState<DrawRound | null>(null)
   const [winner, setWinner] = useState<DrawEntry | null>(null)
-  const [themeColors, setThemeColors] = useState(DEFAULT_THEME)
   const [soundReady, setSoundReady] = useState(false)
   const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, cameraView: null })
   const latestWinnerId = useRef<string | null>(null)
   const lastRoundId = useRef<string | null>(null)
   const lastRoundUpdatedAt = useRef<string | null>(null)
-  const polling = useRef(false)
   const audioContext = useRef<AudioContext | null>(null)
 
   useEffect(() => () => {
@@ -77,74 +74,6 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
     return () => { active = false; window.clearInterval(timer) }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    async function loadTheme() {
-      const { data } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
-      if (!active) return
-      const payload = data?.payload && typeof data.payload === 'object' ? data.payload as { theme_colors?: unknown } : {}
-      if (Array.isArray(payload.theme_colors) && payload.theme_colors.length === 5 && payload.theme_colors.every((color) => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))) setThemeColors(payload.theme_colors as string[])
-    }
-    void loadTheme()
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    async function pollDraw() {
-      const { data: activeRound } = await supabase.from('draw_rounds')
-        .select('id, name, pool_type, updated_at')
-        .eq('status', 'drawing')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (!active) return
-      if (!activeRound) {
-        lastRoundId.current = null
-        lastRoundUpdatedAt.current = null
-        latestWinnerId.current = null
-        setRound(null)
-        setWinner(null)
-        return
-      }
-      if (activeRound.id !== lastRoundId.current || activeRound.updated_at !== lastRoundUpdatedAt.current) {
-        lastRoundId.current = activeRound.id
-        lastRoundUpdatedAt.current = activeRound.updated_at
-        if (activeRound.id !== lastRoundId.current) {
-          latestWinnerId.current = null
-          setWinner(null)
-        }
-        setRound(activeRound)
-      }
-      const { data: winnerRows } = await supabase.from('draw_winners')
-        .select('id, participant_id, status, notes, participants!inner(full_name, category)')
-        .eq('draw_round_id', activeRound.id)
-        .order('drawn_at', { ascending: false })
-        .limit(1)
-      if (!active) return
-      const latest = winnerRows?.[0]
-      if (!latest || latest.status === 'skipped' || latest.notes === 'Confirmed by operator') {
-        if (latest) latestWinnerId.current = latest.id
-        setWinner(null)
-        return
-      }
-      // The winner card is gated by the operator's box phase. A pending database
-      // row alone must never reveal the card while the machine is still shaking.
-      if (boxState.phase !== 'reveal') return
-      if (latest.id !== latestWinnerId.current) {
-        latestWinnerId.current = latest.id
-        setWinner({
-          participant_id: latest.participant_id,
-          name: related(latest.participants)?.full_name ?? 'Guest',
-          category: related(latest.participants)?.category ?? '',
-        })
-      }
-    }
-    void pollDraw()
-    const timer = window.setInterval(() => { void pollDraw() }, 900)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [boxState.phase])
-
   const themeStyle = {
     '--led-theme-1': themeColors[0], '--led-theme-2': themeColors[1], '--led-theme-3': themeColors[2], '--led-theme-4': themeColors[3], '--led-theme-5': themeColors[4],
   } as CSSProperties
@@ -155,7 +84,8 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', cate
     {soundReady
       ? <div className="led-lucky-sound-state" aria-label="Winner sound enabled">♪ SOUND ON</div>
       : <button className="led-lucky-sound-toggle" type="button" aria-label="Enable winner sound" onClick={() => void enableWinnerSound()}>SOUND</button>}
-    <header className="led-lucky-event-name">{eventName}</header>
+    {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
+    <header className="led-lucky-event-name"><span>{eventName}</span>{(eventDate || eventLocation) && <small>{[eventDate, eventLocation].filter(Boolean).join(' · ')}</small>}</header>
     <div className="led-lucky-side-title is-left" role="img" aria-label="Lucky">
       {'LUCKY'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
     </div>

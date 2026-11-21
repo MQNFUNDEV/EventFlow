@@ -245,13 +245,13 @@ export default function LedDisplayOutput() {
           {!welcomePosterIsFullHd && (generatedWelcomeFill ? <img className="led-generated-fill" src={generatedWelcomeFill} alt="" /> : <img className="led-welcome-backdrop" src={welcomePoster} alt="" />)}
           <img className="led-welcome-poster" src={welcomePoster} alt="Event key visual" />
         </div>
-      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} categories={participantCategories} /> : scene === 'manual_checkin' ? <>
+      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} eventDate={eventDetails.date} eventLocation={eventDetails.venue} categories={participantCategories} themeColors={themeColors} backgroundImage={sceneBackgroundImage} /> : scene === 'manual_checkin' ? <>
         <div className="led-manual-checkin-brand"><div className="led-output-brand">MAQNA EVENTFLOW</div></div>
         <div className="led-manual-checkin-event"><h2>{eventDetails.name}</h2><p>{eventDetails.date || 'Date to be announced'} <span>·</span> {eventDetails.venue || 'Venue to be announced'}</p></div>
         <div className="led-manual-checkin-copy"><span className="led-manual-checkin-kicker">GUEST ARRIVAL</span><h1>Manual Check-in</h1><p>Please proceed to the check-in desk.</p></div>
         <div className="led-manual-checkin-message" role="status">Our event staff will assist you with your attendance check-in.</div>
       </> : <>
-        <div className="led-attendance-heading"><div className="led-output-brand">{eventDetails.name.toUpperCase()}</div><h1>Our Guests Are Here</h1><p>{attendees.length} checked in and counting</p></div>
+        <div className="led-attendance-heading"><div className="led-output-brand">{eventDetails.name.toUpperCase()}</div><p className="led-event-meta">{[eventDetails.date, eventDetails.venue].filter(Boolean).join(' · ')}</p><h1>Our Guests Are Here</h1><p>{attendees.length} checked in and counting</p></div>
         {attendees.length ? <div className="led-credits-window" aria-label="List of checked-in guests">
           <div className="led-credits-track">{repeatedAttendees.map((guest, index) => <div className="led-credit-name" key={`${guest.participant_id}-${index}`}><strong>{guest.participant.full_name}</strong><span>{categoryName(participantCategories, guest.participant.category)}</span></div>)}</div>
         </div> : <div className="led-attendance-empty">Waiting for the first guests to check in</div>}

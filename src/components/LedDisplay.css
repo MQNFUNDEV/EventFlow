@@ -407,6 +407,8 @@
 .led-lucky-sound-state { color: #bdf6d0; }
 .led-lucky-sound-toggle:hover { background: #16315a; }
 
+.led-lucky-scene-background { position:absolute; z-index:0; inset:0; background-size:cover; background-position:center; background-repeat:no-repeat; pointer-events:none; }
+.led-lucky-event-name small { display:block; margin-top:8px; color:#e7eefc; font-size:clamp(10px,1.35vh,16px); font-weight:700; letter-spacing:.08em; text-shadow:0 1px 8px #000; }
 .led-lucky-event-name {
   position: absolute;
   z-index: 6;
