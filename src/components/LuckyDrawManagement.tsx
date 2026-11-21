@@ -3,6 +3,7 @@ import { Check, RefreshCw, RotateCw, Trophy, Users, X } from 'lucide-react'
 import { Wheel, type WheelItem, type WheelRestEvent } from 'spin-wheel'
 import { supabase } from '../lib/supabase'
 import './LuckyDrawManagement.css'
+import LuckyDrawMachine from './LuckyDrawMachine'
 
 type PoolType = 'everyone' | 'student' | 'staff'
 type Participant = { id: string; full_name: string; participant_code: string; category: 'student' | 'staff' }
@@ -557,6 +558,8 @@ export default function LuckyDrawManagement() {
       {roundId && <button className="button-secondary" onClick={() => void startNewSession()} disabled={loading || spinning || savingWinner || Boolean(pendingWinner)}><RotateCw size={16} /> New draw session</button>}
       <div className="lucky-draw-pool-count"><span>Available in current wheel</span><strong>{roundId ? eligiblePool.length : '—'}</strong>{checkedInNotInPool > 0 && <small>{checkedInNotInPool} checked-in {poolType === 'everyone' ? 'guests' : `${poolType}s`} are not in this saved pool. Reset the pool to include them.</small>}</div>
     </section>
+
+    <LuckyDrawMachine isSpinning={spinning} paperCount={history.length + (pendingWinner ? 1 : 0)} />
 
     {roundId && <section className="panel lucky-draw-wheel-panel">
       <div className="lucky-draw-round-title"><span>{roundName}</span><small>{pool.length} checked-in guests loaded</small></div>
