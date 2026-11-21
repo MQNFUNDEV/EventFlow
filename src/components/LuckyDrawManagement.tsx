@@ -7,6 +7,7 @@ import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string }
+type QueueEntry = { id: string; participant_id: string; queue_position: number; queue_status: 'available' | 'pending' | 'collected' | 'skipped'; participant: Participant }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
 type ThemePayload = { theme_colors?: unknown }
 
@@ -35,6 +36,9 @@ export default function LuckyDrawManagement() {
   const [roundId, setRoundId] = useState<string | null>(null)
   const [prizeCategoryId, setPrizeCategoryId] = useState<string | null>(null)
   const [pool, setPool] = useState<Participant[]>([])
+  const [winnerQueue, setWinnerQueue] = useState<QueueEntry[]>([])
+  const [pendingQueueEntryId, setPendingQueueEntryId] = useState<string | null>(null)
+  const [generatingQueue, setGeneratingQueue] = useState(false)
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<Winner[]>([])
   const [pendingWinner, setPendingWinner] = useState<Participant | null>(null)
@@ -72,6 +76,68 @@ export default function LuckyDrawManagement() {
 
   const eligiblePool = useMemo(() => pool.filter((participant) => !excludedIds.has(participant.id)), [pool, excludedIds])
 
+  const refreshWinnerQueue = useCallback(async (targetRoundId: string | null = roundId) => {
+    if (!targetRoundId) { setWinnerQueue([]); return }
+    const { data, error: queueError } = await supabase.from('draw_entries')
+      .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
+      .eq('draw_round_id', targetRoundId)
+      .not('queue_position', 'is', null)
+      .order('queue_position', { ascending: true })
+    if (queueError) { setError(queueError.message); return }
+    setWinnerQueue((data ?? []).map((row) => {
+      const participant = getRelated(row.participants)
+      return participant ? {
+        id: row.id,
+        participant_id: row.participant_id,
+        queue_position: row.queue_position ?? 0,
+        queue_status: row.queue_status as QueueEntry['queue_status'],
+        participant: {
+          id: row.participant_id,
+          full_name: participant.full_name,
+          participant_code: participant.participant_code,
+          category: participant.category,
+        },
+      } : null
+    }).filter((entry): entry is QueueEntry => Boolean(entry)))
+  }, [roundId])
+
+  const replenishWinnerQueue = useCallback(async (targetRoundId: string) => {
+    const { count, error: countError } = await supabase.from('draw_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('draw_round_id', targetRoundId)
+      .eq('queue_status', 'pending')
+    if (countError) { setError(countError.message); return }
+    let pendingCount = count ?? 0
+    const { data: available, error: availableError } = await supabase.from('draw_entries')
+      .select('id, participant_id')
+      .eq('draw_round_id', targetRoundId)
+      .eq('queue_status', 'available')
+    if (availableError) { setError(availableError.message); return }
+    const { data: lastPosition, error: positionError } = await supabase.from('draw_entries')
+      .select('queue_position')
+      .eq('draw_round_id', targetRoundId)
+      .not('queue_position', 'is', null)
+      .order('queue_position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (positionError) { setError(positionError.message); return }
+    let nextPosition = (lastPosition?.queue_position ?? 0) + 1
+    const remaining = [...(available ?? [])]
+    while (pendingCount < 10 && remaining.length) {
+      const index = pickIndex(remaining.length)
+      const candidate = remaining.splice(index, 1)[0]
+      const { data: updated, error: updateError } = await supabase.from('draw_entries')
+        .update({ queue_status: 'pending', queue_position: nextPosition })
+        .eq('id', candidate.id)
+        .eq('queue_status', 'available')
+        .select('id')
+        .maybeSingle()
+      if (updateError) { setError(updateError.message); return }
+      if (updated) { pendingCount += 1; nextPosition += 1 }
+    }
+    await refreshWinnerQueue(targetRoundId)
+  }, [refreshWinnerQueue])
+
   useEffect(() => () => {
     if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
     leverTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -101,7 +167,7 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const [displayStateResult, entriesResult, winnersResult] = await Promise.all([
+    const [displayStateResult, entriesResult, winnersResult, queueResult] = await Promise.all([
       supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
       supabase.from('draw_entries')
         .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
@@ -111,8 +177,13 @@ export default function LuckyDrawManagement() {
         .select('id, participant_id, status, notes')
         .eq('draw_round_id', activeRound.id)
         .order('drawn_at', { ascending: false }),
+      supabase.from('draw_entries')
+        .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
+        .eq('draw_round_id', activeRound.id)
+        .not('queue_position', 'is', null)
+        .order('queue_position', { ascending: true }),
     ])
-    const restoreError = entriesResult.error ?? winnersResult.error
+    const restoreError = entriesResult.error ?? winnersResult.error ?? queueResult.error
     if (restoreError) {
       setError(restoreError.message)
       setLoading(false)
@@ -128,10 +199,32 @@ export default function LuckyDrawManagement() {
         category: participant.category,
       } : null
     }).filter((participant): participant is Participant => Boolean(participant))
+    const queuedEntries = (queueResult.data ?? []).map((row) => {
+      const participant = getRelated(row.participants)
+      return participant ? {
+        id: row.id,
+        participant_id: row.participant_id,
+        queue_position: row.queue_position ?? 0,
+        queue_status: row.queue_status as QueueEntry['queue_status'],
+        participant: { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category },
+      } : null
+    }).filter((entry): entry is QueueEntry => Boolean(entry))
     const previousDraws = winnersResult.data ?? []
     const removedParticipants = new Set(previousDraws
       .filter((winner) => winner.status === 'skipped' || winner.notes === 'Confirmed by operator')
       .map((winner) => winner.participant_id))
+    const legacyCollectedIds = previousDraws.filter((winner) => winner.notes === 'Confirmed by operator').map((winner) => winner.participant_id)
+    const legacySkippedIds = previousDraws.filter((winner) => winner.status === 'skipped').map((winner) => winner.participant_id)
+    if (legacyCollectedIds.length) {
+      const { error: syncError } = await supabase.from('draw_entries').update({ queue_status: 'collected' })
+        .eq('draw_round_id', activeRound.id).eq('queue_status', 'available').in('participant_id', legacyCollectedIds)
+      if (syncError) { setError(syncError.message); setLoading(false); return }
+    }
+    if (legacySkippedIds.length) {
+      const { error: syncError } = await supabase.from('draw_entries').update({ queue_status: 'skipped' })
+        .eq('draw_round_id', activeRound.id).eq('queue_status', 'available').in('participant_id', legacySkippedIds)
+      if (syncError) { setError(syncError.message); setLoading(false); return }
+    }
     const pendingRow = previousDraws.find((winner) => winner.status === 'pending' && winner.notes !== 'Confirmed by operator')
     const pendingParticipant = pendingRow ? participants.find((participant) => participant.id === pendingRow.participant_id) ?? null : null
 
@@ -140,6 +233,8 @@ export default function LuckyDrawManagement() {
     setRoundId(activeRound.id)
     setPrizeCategoryId(activeRound.prize_category_id)
     setPool(participants)
+    setWinnerQueue(queuedEntries)
+    setPendingQueueEntryId(pendingParticipant ? queuedEntries.find((entry) => entry.participant_id === pendingParticipant.id)?.id ?? null : null)
     setExcludedIds(removedParticipants)
     setPendingWinner(pendingParticipant)
     setPendingWinnerRowId(pendingParticipant ? pendingRow?.id ?? null : null)
@@ -372,16 +467,15 @@ export default function LuckyDrawManagement() {
     setLoading(false)
   }, [poolType, roundName, categories, boxAnimationId, refreshWinnerHistory, restoreActiveRound])
 
-  const spinCandidates = useCallback(async (candidates: Participant[]) => {
+  const spinCandidates = useCallback(async (chosen: Participant, queueEntryId: string) => {
     const activeRoundId = roundRef.current
     const activeCategoryId = categoryRef.current
-    if (!activeRoundId || !activeCategoryId || spinLockRef.current || candidates.length === 0) {
+    if (!activeRoundId || !activeCategoryId || spinLockRef.current) {
       leverActionLockRef.current = false
       return
     }
     spinLockRef.current = true
     setSpinning(true)
-    const chosen = candidates[pickIndex(candidates.length)]
     const { data, error: insertError } = await supabase.from('draw_winners').insert({
       draw_round_id: activeRoundId,
       prize_category_id: activeCategoryId,
@@ -402,12 +496,91 @@ export default function LuckyDrawManagement() {
     setSpinning(false)
     setPendingWinner(chosen)
     setPendingWinnerRowId(data.id)
+    setPendingQueueEntryId(queueEntryId)
     setBoxPhase('reveal')
     leverActionLockRef.current = false
     void publishBoxState({ box_phase: 'reveal' })
     setMessage('Winner revealed. Confirm them or skip and draw again.')
     void refreshWinnerHistory()
   }, [refreshWinnerHistory])
+
+  async function generateWinnerList() {
+    if (!roundId || generatingQueue || pendingWinner) return
+    setGeneratingQueue(true); setError(''); setMessage('')
+    try {
+      const { count, error: pendingError } = await supabase.from('draw_entries')
+        .select('id', { count: 'exact', head: true })
+        .eq('draw_round_id', roundId)
+        .eq('queue_status', 'pending')
+      if (pendingError) throw pendingError
+      if ((count ?? 0) > 0) {
+        await replenishWinnerQueue(roundId)
+        setMessage('The winner list is already active. The pending queue has been topped up to 10 where participants remain.')
+        return
+      }
+      const { data: available, error: availableError } = await supabase.from('draw_entries')
+        .select('id')
+        .eq('draw_round_id', roundId)
+        .eq('queue_status', 'available')
+      if (availableError) throw availableError
+      const { data: lastPosition, error: positionError } = await supabase.from('draw_entries')
+        .select('queue_position')
+        .eq('draw_round_id', roundId)
+        .not('queue_position', 'is', null)
+        .order('queue_position', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (positionError) throw positionError
+      let nextPosition = (lastPosition?.queue_position ?? 0) + 1
+      const candidates = [...(available ?? [])]
+      const amount = Math.min(10, candidates.length)
+      for (let index = 0; index < amount; index += 1) {
+        const selected = candidates.splice(pickIndex(candidates.length), 1)[0]
+        const { error: updateError } = await supabase.from('draw_entries')
+          .update({ queue_status: 'pending', queue_position: nextPosition })
+          .eq('id', selected.id)
+          .eq('queue_status', 'available')
+        if (updateError) throw updateError
+        nextPosition += 1
+      }
+      await refreshWinnerQueue(roundId)
+      setMessage(amount ? `Generated ${amount} winners in a saved order. The next 10 are ready for the lever.` : 'No eligible participants remain to generate a winner list.')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not generate the winner list.')
+    } finally {
+      setGeneratingQueue(false)
+    }
+  }
+
+  async function startSpin() {
+    if (spinning || !roundId) {
+      leverActionLockRef.current = false
+      setBoxPhase('loaded')
+      void publishBoxState({ box_phase: 'loaded' })
+      return
+    }
+    const { data: nextEntry, error: queueError } = await supabase.from('draw_entries')
+      .select('id, participant_id, participants!inner(id, full_name, participant_code, category)')
+      .eq('draw_round_id', roundId)
+      .eq('queue_status', 'pending')
+      .order('queue_position', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    const participant = nextEntry ? getRelated(nextEntry.participants) : null
+    if (queueError || !nextEntry || !participant) {
+      leverActionLockRef.current = false
+      setBoxPhase('loaded')
+      void publishBoxState({ box_phase: 'loaded' })
+      setError(queueError?.message ?? 'No pending winner is queued. Generate a winner list first.')
+      return
+    }
+    await spinCandidates({
+      id: nextEntry.participant_id,
+      full_name: participant.full_name,
+      participant_code: participant.participant_code,
+      category: participant.category,
+    }, nextEntry.id)
+  }
 
   async function resetBox() {
     if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
@@ -430,7 +603,7 @@ export default function LuckyDrawManagement() {
   }
 
   async function pullBoxLever() {
-    if (!roundId || !boxLoadingComplete || !eligiblePool.length || pendingWinner || leverActionLockRef.current) return
+    if (!roundId || !boxLoadingComplete || !winnerQueue.some((entry) => entry.queue_status === 'pending') || pendingWinner || leverActionLockRef.current) return
     leverActionLockRef.current = true
     setBoxPhase('cranking')
     await publishBoxState({ box_phase: 'cranking' })
@@ -445,17 +618,6 @@ export default function LuckyDrawManagement() {
     leverTimersRef.current.push(crankTimer)
   }
 
-  async function startSpin() {
-    if (spinning || !eligiblePool.length) {
-      leverActionLockRef.current = false
-      setBoxPhase('loaded')
-      void publishBoxState({ box_phase: 'loaded' })
-      setError('No eligible guests remain in this draw pool.')
-      return
-    }
-    await spinCandidates(eligiblePool)
-  }
-
   async function acceptWinner() {
     if (!pendingWinner || !pendingWinnerRowId || winnerActionLockRef.current) return
     winnerActionLockRef.current = true
@@ -463,12 +625,20 @@ export default function LuckyDrawManagement() {
     try {
       const winnerName = pendingWinner.full_name
       const remaining = eligiblePool.filter((participant) => participant.id !== pendingWinner.id)
-      const { error: updateError } = await supabase.from('draw_winners').update({ notes: 'Confirmed by operator' }).eq('id', pendingWinnerRowId)
+      const { data: authData } = await supabase.auth.getUser()
+      const { error: updateError } = await supabase.from('draw_winners')
+        .update({ notes: 'Confirmed by operator', collected_at: new Date().toISOString(), collected_by: authData.user?.id ?? null })
+        .eq('id', pendingWinnerRowId)
       if (updateError) {
         setError(updateError.message)
         return
       }
+      const queueUpdate = pendingQueueEntryId
+        ? await supabase.from('draw_entries').update({ queue_status: 'collected' }).eq('id', pendingQueueEntryId)
+        : await supabase.from('draw_entries').update({ queue_status: 'collected' }).eq('draw_round_id', roundId).eq('participant_id', pendingWinner.id).eq('queue_status', 'available')
+      if (queueUpdate.error) { setError(queueUpdate.error.message); return }
       setExcludedIds((current) => new Set([...current, pendingWinner.id]))
+      setPendingQueueEntryId(null)
       setPendingWinner(null)
       setPendingWinnerRowId(null)
       setBoxPhase('loaded')
@@ -482,6 +652,7 @@ export default function LuckyDrawManagement() {
         if (roundError) setError(`Winner confirmed, but the draw round could not be closed: ${roundError.message}`)
       }
       await refreshWinnerHistory()
+      if (roundId) await replenishWinnerQueue(roundId)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to confirm this winner.')
     } finally {
@@ -507,7 +678,12 @@ export default function LuckyDrawManagement() {
       }
       const skippedId = pendingWinner.id
       const remaining = eligiblePool.filter((participant) => participant.id !== skippedId)
+      const queueUpdate = pendingQueueEntryId
+        ? await supabase.from('draw_entries').update({ queue_status: 'skipped' }).eq('id', pendingQueueEntryId)
+        : await supabase.from('draw_entries').update({ queue_status: 'skipped' }).eq('draw_round_id', roundId).eq('participant_id', pendingWinner.id).eq('queue_status', 'available')
+      if (queueUpdate.error) { setError(queueUpdate.error.message); return }
       setExcludedIds((current) => new Set([...current, skippedId]))
+      setPendingQueueEntryId(null)
       setPendingWinner(null)
       setPendingWinnerRowId(null)
       setBoxPhase('loaded')
@@ -517,12 +693,14 @@ export default function LuckyDrawManagement() {
       void publishBoxState({ box_phase: 'loaded' })
       await refreshWinnerHistory()
       if (!remaining.length) {
+        await refreshWinnerQueue(roundId)
         setMessage('That guest was skipped. There are no more guests in this pool.')
         const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
         if (roundError) setError(`Guest skipped, but the draw round could not be closed: ${roundError.message}`)
         return
       }
-      setMessage('Guest skipped and removed from this pool. Spin again when ready.')
+      await replenishWinnerQueue(roundId)
+      setMessage('Guest skipped and removed from this pool. The next queued name is ready; the pending list has been replenished where possible.')
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to skip this winner.')
     } finally {
@@ -557,6 +735,8 @@ export default function LuckyDrawManagement() {
     setExcludedIds(new Set())
     setPendingWinner(null)
     setPendingWinnerRowId(null)
+    setPendingQueueEntryId(null)
+    setWinnerQueue([])
     setMessage('Previous draw session closed. Choose a name and category for the next session.')
     setLoading(false)
   }
@@ -687,6 +867,8 @@ export default function LuckyDrawManagement() {
     setExcludedIds(new Set())
     setPendingWinner(null)
     setPendingWinnerRowId(null)
+    setPendingQueueEntryId(null)
+    setWinnerQueue([])
     setMessage(`Fresh pool ready with ${refreshedPool.length} checked-in ${refreshedPool.length === 1 ? 'guest' : 'guests'}. The current winners list has been reset; previous session records remain saved.`)
     await refreshWinnerHistory(nextRound.id)
     setUpdatingOutput(false)
@@ -718,7 +900,22 @@ export default function LuckyDrawManagement() {
       <div className="lucky-draw-box-actions">
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
         <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
-        <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !eligiblePool.length || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
+        <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
+      </div>
+      <div className="lucky-draw-queue-panel">
+        <div className="lucky-draw-queue-heading"><div><strong>Winner List</strong><span>{winnerQueue.filter((entry) => entry.queue_status === 'pending').length} pending · {winnerQueue.length} generated</span></div>
+          <button className="button-primary" onClick={() => void generateWinnerList()} disabled={!roundId || generatingQueue || Boolean(pendingWinner) || winnerQueue.some((entry) => entry.queue_status === 'pending')}>
+            <Users size={16} /> {generatingQueue ? 'Generating…' : winnerQueue.length ? 'Generate next list' : 'Generate Winner List'}
+          </button>
+        </div>
+        {winnerQueue.length ? <ol className="lucky-draw-queue-list">{winnerQueue.map((entry) => <li key={entry.id} className={`is-${entry.queue_status}`}>
+          <span className="lucky-draw-queue-number">{entry.queue_position}</span>
+          <strong>{entry.participant.full_name}</strong>
+          <label className="lucky-draw-queue-status">
+            <input type="checkbox" checked={entry.queue_status === 'collected'} disabled />
+            <span>{entry.queue_status === 'collected' ? 'Prize collected' : entry.queue_status === 'skipped' ? 'Skipped' : 'Pending'}</span>
+          </label>
+        </li>)}</ol> : <p className="lucky-draw-log-empty">Generate a list of 10 names before pulling the lever. EventFlow will keep 10 names pending as the pool allows.</p>}
       </div>
       {pendingWinner ? <div className="lucky-draw-controls lucky-draw-winner-review">
         <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>

@@ -74,3 +74,21 @@
 .lucky-draw-box-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
 .lucky-draw-box-actions button{display:inline-flex;min-height:42px;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
 @media(max-width:700px){.lucky-draw-box-controls{align-items:stretch;flex-direction:column}.lucky-draw-box-actions{justify-content:flex-start}}
+
+.lucky-draw-queue-panel{display:grid;gap:12px;width:100%;padding-top:16px;border-top:1px solid #e8edf4}
+.lucky-draw-queue-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lucky-draw-queue-heading>div{display:grid;gap:4px}
+.lucky-draw-queue-heading strong{color:#1c2e4a;font-size:14px}
+.lucky-draw-queue-heading span{color:#778196;font-size:11px}
+.lucky-draw-queue-heading button{display:inline-flex;min-height:38px;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+.lucky-draw-queue-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0;padding:0;list-style:none}
+.lucky-draw-queue-list li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:9px;min-width:0;padding:9px 10px;border:1px solid #e8edf4;border-radius:9px;background:#fbfcfe}
+.lucky-draw-queue-number{display:grid;width:26px;height:26px;place-items:center;border-radius:7px;background:#edf3fc;color:#355b91;font-size:11px;font-weight:800}
+.lucky-draw-queue-list li>strong{overflow:hidden;color:#263246;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.lucky-draw-queue-status{display:flex;align-items:center;gap:5px;color:#778196;font-size:10px;white-space:nowrap}
+.lucky-draw-queue-status input{width:14px;height:14px;margin:0;accent-color:#198754}
+.lucky-draw-queue-list li.is-collected{background:#f3fbf5;border-color:#d9efdf}
+.lucky-draw-queue-list li.is-collected .lucky-draw-queue-status{color:#267346}
+.lucky-draw-queue-list li.is-skipped{background:#f7f8fa;opacity:.72}
+.lucky-draw-queue-list li.is-skipped .lucky-draw-queue-status{color:#7b8493}
+@media(max-width:700px){.lucky-draw-queue-heading{align-items:flex-start;flex-direction:column}.lucky-draw-queue-list{grid-template-columns:1fr}}
