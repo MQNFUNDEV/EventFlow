@@ -137,7 +137,9 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
         paper.visible=i<visiblePapers
         const home=paperHomes[i]
         const shaking=p.phase==='shaking'
-        paper.position.set(home.x+(shaking?Math.sin(now/95+i)*.1:0),home.y+(shaking?Math.abs(Math.sin(now/85+i))*.16:0),home.z+(shaking?Math.cos(now/105+i)*.1:0))
+        paper.position.x=home.x+(shaking?Math.sin(now/95+i)*.1:0)
+        paper.position.y=home.y+(shaking?Math.abs(Math.sin(now/85+i))*.16:0)
+        paper.position.z=home.z+(shaking?Math.cos(now/105+i)*.1:0)
         paper.rotation.set(home.rx+(shaking?Math.sin(now/110+i)*.08:0),home.ry,home.rz+(shaking?Math.sin(now/100+i)*.16:0))
       })
       falling.forEach((slip,i)=>{
