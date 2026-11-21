@@ -88,7 +88,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     // placed on the highest surface beneath its footprint, never at a free-floating Y.
     const supportCells=40
     const supportCellSize=size/supportCells
-    const supportHeight=new Float32Array(supportCells*supportCells)
+    const supportHeight=new Float32Array(supportCells*supportCells).fill(thick)
     const halfPaperX=.74, halfPaperZ=.46
     for(let i=0;i<paperCount;i++){
       const paper=new THREE.Mesh(paperGeometry,paperMaterials[i % paperMaterials.length])
