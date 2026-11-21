@@ -82,58 +82,33 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const paperMaterials = paperPalette.map((color) => new THREE.MeshStandardMaterial({ color, roughness: .9, side: THREE.DoubleSide }))
     const papers: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
     const paperHomes: Array<{ x: number; y: number; z: number; rx: number; ry: number; rz: number }> = []
-    const paperCount=1920
-    const paperGeometry=new THREE.BoxGeometry(1.48,.12,.92)
-    // A small height-field acts as the inside of the box: every new slip is
-    // placed on the highest surface beneath its footprint, never at a free-floating Y.
-    const supportCells=40
-    const supportCellSize=size/supportCells
-    const supportHeight=new Float32Array(supportCells*supportCells).fill(thick)
-    const halfPaperX=.74, halfPaperZ=.46
+    const paperCount=1800
+    const paperGeometry=new THREE.BoxGeometry(1.86,.12,1.86)
+    // 25 slips per layer across the full floor. Each layer is independently
+    // shuffled and jittered, so colours and edges never form repeating columns.
+    const slots=Array.from({length:25},(_,index)=>({column:index%5,row:Math.floor(index/5)}))
     for(let i=0;i<paperCount;i++){
-      const paper=new THREE.Mesh(paperGeometry,paperMaterials[i % paperMaterials.length])
-      const slot=i%36
-      const column=slot%6
-      const row=Math.floor(slot/6)
-      const yaw=Math.random()*Math.PI
-      const cos=Math.abs(Math.cos(yaw)), sin=Math.abs(Math.sin(yaw))
-      const extentX=cos*halfPaperX+sin*halfPaperZ
-      const extentZ=sin*halfPaperX+cos*halfPaperZ
-      // Six-by-six batches spread across the floor; small jitter prevents a grid look.
-      const x=Math.max(-half+extentX+.08,Math.min(half-extentX-.08,(column-2.5)*1.22+(Math.random()-.5)*.34))
-      const z=Math.max(-half+extentZ+.08,Math.min(half-extentZ-.08,(row-2.5)*1.22+(Math.random()-.5)*.34))
-      const minX=Math.max(0,Math.floor((x-extentX+half)/supportCellSize))
-      const maxX=Math.min(supportCells-1,Math.floor((x+extentX+half)/supportCellSize))
-      const minZ=Math.max(0,Math.floor((z-extentZ+half)/supportCellSize))
-      const maxZ=Math.min(supportCells-1,Math.floor((z+extentZ+half)/supportCellSize))
-      let supportY=0
-      for(let gx=minX;gx<=maxX;gx++)for(let gz=minZ;gz<=maxZ;gz++){
-        const cellCenterX=-half+(gx+.5)*supportCellSize-x
-        const cellCenterZ=-half+(gz+.5)*supportCellSize-z
-        const localX=cellCenterX*Math.cos(yaw)+cellCenterZ*Math.sin(yaw)
-        const localZ=-cellCenterX*Math.sin(yaw)+cellCenterZ*Math.cos(yaw)
-        if(Math.abs(localX)<=halfPaperX&&Math.abs(localZ)<=halfPaperZ){
-          supportY=Math.max(supportY,supportHeight[gz*supportCells+gx])
+      const paper=new THREE.Mesh(paperGeometry,paperMaterials[Math.floor(Math.random()*paperMaterials.length)])
+      const layer=Math.floor(i/25)
+      const slotIndex=i%25
+      if(slotIndex===0){
+        // Shuffle each new layer independently.
+        for(let j=slots.length-1;j>0;j--){
+          const k=Math.floor(Math.random()*(j+1))
+          const temp=slots[j];slots[j]=slots[k];slots[k]=temp
         }
       }
+      const slot=slots[slotIndex]
       const home={
-        x,y:supportY+.06,z,
-        rx:(Math.random()-.5)*.12,
-        ry:yaw,
-        rz:(Math.random()-.5)*.12,
+        x:(slot.column-2)*1.96+(Math.random()-.5)*.16,
+        y:.075+layer*.124,
+        z:(slot.row-2)*1.96+(Math.random()-.5)*.16,
+        rx:(Math.random()-.5)*.10,
+        ry:(Math.random()-.5)*Math.PI,
+        rz:(Math.random()-.5)*.10,
       }
-      // Claim the cells beneath the sheet at its top surface. Later sheets
-      // collide with this support, creating a continuous packed pile.
-      for(let gx=minX;gx<=maxX;gx++)for(let gz=minZ;gz<=maxZ;gz++){
-        const cellCenterX=-half+(gx+.5)*supportCellSize-x
-        const cellCenterZ=-half+(gz+.5)*supportCellSize-z
-        const localX=cellCenterX*Math.cos(yaw)+cellCenterZ*Math.sin(yaw)
-        const localZ=-cellCenterX*Math.sin(yaw)+cellCenterZ*Math.cos(yaw)
-        if(Math.abs(localX)<=halfPaperX&&Math.abs(localZ)<=halfPaperZ){
-          const index=gz*supportCells+gx
-          supportHeight[index]=Math.max(supportHeight[index],supportY+.12)
-        }
-      }
+      // Every layer is constrained to the 10-unit enclosure; no stack can
+      // grow through the lid or float above the acrylic walls.
       paper.position.set(home.x,10+Math.random()*2,home.z)
       paper.rotation.set(home.rx,home.ry,home.rz)
       paper.visible=false; machine.add(paper); papers.push(paper); paperHomes.push(home)
