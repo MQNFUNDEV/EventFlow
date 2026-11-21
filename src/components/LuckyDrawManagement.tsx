@@ -442,7 +442,7 @@ export default function LuckyDrawManagement() {
     setPendingWinnerRowId(data.id)
     setSpinning(true)
     updateWheelItems(candidates)
-    restHandlerRef.current = (event) => {
+    restHandlerRef.current = () => {
       spinLockRef.current = false
       leverActionLockRef.current = false
       setSpinning(false)
