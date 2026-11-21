@@ -245,7 +245,7 @@ export default function LedDisplayOutput() {
           {!welcomePosterIsFullHd && (generatedWelcomeFill ? <img className="led-generated-fill" src={generatedWelcomeFill} alt="" /> : <img className="led-welcome-backdrop" src={welcomePoster} alt="" />)}
           <img className="led-welcome-poster" src={welcomePoster} alt="Event key visual" />
         </div>
-      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput eventName={eventDetails.name} eventDate={eventDetails.date} eventLocation={eventDetails.venue} categories={participantCategories} themeColors={themeColors} backgroundImage={sceneBackgroundImage} /> : scene === 'manual_checkin' ? <>
+      </> : scene === 'lucky_draw' ? <LedLuckyDrawOutput categories={participantCategories} themeColors={themeColors} backgroundImage={sceneBackgroundImage} /> : scene === 'manual_checkin' ? <>
         <div className="led-manual-checkin-brand"><div className="led-output-brand">MAQNA EVENTFLOW</div></div>
         <div className="led-manual-checkin-event"><h2>{eventDetails.name}</h2><p>{eventDetails.date || 'Date to be announced'} <span>·</span> {eventDetails.venue || 'Venue to be announced'}</p></div>
         <div className="led-manual-checkin-copy"><span className="led-manual-checkin-kicker">GUEST ARRIVAL</span><h1>Manual Check-in</h1><p>Please proceed to the check-in desk.</p></div>

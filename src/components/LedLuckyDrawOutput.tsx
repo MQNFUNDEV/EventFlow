@@ -10,7 +10,7 @@ const DEFAULT_THEME = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
 
 function related<T>(value: T | T[] | null | undefined) { return Array.isArray(value) ? value[0] : value }
 
-export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', eventDate = '', eventLocation = '', categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '' }: { eventName?: string; eventDate?: string; eventLocation?: string; categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string }) {
+export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '' }: { categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string }) {
   const [round, setRound] = useState<DrawRound | null>(null)
   const [winner, setWinner] = useState<DrawEntry | null>(null)
   const [soundReady, setSoundReady] = useState(false)
@@ -159,7 +159,7 @@ export default function LedLuckyDrawOutput({ eventName = 'EventFlow Event', even
       ? <div className="led-lucky-sound-state" aria-label="Winner sound enabled">♪ SOUND ON</div>
       : <button className="led-lucky-sound-toggle" type="button" aria-label="Enable winner sound" onClick={() => void enableWinnerSound()}>SOUND</button>}
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
-    <header className="led-lucky-event-name"><span>{eventName}</span>{(eventDate || eventLocation) && <small>{[eventDate, eventLocation].filter(Boolean).join(' · ')}</small>}</header>
+    <header className="led-lucky-title"><span>LUCKY DRAW · 3D MACHINE</span><small>Acrylic Name Draw Box</small></header>
     <div className="led-lucky-side-title is-left" role="img" aria-label="Lucky">
       {'LUCKY'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
     </div>
