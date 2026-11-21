@@ -88,7 +88,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       paper.visible=false; machine.add(paper); papers.push(paper)
     }
     // Rain stream above the slot. Slips cycle through the aperture and land in the box.
-    const falling: Array<{ visible: boolean; position: THREE.Vector3; rotation: THREE.Euler }> = []
+    const falling: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
     for(let i=0;i<18;i++){
       const slip=new THREE.Mesh(new THREE.PlaneGeometry(.72,.34),paperMat)
       slip.position.set(((i%5)-2)*.36,11+(i%6)*.8,((i%3)-1)*.18)
