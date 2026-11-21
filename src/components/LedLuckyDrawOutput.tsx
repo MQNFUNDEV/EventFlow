@@ -159,7 +159,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
       ? <div className="led-lucky-sound-state" aria-label="Winner sound enabled">♪ SOUND ON</div>
       : <button className="led-lucky-sound-toggle" type="button" aria-label="Enable winner sound" onClick={() => void enableWinnerSound()}>SOUND</button>}
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
-    <header className="led-lucky-title"><span>LUCKY DRAW · 3D MACHINE</span><small>Acrylic Name Draw Box</small></header>
+    
     <div className="led-lucky-side-title is-left" role="img" aria-label="Lucky">
       {'LUCKY'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
     </div>
