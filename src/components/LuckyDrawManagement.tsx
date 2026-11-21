@@ -693,13 +693,13 @@ export default function LuckyDrawManagement() {
       void publishBoxState({ box_phase: 'loaded' })
       await refreshWinnerHistory()
       if (!remaining.length) {
-        await refreshWinnerQueue(roundId)
+        if (roundId) await refreshWinnerQueue(roundId)
         setMessage('That guest was skipped. There are no more guests in this pool.')
-        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId)
+        const { error: roundError } = await supabase.from('draw_rounds').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', roundId as string)
         if (roundError) setError(`Guest skipped, but the draw round could not be closed: ${roundError.message}`)
         return
       }
-      await replenishWinnerQueue(roundId)
+      if (roundId) await replenishWinnerQueue(roundId)
       setMessage('Guest skipped and removed from this pool. The next queued name is ready; the pending list has been replenished where possible.')
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unable to skip this winner.')
