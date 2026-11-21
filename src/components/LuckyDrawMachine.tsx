@@ -84,15 +84,15 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const paperHomes: Array<{ x: number; y: number; z: number; rx: number; ry: number; rz: number }> = []
     const paperCount=160
     for(let i=0;i<paperCount;i++){
-      const paper=new THREE.Mesh(new THREE.PlaneGeometry(1.48,.92),paperMaterials[i % paperMaterials.length])
-      const layer=Math.floor(i/10)
+      const paper=new THREE.Mesh(new THREE.BoxGeometry(1.48,.035,.92),paperMaterials[i % paperMaterials.length])
+      const layer=Math.floor(i/7)
       const home={
         x:(Math.random()-.5)*7.9,
-        y:.34+layer*.52+(Math.random()-.5)*.07,
+        y:.34+layer*.34+(Math.random()-.5)*.035,
         z:(Math.random()-.5)*7.9,
-        rx:-Math.PI/2+(Math.random()-.5)*.3,
+        rx:(Math.random()-.5)*.16,
         ry:Math.random()*Math.PI,
-        rz:(Math.random()-.5)*.3,
+        rz:(Math.random()-.5)*.16,
       }
       paper.position.set(home.x,home.y,home.z)
       paper.rotation.set(home.rx,home.ry,home.rz)
