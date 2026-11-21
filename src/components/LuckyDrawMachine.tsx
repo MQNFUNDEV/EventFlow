@@ -137,13 +137,14 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       const progress=p.phase==='loading'?Math.min(1,elapsed/duration):p.phase==='idle'?0:1
       const count=p.phase==='loading'?Math.min(p.totalNames,Math.floor(progress*p.totalNames)):p.phase==='idle'?0:p.totalNames
       paint(p.categoryLabel,count)
-      const visiblePapers=p.phase==='idle'?0:Math.min(paperCount,Math.round(progress*paperCount))
+      const paperFeedProgress=p.phase==='loading'?Math.min(1,elapsed/(duration*.62)):1
+      const visiblePapers=p.phase==='idle'?0:Math.min(paperCount,Math.round(paperFeedProgress*paperCount))
       papers.forEach((paper,i)=>{
         paper.visible=i<visiblePapers
         const home=paperHomes[i]
         const shaking=p.phase==='shaking'
         // Gravity-driven feed: each slip drops from above the slot, then settles onto its pile layer.
-        const releaseAt=(i/paperCount)*duration
+        const releaseAt=(i/paperCount)*duration*.62
         const fallSeconds=Math.max(0,(elapsed-releaseAt)/1000)
         const gravityDrop=Math.max(0,10+((i%5)*.22)-.5*9.8*fallSeconds*fallSeconds)
         const settledY=Math.max(home.y,gravityDrop)
