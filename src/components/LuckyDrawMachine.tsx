@@ -82,19 +82,24 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const paperMaterials = paperPalette.map((color) => new THREE.MeshStandardMaterial({ color, roughness: .9, side: THREE.DoubleSide }))
     const papers: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
     const paperHomes: Array<{ x: number; y: number; z: number; rx: number; ry: number; rz: number }> = []
-    const paperCount=160
+    const paperCount=640
+    const paperGeometry=new THREE.BoxGeometry(1.48,.12,.92)
+    const papersPerLayer=36
     for(let i=0;i<paperCount;i++){
-      const paper=new THREE.Mesh(new THREE.BoxGeometry(1.48,.035,.92),paperMaterials[i % paperMaterials.length])
-      const layer=Math.floor(i/7)
+      const paper=new THREE.Mesh(paperGeometry,paperMaterials[i % paperMaterials.length])
+      const layer=Math.floor(i/papersPerLayer)
+      const slot=i%papersPerLayer
+      const column=slot%6
+      const row=Math.floor(slot/6)
       const home={
-        x:(Math.random()-.5)*7.9,
-        y:.34+layer*.34+(Math.random()-.5)*.035,
-        z:(Math.random()-.5)*7.9,
-        rx:(Math.random()-.5)*.16,
+        x:(column-2.5)*1.22+(Math.random()-.5)*.24,
+        y:.06+layer*.19+(Math.random()-.5)*.025,
+        z:(row-2.5)*1.22+(Math.random()-.5)*.24,
+        rx:(Math.random()-.5)*.24,
         ry:Math.random()*Math.PI,
-        rz:(Math.random()-.5)*.16,
+        rz:(Math.random()-.5)*.24,
       }
-      paper.position.set(home.x,home.y,home.z)
+      paper.position.set(home.x,10+Math.random()*2,home.z)
       paper.rotation.set(home.rx,home.ry,home.rz)
       paper.visible=false; machine.add(paper); papers.push(paper); paperHomes.push(home)
     }
@@ -137,10 +142,18 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
         paper.visible=i<visiblePapers
         const home=paperHomes[i]
         const shaking=p.phase==='shaking'
+        // Gravity-driven feed: each slip drops from above the slot, then settles onto its pile layer.
+        const releaseAt=(i/paperCount)*duration
+        const fallSeconds=Math.max(0,(elapsed-releaseAt)/1000)
+        const gravityDrop=Math.max(0,10+((i%5)*.22)-.5*9.8*fallSeconds*fallSeconds)
+        const settledY=Math.max(home.y,gravityDrop)
+        const impactAge=Math.max(0,fallSeconds-Math.sqrt(Math.max(0,(10+((i%5)*.22)-home.y)/4.9)))
+        const bounce=impactAge>0?Math.exp(-impactAge*7)*Math.sin(impactAge*18)*.055:0
         paper.position.x=home.x+(shaking?Math.sin(now/95+i)*.1:0)
-        paper.position.y=home.y+(shaking?Math.abs(Math.sin(now/85+i))*.16:0)
+        paper.position.y=(p.phase==='loading'?Math.max(home.y,settledY+bounce):home.y)+(shaking?Math.abs(Math.sin(now/85+i))*.12:0)
         paper.position.z=home.z+(shaking?Math.cos(now/105+i)*.1:0)
-        paper.rotation.set(home.rx+(shaking?Math.sin(now/110+i)*.08:0),home.ry,home.rz+(shaking?Math.sin(now/100+i)*.16:0))
+        const fallingNow=p.phase==='loading'&&fallSeconds>0&&settledY>home.y+.02
+        paper.rotation.set(home.rx+(fallingNow?Math.sin(now/75+i)*.08:0)+(shaking?Math.sin(now/110+i)*.08:0),home.ry+(fallingNow?Math.sin(now/90+i)*.12:0),home.rz+(fallingNow?Math.cos(now/80+i)*.08:0)+(shaking?Math.sin(now/100+i)*.16:0))
       })
       falling.forEach((slip,i)=>{
         slip.visible=p.phase==='loading'&&progress<1
