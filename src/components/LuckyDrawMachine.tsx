@@ -78,16 +78,25 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     paint(propsRef.current.categoryLabel,0)
 
     // Paper slips, pre-built as real meshes. They accumulate inside the transparent cube.
-    const paperPalette = [0xffd6a5,0xffb7c5,0xffe58f,0xb8e3ff,0xc9f2d0,0xd8c5ff,0xffc99b,0xf5f0d5,0x9fe3dc,0xf4b6e8]
+    const paperPalette = [0xc2410c,0xbe185d,0xb45309,0x1d4ed8,0x15803d,0x6d28d9,0xea580c,0x854d0e,0x0f766e,0x9f1239]
     const paperMaterials = paperPalette.map((color) => new THREE.MeshStandardMaterial({ color, roughness: .9, side: THREE.DoubleSide }))
     const papers: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
+    const paperHomes: Array<{ x: number; y: number; z: number; rx: number; ry: number; rz: number }> = []
     const paperCount=160
     for(let i=0;i<paperCount;i++){
       const paper=new THREE.Mesh(new THREE.PlaneGeometry(1.48,.92),paperMaterials[i % paperMaterials.length])
-      paper.rotation.set(-Math.PI/2+(i%5)*.035,((i*17)%9)*.13,((i*7)%11)*.035)
-      const layer = Math.floor(i / 20), withinLayer = i % 20
-      paper.position.set((withinLayer % 5) * 1.8 - 3.6, .28 + layer * .94, (Math.floor(withinLayer / 5) * 2) - 3)
-      paper.visible=false; machine.add(paper); papers.push(paper)
+      const layer=Math.floor(i/10)
+      const home={
+        x:(Math.random()-.5)*7.9,
+        y:.34+layer*.52+(Math.random()-.5)*.07,
+        z:(Math.random()-.5)*7.9,
+        rx:-Math.PI/2+(Math.random()-.5)*.3,
+        ry:Math.random()*Math.PI,
+        rz:(Math.random()-.5)*.3,
+      }
+      paper.position.set(home.x,home.y,home.z)
+      paper.rotation.set(home.rx,home.ry,home.rz)
+      paper.visible=false; machine.add(paper); papers.push(paper); paperHomes.push(home)
     }
     // Rain stream above the slot. Slips cycle through the aperture and land in the box.
     const falling: Array<{ visible: boolean; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void } }> = []
@@ -113,8 +122,11 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
     const observer=new ResizeObserver(resize);observer.observe(host);resize()
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let frame=0
+    let previousPhase: BoxPhase='idle'
+    let crankStartedAt=0
     const render=()=>{
       const p=propsRef.current, now=performance.now()
+      if(p.phase!==previousPhase){if(p.phase==='cranking')crankStartedAt=now;previousPhase=p.phase}
       const elapsed=p.phase==='loading'&&p.startedAt?Math.max(0,Date.now()-p.startedAt):0
       const duration=14000
       const progress=p.phase==='loading'?Math.min(1,elapsed/duration):p.phase==='idle'?0:1
@@ -123,21 +135,20 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       const visiblePapers=p.phase==='idle'?0:Math.min(paperCount,Math.round(progress*paperCount))
       papers.forEach((paper,i)=>{
         paper.visible=i<visiblePapers
-        const layer=Math.floor(i/20), withinLayer=i%20
-        paper.position.y=.28+layer*.94+(p.phase==='shaking'?Math.abs(Math.sin(now/85+i))*.16:0)
-        paper.position.x=(withinLayer%5)*1.8-3.6+(p.phase==='shaking'?Math.sin(now/95+i)*.08:0)
-        paper.position.z=(Math.floor(withinLayer/5)*2)-3+(p.phase==='shaking'?Math.cos(now/105+i)*.08:0)
-        if(p.phase==='shaking') paper.rotation.z=Math.sin(now/100+i)*.16
+        const home=paperHomes[i]
+        const shaking=p.phase==='shaking'
+        paper.position.set(home.x+(shaking?Math.sin(now/95+i)*.1:0),home.y+(shaking?Math.abs(Math.sin(now/85+i))*.16:0),home.z+(shaking?Math.cos(now/105+i)*.1:0))
+        paper.rotation.set(home.rx+(shaking?Math.sin(now/110+i)*.08:0),home.ry,home.rz+(shaking?Math.sin(now/100+i)*.16:0))
       })
       falling.forEach((slip,i)=>{
         slip.visible=p.phase==='loading'&&progress<1
         if(slip.visible){const cycle=((elapsed/850)+(i/18))%1;slip.position.y=11.4-cycle*2.1;slip.position.x=Math.sin(now/260+i)*.24;slip.position.z=Math.cos(now/300+i)*.12;slip.rotation.set(-Math.PI/2+Math.sin(now/160+i)*.45,Math.cos(now/220+i)*.4,Math.sin(now/180+i)*.5)}
       })
-      const crankElapsed=p.phase==='cranking'&&p.startedAt?Math.max(0,Date.now()-p.startedAt):0
-      const crankProgress=Math.min(1,crankElapsed/1250)
-      const leverTravel=crankProgress<.48?crankProgress/.48:1-(crankProgress-.48)/.52
+      const crankElapsed=p.phase==='cranking'?Math.max(0,now-crankStartedAt):0
+      const crankProgress=Math.min(1,crankElapsed/2400)
+      const leverTravel=crankProgress<.5?crankProgress/.5:1-(crankProgress-.5)/.5
       const easedTravel=leverTravel*leverTravel*(3-2*leverTravel)
-      lever.rotation.x=reduced?0:easedTravel*1.12
+      lever.rotation.x=reduced?0:easedTravel*1.35
       if(p.phase==='shaking'){machine.position.x=Math.sin(now/28)*.055;machine.position.z=Math.cos(now/31)*.045;lever.rotation.x=0}else{machine.position.x=0;machine.position.z=0}
       controls.update();renderer.render(scene,camera);frame=window.requestAnimationFrame(render)
     }

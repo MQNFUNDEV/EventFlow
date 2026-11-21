@@ -436,14 +436,12 @@ export default function LuckyDrawManagement() {
   async function pullBoxLever() {
     if (!roundId || !boxLoadingComplete || spinning || !eligiblePool.length || pendingWinner) return
     setBoxPhase('cranking')
-    const crankStartedAt = boxStartedAt + 14500
-    setBoxStartedAt(crankStartedAt)
-    await publishBoxState({ box_phase: 'cranking', box_started_at: crankStartedAt })
+    await publishBoxState({ box_phase: 'cranking' })
     window.setTimeout(() => {
       setBoxPhase('shaking')
       void publishBoxState({ box_phase: 'shaking' })
       window.setTimeout(() => { void startSpin() }, 1600)
-    }, 1250)
+    }, 2400)
   }
 
   async function startSpin() {
