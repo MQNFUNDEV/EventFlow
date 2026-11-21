@@ -14,6 +14,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+    const hostElement = host
     const scene = new THREE.Scene()
     scene.background = new THREE.Color('#f2f4f7')
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
@@ -74,24 +75,24 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       ctx.fillStyle='#ff263c';ctx.shadowColor='#ff1b35';ctx.shadowBlur=16;ctx.font='900 104px "Courier New",monospace';ctx.fillText(String(count).padStart(3,'0'),320,166);ctx.shadowBlur=0
       texture.needsUpdate=true
     }
-    paint(categoryLabel,0)
+    paint(propsRef.current.categoryLabel,0)
 
     // Paper slips, pre-built as real meshes. They accumulate inside the transparent cube.
     const paperMat = new THREE.MeshStandardMaterial({color:0xfff4d9,roughness:.88,side:THREE.DoubleSide})
-    const papers: THREE.Mesh[]=[]
-    const paperCount=90
+    const papers: Array<{ visible: boolean; position: THREE.Vector3; rotation: THREE.Euler }> = []
+    const paperCount=120
     for(let i=0;i<paperCount;i++){
       const paper=new THREE.Mesh(new THREE.PlaneGeometry(.78,.38),paperMat.clone())
-      paper.rotation.set((i%5)*.12,((i*17)%9)*.13,((i*7)%11)*.08)
-      paper.position.set(((i*37)%79)/10-3.95,.28+Math.floor(i/18)*.055,((i*23)%79)/10-3.95)
+      paper.rotation.set(-Math.PI/2+(i%5)*.025,((i*17)%9)*.13,((i*7)%11)*.025)
+      paper.position.set(((i*37)%79)/10-3.95,.28+Math.floor(i/10)*.23,((i*23)%79)/10-3.95)
       paper.visible=false; machine.add(paper); papers.push(paper)
     }
     // Rain stream above the slot. Slips cycle through the aperture and land in the box.
-    const falling: THREE.Mesh[]=[]
+    const falling: Array<{ visible: boolean; position: THREE.Vector3; rotation: THREE.Euler }> = []
     for(let i=0;i<18;i++){
       const slip=new THREE.Mesh(new THREE.PlaneGeometry(.72,.34),paperMat)
       slip.position.set(((i%5)-2)*.36,11+(i%6)*.8,((i%3)-1)*.18)
-      slip.rotation.set(.1,0,(i%4)*.35); slip.visible=false; machine.add(slip); falling.push(slip)
+      slip.rotation.set(-Math.PI/2,0,(i%4)*.35); slip.visible=false; machine.add(slip); falling.push(slip)
     }
 
     // Right-side lever and pivot.
@@ -106,7 +107,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
 
     const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.ShadowMaterial({opacity:.14}));floor.rotation.x=-Math.PI/2;floor.position.y=-.015;floor.receiveShadow=true;scene.add(floor)
     const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(.35,4.8,0);controls.enableDamping=true;controls.dampingFactor=.06;controls.minDistance=12;controls.maxDistance=42;controls.maxPolarAngle=Math.PI*.48;controls.update()
-    function resize(){const w=Math.max(host.clientWidth,1),h=Math.max(host.clientHeight,1);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)}
+    function resize(){const w=Math.max(hostElement.clientWidth,1),h=Math.max(hostElement.clientHeight,1);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)}
     const observer=new ResizeObserver(resize);observer.observe(host);resize()
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let frame=0
@@ -121,7 +122,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       papers.forEach((paper,i)=>{paper.visible=i<visiblePapers;if(p.phase==='shaking'){paper.position.y=.28+Math.abs(Math.sin(now/85+i))*((i%4)*.09+.04)}else paper.position.y=.28+Math.floor(i/18)*.055})
       falling.forEach((slip,i)=>{
         slip.visible=p.phase==='loading'&&progress<1
-        if(slip.visible){const cycle=((elapsed/850)+(i/18))%1;slip.position.y=11.4-cycle*2.1;slip.position.x=Math.sin(now/260+i)*.24;slip.position.z=Math.cos(now/300+i)*.12;slip.rotation.z=Math.sin(now/180+i)*.5}
+        if(slip.visible){const cycle=((elapsed/850)+(i/18))%1;slip.position.y=11.4-cycle*2.1;slip.position.x=Math.sin(now/260+i)*.24;slip.position.z=Math.cos(now/300+i)*.12;slip.rotation.set(-Math.PI/2+Math.sin(now/160+i)*.45,Math.cos(now/220+i)*.4,Math.sin(now/180+i)*.5)}
       })
       const crank=p.phase==='cranking'||p.phase==='shaking'||p.phase==='reveal'
       lever.rotation.z=crank?(reduced?-.45:-.45+Math.sin(now/115)*.2):0
@@ -129,7 +130,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       controls.update();renderer.render(scene,camera);frame=window.requestAnimationFrame(render)
     }
     render()
-    return()=>{window.cancelAnimationFrame(frame);observer.disconnect();controls.dispose();scene.traverse((object:{geometry?:{dispose:()=>void};material?:THREE.Material|THREE.Material[]})=>{object.geometry?.dispose();const mats=Array.isArray(object.material)?object.material:object.material?[object.material]:[];mats.forEach(m=>m.dispose())});renderer.dispose();renderer.domElement.remove()}
+    return()=>{window.cancelAnimationFrame(frame);observer.disconnect();controls.dispose();scene.traverse((object: { geometry?: { dispose: () => void }; material?: { dispose: () => void } | Array<{ dispose: () => void }> }) => { object.geometry?.dispose(); const mats = Array.isArray(object.material) ? object.material : object.material ? [object.material] : []; mats.forEach((material) => material.dispose()) });renderer.dispose();renderer.domElement.remove()}
   },[])
   return <section className="ld-machine-preview" aria-label="Lucky Draw acrylic box 3D prototype">
     <div className="ld-machine-preview-head"><div><span className="ld-machine-kicker">LUCKY DRAW · 3D MACHINE</span><h2>Acrylic Name Draw Box</h2><p>Paper slips feed through the top slot and collect inside the transparent enclosure.</p></div><span className="ld-machine-status">{phase==='loading'?'LOADING PAPERS':phase==='loaded'?'PAPERS LOADED':phase==='cranking'?'PULLING LEVER':phase==='shaking'?'MIXING NAMES':phase==='reveal'?'WINNER SELECTED':'BOX READY'}</span></div>
