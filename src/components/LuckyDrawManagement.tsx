@@ -436,7 +436,7 @@ export default function LuckyDrawManagement() {
   async function pullBoxLever() {
     if (!roundId || !boxLoadingComplete || spinning || !eligiblePool.length || pendingWinner) return
     setBoxPhase('cranking')
-    const crankStartedAt = Date.now()
+    const crankStartedAt = boxStartedAt + 14500
     setBoxStartedAt(crankStartedAt)
     await publishBoxState({ box_phase: 'cranking', box_started_at: crankStartedAt })
     window.setTimeout(() => {
