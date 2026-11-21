@@ -13,8 +13,8 @@ export default function LuckyDrawMachine() {
   const hostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
+    const stage = hostRef.current
+    if (!stage) return
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color('#f2f4f7')
@@ -31,7 +31,7 @@ export default function LuckyDrawMachine() {
     renderer.toneMappingExposure = 1.15
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    host.appendChild(renderer.domElement)
+    stage.appendChild(renderer.domElement)
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa8b8, 2.0))
     const key = new THREE.DirectionalLight(0xffffff, 3.2)
@@ -154,14 +154,14 @@ export default function LuckyDrawMachine() {
     controls.update()
 
     function resize() {
-      const width = Math.max(host.clientWidth, 1)
-      const height = Math.max(host.clientHeight, 1)
+      const width = Math.max(stage.clientWidth, 1)
+      const height = Math.max(stage.clientHeight, 1)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
       renderer.setSize(width, height, false)
     }
     const observer = new ResizeObserver(resize)
-    observer.observe(host)
+    observer.observe(stage)
     resize()
 
     let frame = 0
@@ -176,11 +176,11 @@ export default function LuckyDrawMachine() {
       window.cancelAnimationFrame(frame)
       observer.disconnect()
       controls.dispose()
-      scene.traverse((object) => {
+      scene.traverse((object: any) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
           object.geometry.dispose()
           const materials = Array.isArray(object.material) ? object.material : [object.material]
-          materials.forEach((material) => material.dispose())
+          materials.forEach((material: any) => material.dispose())
         }
       })
       renderer.dispose()
