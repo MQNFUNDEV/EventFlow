@@ -102,15 +102,17 @@ export default function LedDisplayControl() {
     </header>
     {error && <div className="led-message error" role="alert">{error}</div>}
     {message && <div className="led-message success" role="status">{message}</div>}
-    <section className="led-scene-grid" aria-label="Choose a display scene, then fade it live">
-      {sceneButton('welcome', 'Welcome Page', 'Event welcome screen')}
-      {sceneButton('lucky_draw', 'Lucky Draw Sessions', 'Live prize draw screen')}
-      {sceneButton('attendance', 'Attendance Roll', 'Checked-in guest list')}
-      {sceneButton('manual_checkin', 'Manual Check-in', 'Guest check-in instructions')}
-      {sceneButton('blackout', 'Blackout', 'Turn the venue screen black')}
+    <section className="led-scene-grid" aria-label="Choose a preview, then fade it live">
+      {sceneButton('welcome', 'Welcome Page', 'Show the welcome screen to guests')}
       <button className="led-fade-button" onClick={() => void publishPreview()} disabled={loading || saving || !previewScene || previewScene === liveScene}>
-        <span>{saving ? 'Fading…' : 'Fade'}</span><MoveRight size={24} /><small>{previewScene === liveScene ? 'Select a scene first' : `Send ${previewLabel} live`}</small>
+        <span>{saving ? 'Fading…' : 'Fade'}</span><MoveRight size={20} /><small>{previewScene === liveScene ? 'Select a screen first' : `Send ${previewLabel} live`}</small>
       </button>
+      {sceneButton('lucky_draw', 'Lucky Draw Sessions', 'Show the draw session on the event display')}
+      <div className="led-secondary-scenes">
+        {sceneButton('attendance', 'Attendance Roll', 'Scroll through guests who are checked in')}
+        {sceneButton('manual_checkin', 'Manual Check-in', 'Display instructions for guests to check in with event staff')}
+        {sceneButton('blackout', 'Blackout', 'Fade the venue LED screen to pure black for stage safety')}
+      </div>
     </section>
     {loading && <p className="led-loading">Connecting to the live display…</p>}
     <section className="led-output-link panel">
