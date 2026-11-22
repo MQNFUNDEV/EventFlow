@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Activity, RefreshCw, Share2, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -109,10 +109,6 @@ export default function HiveMindPanel({ currentRole }: Props) {
     }
   }, [status])
 
-  useEffect(() => {
-    void refreshStatus()
-  }, [refreshStatus])
-
   const isAdmin = currentRole === 'super_admin' || currentRole === 'event_admin'
   const draw = status?.metrics.lucky_draw
 
@@ -134,7 +130,7 @@ export default function HiveMindPanel({ currentRole }: Props) {
         </div>
         <button className="panel-link" type="button" onClick={() => void refreshStatus()} disabled={loading || sharing}>
           <RefreshCw size={15} className={loading ? 'hive-mind-spin' : ''} />
-          {loading ? 'Checking…' : 'Refresh'}
+          {loading ? 'Checking…' : status ? 'Refresh' : 'Check connection'}
         </button>
       </div>
 
