@@ -41,6 +41,8 @@ export default function LuckyDrawManagement() {
   const [generatingQueue, setGeneratingQueue] = useState(false)
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<Winner[]>([])
+  const [confirmedWinnerCount, setConfirmedWinnerCount] = useState(0)
+  const [skippedWinnerCount, setSkippedWinnerCount] = useState(0)
   const [pendingWinner, setPendingWinner] = useState<Participant | null>(null)
   const [pendingWinnerRowId, setPendingWinnerRowId] = useState<string | null>(null)
   const [themeColors, setThemeColors] = useState(DEFAULT_COLORS)
@@ -374,19 +376,33 @@ export default function LuckyDrawManagement() {
   const refreshWinnerHistory = useCallback(async (targetRoundId: string | null = roundId) => {
     if (!targetRoundId) {
       setHistory([])
+      setConfirmedWinnerCount(0)
+      setSkippedWinnerCount(0)
       return
     }
-    const { data, error: historyError } = await supabase
-      .from('draw_winners')
-      .select('id, participant_id, status, drawn_at, notes, participants!inner(full_name, category), draw_rounds!inner(name, pool_type)')
-      .eq('draw_round_id', targetRoundId)
-      .order('drawn_at', { ascending: false })
-      .limit(30)
+    const [historyResult, confirmedResult, skippedResult] = await Promise.all([
+      supabase.from('draw_winners')
+        .select('id, participant_id, status, drawn_at, notes, participants!inner(full_name, category), draw_rounds!inner(name, pool_type)')
+        .eq('draw_round_id', targetRoundId)
+        .order('drawn_at', { ascending: false })
+        .limit(30),
+      supabase.from('draw_winners')
+        .select('id', { count: 'exact', head: true })
+        .eq('draw_round_id', targetRoundId)
+        .eq('notes', 'Confirmed by operator'),
+      supabase.from('draw_winners')
+        .select('id', { count: 'exact', head: true })
+        .eq('draw_round_id', targetRoundId)
+        .eq('status', 'skipped'),
+    ])
+    const historyError = historyResult.error ?? confirmedResult.error ?? skippedResult.error
     if (historyError) {
       setError(historyError.message)
       return
     }
-    setHistory((data ?? []).map((row) => ({
+    setConfirmedWinnerCount(confirmedResult.count ?? 0)
+    setSkippedWinnerCount(skippedResult.count ?? 0)
+    setHistory((historyResult.data ?? []).map((row) => ({
       id: row.id,
       participant_id: row.participant_id,
       status: row.status,
@@ -1031,7 +1047,7 @@ export default function LuckyDrawManagement() {
     </section>
 
     <section className="panel lucky-draw-log-panel">
-      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong>{history.filter((winner) => winner.status !== 'skipped').length} selected</strong></div></div>
+      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong className="lucky-draw-session-count confirmed">Confirmed winners: {confirmedWinnerCount}</strong><strong className="lucky-draw-session-count skipped">Skipped winners: {skippedWinnerCount}</strong></div></div>
       {history.length ? <div className="lucky-draw-log-list">{history.map((winner, index) => <article className={`lucky-draw-log-row ${winner.status === 'skipped' ? 'is-skipped' : ''} ${index > 0 && history[index - 1].round.pool_type !== winner.round.pool_type ? 'is-category-break' : ''}`} key={winner.id}>
         <div className="lucky-draw-log-number"><Trophy size={17} /></div>
         <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : categoryName(categories, winner.round.pool_type)} draw · {winner.round.name}</span></div>
