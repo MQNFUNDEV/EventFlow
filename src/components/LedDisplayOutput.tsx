@@ -210,9 +210,9 @@ export default function LedDisplayOutput() {
       .channel('led-output-display-state')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
         const nextRow = change.new as { scene?: unknown; payload?: unknown; active_controller_user_id?: string | null } | null
-        if (!controllerUserId || nextRow?.active_controller_user_id !== controllerUserId) {
+        if (!authChecked || !controllerUserId || authenticatedUserId !== controllerUserId || nextRow?.active_controller_user_id !== controllerUserId) {
           setAccessDenied(true)
-          setError('This display link is no longer assigned to the active controller.')
+          setError('This display link is not assigned to the signed-in admin account or is no longer the active controller.')
           return
         }
         setAccessDenied(false)
