@@ -73,6 +73,22 @@ export default function AttendanceManagement() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('eventflow-attendance-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+        void loadData()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
+        void loadData()
+      })
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [loadData])
+
   const checkInsByParticipant = useMemo(
     () => new Map(checkIns.map((checkIn) => [checkIn.participant_id, checkIn])),
     [checkIns],
