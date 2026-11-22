@@ -537,6 +537,9 @@ export default function LuckyDrawManagement() {
     const activeCategoryId = categoryRef.current
     if (!activeRoundId || !activeCategoryId || spinLockRef.current) {
       leverActionLockRef.current = false
+      setError(!activeRoundId || !activeCategoryId
+        ? 'The draw session is no longer ready. Refresh the Lucky Draw session before pulling again.'
+        : 'A winner selection is already in progress. Please wait for it to finish.')
       return
     }
     spinLockRef.current = true
@@ -554,7 +557,10 @@ export default function LuckyDrawManagement() {
       leverActionLockRef.current = false
       setBoxPhase('loaded')
       void publishBoxState({ box_phase: 'loaded' })
-      setError(insertError?.message ?? 'This guest could not be selected. Try pulling again.')
+      setError(insertError?.code === '23505'
+        ? 'This guest has already been selected in this draw session. The winner list is being refreshed; please pull again.'
+        : `Could not save the selected guest: ${insertError?.message ?? 'Unknown database error'}. The box is ready to retry.`)
+      void refreshWinnerQueue(activeRoundId)
       return
     }
     setError('')
@@ -629,6 +635,9 @@ export default function LuckyDrawManagement() {
       leverActionLockRef.current = false
       setBoxPhase('loaded')
       void publishBoxState({ box_phase: 'loaded' })
+      setError(spinning
+        ? 'A winner is already being saved. Wait for the current selection to finish.'
+        : 'The draw session is no longer active. Refresh the Lucky Draw session before pulling again.')
       return
     }
     const { data: nextEntry, error: queueError } = await supabase.from('draw_entries')
