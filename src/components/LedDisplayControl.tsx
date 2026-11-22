@@ -23,9 +23,9 @@ export default function LedDisplayControl() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [controllerUserId, setControllerUserId] = useState<string | null>(null)
   const [controllerLeaseExpiresAt, setControllerLeaseExpiresAt] = useState<string | null>(null)
+  const [leaseActive, setLeaseActive] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const isController = Boolean(currentUserId && controllerUserId === currentUserId)
-  const leaseActive = Boolean(controllerLeaseExpiresAt && new Date(controllerLeaseExpiresAt).getTime() > Date.now())
   const outputLink = currentUserId ? `${window.location.origin}${window.location.pathname}#/display?controller=${encodeURIComponent(currentUserId)}` : ''
 
   const refreshController = useCallback(async () => {
@@ -43,6 +43,7 @@ export default function LedDisplayControl() {
     setCurrentUserId(userData.user?.id ?? null)
     setControllerUserId(stateData?.active_controller_user_id ?? null)
     setControllerLeaseExpiresAt(stateData?.controller_lease_expires_at ?? null)
+    setLeaseActive(Boolean(stateData?.controller_lease_expires_at && new Date(stateData.controller_lease_expires_at).getTime() > Date.now()))
   }, [])
 
   const loadScene = useCallback(async () => {
@@ -76,17 +77,19 @@ export default function LedDisplayControl() {
   }, [loadScene])
 
   useEffect(() => {
-    void refreshController()
+    const initialTimer = window.setTimeout(() => void refreshController(), 0)
     const channel = supabase
       .channel('led-control-controller-owner')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
         const nextRow = change.new as { active_controller_user_id?: string | null; controller_lease_expires_at?: string | null } | null
         setControllerUserId(nextRow?.active_controller_user_id ?? null)
         setControllerLeaseExpiresAt(nextRow?.controller_lease_expires_at ?? null)
+        setLeaseActive(Boolean(nextRow?.controller_lease_expires_at && new Date(nextRow.controller_lease_expires_at).getTime() > Date.now()))
       })
       .subscribe()
     const interval = window.setInterval(() => void refreshController(), 10000)
     return () => {
+      window.clearTimeout(initialTimer)
       window.clearInterval(interval)
       void supabase.removeChannel(channel)
     }
@@ -104,11 +107,13 @@ export default function LedDisplayControl() {
     } else if (claim?.acquired) {
       setControllerUserId(claim.controller_user_id)
       setControllerLeaseExpiresAt(claim.lease_expires_at)
+      setLeaseActive(true)
       setMessage('You are now the active LED controller. Other admins cannot change the live display or Lucky Draw session.')
       await loadScene()
     } else {
       setControllerUserId(claim?.controller_user_id ?? null)
       setControllerLeaseExpiresAt(claim?.lease_expires_at ?? null)
+      setLeaseActive(Boolean(claim?.lease_expires_at && new Date(claim.lease_expires_at).getTime() > Date.now()))
       setError('Another administrator currently controls the LED display. Control becomes available after their lease expires or they release it.')
     }
     setClaiming(false)
@@ -123,6 +128,7 @@ export default function LedDisplayControl() {
     } else if (data) {
       setControllerUserId(null)
       setControllerLeaseExpiresAt(null)
+      setLeaseActive(false)
       setMessage('LED control released. Another administrator can now take control.')
     }
     setClaiming(false)

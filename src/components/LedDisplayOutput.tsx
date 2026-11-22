@@ -229,7 +229,7 @@ export default function LedDisplayOutput() {
       window.clearTimeout(visibleTimer)
       void supabase.removeChannel(channel)
     }
-  }, [])
+  }, [controllerUserId])
 
   useEffect(() => {
     let cancelled = false
