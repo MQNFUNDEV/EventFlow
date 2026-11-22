@@ -118,9 +118,16 @@ export default function AttendanceManagement() {
   }, [loadData])
 
   function exportCsv() {
+    const categoryOrder = new Map(categories.map((item, index) => [item.id, index]))
+    const orderedParticipants = [...participants].sort((a, b) => {
+      const categoryDifference =
+        (categoryOrder.get(a.category) ?? Number.MAX_SAFE_INTEGER) -
+        (categoryOrder.get(b.category) ?? Number.MAX_SAFE_INTEGER)
+      return categoryDifference || a.full_name.localeCompare(b.full_name, 'en', { sensitivity: 'base' })
+    })
     const rows = [
       ['Participant code', 'Name', 'Category', 'Email', 'Phone', 'Attendance status', 'Check-in time (MYT)', 'Method'],
-      ...participants.map((participant) => {
+      ...orderedParticipants.map((participant) => {
         const checkIn = checkInsByParticipant.get(participant.id)
         return [participant.participant_code, participant.full_name, categoryName(categories, participant.category), participant.email ?? '', participant.phone ?? '', checkIn ? 'Checked in' : 'Not checked in', checkIn ? new Intl.DateTimeFormat('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(checkIn.checked_in_at)) : '', checkIn?.check_in_method ?? '']
       }),

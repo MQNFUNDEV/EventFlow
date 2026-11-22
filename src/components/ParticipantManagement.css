@@ -409,3 +409,16 @@
 .participant-category.category-color-2 { color: #0f766e; background: #ecfdf5; }
 .participant-category.category-color-3 { color: #b45309; background: #fffbeb; }
 .participant-category.category-color-4 { color: #be185d; background: #fdf2f8; }
+
+
+.participant-clear-button {
+  color: #b42318;
+  border-color: #fecdca;
+  background: #fff;
+}
+
+.participant-clear-button:hover:not(:disabled) {
+  color: #912018;
+  border-color: #fda29b;
+  background: #fff5f4;
+}

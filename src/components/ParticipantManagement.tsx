@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   Plus, Search, RefreshCw, Pencil, UserX, UserCheck,
-  Upload, Users, X,
+  Upload, Users, X, Trash2,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -83,6 +83,7 @@ export default function ParticipantManagement({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
@@ -242,6 +243,35 @@ export default function ParticipantManagement({
     }
   }
 
+  async function clearDirectory() {
+    if (!canManage || clearing) return
+    const activeParticipants = participants.filter((participant) => participant.is_active).length
+    if (!activeParticipants) return
+
+    const confirmed = window.confirm(
+      `Clear the active participant directory? This will deactivate all ${activeParticipants} active participants. Attendance and Lucky Draw history will be preserved, and participants can be restored from the Inactive filter.`,
+    )
+    if (!confirmed) return
+
+    setClearing(true)
+    setError('')
+    setMessage('')
+    const { error: clearError } = await supabase
+      .from('participants')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('is_active', true)
+
+    if (clearError) {
+      setError(clearError.message)
+    } else {
+      setSearch('')
+      setCategoryFilter('all')
+      setStatusFilter('active')
+      setMessage(`${activeParticipants} participant(s) moved to Inactive. Attendance and Lucky Draw history were preserved.`)
+      await loadParticipants()
+    }
+    setClearing(false)
+  }
   async function handleCsvImport(file?: File) {
     if (!file || !canImport) return
 
@@ -457,6 +487,18 @@ export default function ParticipantManagement({
           >
             <RefreshCw size={16} /> Refresh
           </button>
+
+          {canManage && (
+            <button
+              className="participant-secondary-button participant-clear-button"
+              type="button"
+              onClick={() => void clearDirectory()}
+              disabled={clearing || loading || activeCount === 0}
+              title="Deactivate all active participants while preserving attendance and draw history"
+            >
+              <Trash2 size={16} /> {clearing ? 'Clearing…' : 'Clear'}
+            </button>
+          )}
 
           <button
             className="participant-primary-button"
