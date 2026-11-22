@@ -728,3 +728,22 @@
 .led-lucky-machine-stage .ld-machine-preview-footer{padding:4px 8px 0}
 .led-lucky-machine-stage .ld-machine-hint{display:none}
 @media(max-aspect-ratio:4/3){.led-lucky-machine-stage{width:88vw;height:70vh;top:15vh}}
+
+
+/* Live session results sit beside the machine, visible throughout the draw. */
+.led-lucky-session-log{position:absolute;z-index:5;left:2.2vw;top:15vh;bottom:12vh;width:clamp(230px,20vw,390px);display:flex;flex-direction:column;gap:12px;padding:18px 16px;border:1px solid #ffffff2b;border-radius:16px;background:linear-gradient(155deg,#07152bef,#0b2344ef);box-shadow:0 14px 42px #0006;color:#fff;overflow:hidden}
+.led-lucky-session-log header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:10px;border-bottom:1px solid #ffffff26}
+.led-lucky-session-log header strong{font-size:clamp(12px,1.05vw,19px);letter-spacing:.12em}
+.led-lucky-session-log header span{color:#b8c8dd;font-size:clamp(10px,.8vw,14px);white-space:nowrap}
+.led-lucky-session-log ol{display:grid;align-content:start;gap:7px;margin:0;padding:0;overflow:hidden;list-style:none}
+.led-lucky-session-log li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:#ffffff12}
+.led-lucky-session-log li strong{overflow:hidden;font-size:clamp(11px,.95vw,17px);text-overflow:ellipsis;white-space:nowrap}
+.led-lucky-session-log li span{padding:4px 7px;border-radius:5px;background:#ffffff18;color:#d7e1ef;font-size:clamp(8px,.65vw,12px);font-weight:900;letter-spacing:.04em;white-space:nowrap}
+.led-lucky-session-log li.is-collected span{background:#14532d;color:#bbf7d0}
+.led-lucky-session-log li.is-skipped span{background:#374151;color:#e5e7eb}
+.led-lucky-session-log li.is-pending span{background:#854d0e;color:#fef3c7}
+.led-lucky-session-log>p{margin:0;color:#bdc9d9;font-size:clamp(11px,.9vw,16px)}
+.led-lucky-machine-stage{left:calc(52% + 5vw);width:min(66vw,1180px);transform:translateX(-50%)}
+@media(max-aspect-ratio:4/3){.led-lucky-session-log{left:1.5vw;width:24vw;padding:12px 10px}.led-lucky-machine-stage{left:61%;width:68vw}}
+@media(max-width:850px){.led-lucky-session-log{top:9vh;bottom:9vh;width:25vw;padding:9px 8px;gap:7px}.led-lucky-session-log li{grid-template-columns:1fr;gap:4px}.led-lucky-machine-stage{left:62%;width:70vw}}
+@media(max-width:560px){.led-lucky-session-log{left:1vw;top:12vh;bottom:12vh;width:29vw;padding:6px;gap:5px}.led-lucky-session-log header{align-items:flex-start;flex-direction:column}.led-lucky-session-log li{padding:5px}.led-lucky-machine-stage{left:64%;width:72vw}}
