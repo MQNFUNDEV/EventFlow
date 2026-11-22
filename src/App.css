@@ -1248,3 +1248,143 @@
     flex-direction: column;
   }
 }
+
+
+/* HIVE MIND INTEGRATION */
+
+.hive-mind-heading-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #315fba;
+}
+
+.hive-mind-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 17px 0 15px;
+}
+
+.hive-mind-connection-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: #25334a;
+  font-size: 12px;
+}
+
+.hive-mind-project-key {
+  color: #738198;
+  background: #f1f4f8;
+  border-radius: 20px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hive-mind-offline {
+  background: #d97706 !important;
+}
+
+.hive-mind-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 13px 0;
+}
+
+.hive-mind-metrics > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  background: #f7f9fc;
+  border: 1px solid #edf1f6;
+  border-radius: 9px;
+}
+
+.hive-mind-metrics span {
+  color: #758198;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hive-mind-metrics strong {
+  color: #25334a;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.hive-mind-privacy {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #66758b;
+  font-size: 11px;
+  margin: 12px 0;
+}
+
+.hive-mind-privacy svg {
+  flex: 0 0 auto;
+  color: #16845b;
+}
+
+.hive-mind-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid #edf0f5;
+  padding-top: 13px;
+}
+
+.hive-mind-actions .button-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hive-mind-checked-at {
+  color: #8793a5;
+  font-size: 10px;
+}
+
+.hive-mind-error,
+.hive-mind-success {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.hive-mind-error {
+  color: #9b2c2c;
+  background: #fff1f1;
+}
+
+.hive-mind-success {
+  color: #176b4b;
+  background: #edf9f2;
+}
+
+.hive-mind-spin {
+  animation: hive-mind-spin 1s linear infinite;
+}
+
+@keyframes hive-mind-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .hive-mind-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
