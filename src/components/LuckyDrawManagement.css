@@ -237,3 +237,26 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.lucky-draw-log-actions .lucky-draw-session-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.lucky-draw-log-actions .lucky-draw-session-count.confirmed {
+  background: #e9f8ee;
+  color: #267346;
+}
+.lucky-draw-log-actions .lucky-draw-session-count.skipped {
+  background: #f1f2f5;
+  color: #687386;
+}
+@media (max-width: 560px) {
+  .lucky-draw-log-actions { justify-content: flex-start; }
+  .lucky-draw-log-actions .lucky-draw-session-count { white-space: normal; }
+}
