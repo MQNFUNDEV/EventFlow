@@ -16,45 +16,11 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   const [winner, setWinner] = useState<DrawEntry | null>(null)
   const [drawLog, setDrawLog] = useState<DrawLogEntry[]>([])
   const [drawnCount, setDrawnCount] = useState(0)
-  const [soundReady, setSoundReady] = useState(false)
   const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, cameraView: null })
   const latestWinnerId = useRef<string | null>(null)
   const lastRoundId = useRef<string | null>(null)
   const lastRoundUpdatedAt = useRef<string | null>(null)
   const polling = useRef(false)
-  const audioContext = useRef<AudioContext | null>(null)
-
-  useEffect(() => () => {
-    void audioContext.current?.close()
-  }, [])
-
-  async function enableWinnerSound() {
-    try {
-      audioContext.current ??= new window.AudioContext()
-      await audioContext.current.resume()
-      setSoundReady(audioContext.current.state === 'running')
-    } catch {
-      setSoundReady(false)
-    }
-  }
-
-  useEffect(() => {
-    const context = audioContext.current
-    if (!winner || !soundReady || !context || context.state !== 'running') return
-    const now = context.currentTime
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(820, now)
-    oscillator.frequency.exponentialRampToValueAtTime(460, now + 0.16)
-    gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(0.45, now + 0.012)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26)
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start(now)
-    oscillator.stop(now + 0.27)
-  }, [winner, soundReady])
 
   useEffect(() => {
     let active = true
@@ -165,9 +131,6 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   const confettiColors = [themeColors[2], themeColors[3], themeColors[4], '#fff1b8', '#ffffff']
 
   return <div className="led-lucky-output" style={themeStyle}>
-    {soundReady
-      ? <div className="led-lucky-sound-state" aria-label="Winner sound enabled">♪ SOUND ON</div>
-      : <button className="led-lucky-sound-toggle" type="button" aria-label="Enable winner sound" onClick={() => void enableWinnerSound()}>SOUND</button>}
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
     <aside className="led-lucky-session-log" aria-label="Current session winner results">
