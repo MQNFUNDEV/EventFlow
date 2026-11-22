@@ -67,8 +67,6 @@ export default function LuckyDrawManagement() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isController, setIsController] = useState(false)
   const [winnerSoundEnabled, setWinnerSoundEnabled] = useState(false)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const lastSoundedWinnerRef = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -125,45 +123,10 @@ export default function LuckyDrawManagement() {
   }, [isController, currentUserId])
 
   async function toggleWinnerSound() {
-    if (winnerSoundEnabled) {
-      setWinnerSoundEnabled(false)
-      return
-    }
-    try {
-      audioContextRef.current ??= new window.AudioContext()
-      await audioContextRef.current.resume()
-      setWinnerSoundEnabled(audioContextRef.current.state === 'running')
-      if (audioContextRef.current.state !== 'running') setError('Your browser did not allow winner sound. Check the tab audio permissions and try again.')
-    } catch {
-      setWinnerSoundEnabled(false)
-      setError('Could not enable winner sound in this browser.')
-    }
+    const nextEnabled = !winnerSoundEnabled
+    const saved = await publishBoxState({ sound_enabled: nextEnabled })
+    if (saved) setWinnerSoundEnabled(nextEnabled)
   }
-
-  useEffect(() => {
-    const selectedWinner = pendingWinner
-    if (!selectedWinner || lastSoundedWinnerRef.current === selectedWinner.id) return
-    lastSoundedWinnerRef.current = selectedWinner.id
-    const context = audioContextRef.current
-    if (!winnerSoundEnabled || !context || context.state !== 'running') return
-    const now = context.currentTime
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-    oscillator.type = 'sine'
-    oscillator.frequency.setValueAtTime(820, now)
-    oscillator.frequency.exponentialRampToValueAtTime(460, now + 0.16)
-    gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(0.45, now + 0.012)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26)
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start(now)
-    oscillator.stop(now + 0.27)
-  }, [pendingWinner, winnerSoundEnabled])
-
-  useEffect(() => () => {
-    void audioContextRef.current?.close()
-  }, [])
 
   async function publishBoxState(patch: Record<string, unknown>) {
     const { data, error: readError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
@@ -352,6 +315,7 @@ export default function LuckyDrawManagement() {
     const savedPayload = displayStateResult.data?.payload && typeof displayStateResult.data.payload === 'object'
       ? displayStateResult.data.payload as Record<string, unknown>
       : {}
+    setWinnerSoundEnabled(savedPayload.sound_enabled === true)
     const savedPhase = savedPayload.box_phase
     const savedStartedAt = typeof savedPayload.box_started_at === 'number' ? savedPayload.box_started_at : 0
     const feedElapsed = savedStartedAt ? Math.max(0, Date.now() - savedStartedAt) : 0
@@ -1056,7 +1020,7 @@ export default function LuckyDrawManagement() {
       </div>
 
       <div className="lucky-draw-box-actions">
-        <button className="button-secondary" onClick={() => void toggleWinnerSound()} aria-pressed={winnerSoundEnabled} title="Play winner announcement sound on this operator device">{winnerSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {winnerSoundEnabled ? 'On' : 'Off'}</button>
+        <button className="button-secondary" onClick={() => void toggleWinnerSound()} aria-pressed={winnerSoundEnabled} title="Enable or mute machine and winner effects on the LED output">{winnerSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {winnerSoundEnabled ? 'On' : 'Off'}</button>
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
         <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
         <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
