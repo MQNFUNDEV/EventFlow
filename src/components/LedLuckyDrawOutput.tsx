@@ -87,7 +87,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
         const { data: activeRound, error: roundError } = await supabase
           .from('draw_rounds')
           .select('id, name, pool_type, updated_at')
-          .eq('status', 'drawing')
+          .in('status', ['ready', 'drawing', 'completed'])
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle()
