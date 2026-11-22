@@ -5,6 +5,7 @@ import './LedDisplay.css'
 import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 
 type DrawEntry = { participant_id: string; name: string; category: string }
+type DrawLogEntry = { id: string; name: string; status: 'pending' | 'collected' | 'skipped'; notes: string | null }
 type DrawRound = { id: string; name: string; pool_type: string; updated_at: string }
 const DEFAULT_THEME = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
 
@@ -13,6 +14,8 @@ function related<T>(value: T | T[] | null | undefined) { return Array.isArray(va
 export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '' }: { categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string }) {
   const [round, setRound] = useState<DrawRound | null>(null)
   const [winner, setWinner] = useState<DrawEntry | null>(null)
+  const [drawLog, setDrawLog] = useState<DrawLogEntry[]>([])
+  const [drawnCount, setDrawnCount] = useState(0)
   const [soundReady, setSoundReady] = useState(false)
   const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, cameraView: null })
   const latestWinnerId = useRef<string | null>(null)
@@ -96,6 +99,8 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
           latestWinnerId.current = null
           setRound(null)
           setWinner(null)
+          setDrawLog([])
+          setDrawnCount(0)
           return
         }
 
@@ -110,13 +115,18 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
           setRound(activeRound)
         }
 
-        const { data: winnerRows, error: winnerError } = await supabase
+        const { data: winnerRows, error: winnerError, count: winnerCount } = await supabase
           .from('draw_winners')
-          .select('id, participant_id, status, notes, participants!inner(full_name, category)')
+          .select('id, participant_id, status, notes, drawn_at, participants!inner(full_name, category)', { count: 'exact' })
           .eq('draw_round_id', activeRound.id)
           .order('drawn_at', { ascending: false })
-          .limit(1)
+          .limit(8)
         if (!active || winnerError) return
+        setDrawnCount(winnerCount ?? winnerRows?.length ?? 0)
+        setDrawLog((winnerRows ?? []).map((row) => {
+          const participant = related(row.participants)
+          return { id: row.id, name: participant?.full_name ?? 'Guest', status: row.status as DrawLogEntry['status'], notes: row.notes }
+        }))
         const latest = winnerRows?.[0]
         if (!latest) {
           latestWinnerId.current = null
@@ -160,14 +170,15 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
       : <button className="led-lucky-sound-toggle" type="button" aria-label="Enable winner sound" onClick={() => void enableWinnerSound()}>SOUND</button>}
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
-    <div className="led-lucky-side-title is-left" role="img" aria-label="Lucky">
-      {'LUCKY'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
-    </div>
-    <div className="led-lucky-side-title is-right" role="img" aria-label="Draw">
-      {'DRAW'.split('').map((letter, index) => <span key={`${letter}-${index}`}>{letter}</span>)}
-    </div>
+    <aside className="led-lucky-session-log" aria-label="Current session winner results">
+      <header><strong>WINNER LOG</strong><span>{drawnCount} selected</span></header>
+      {drawLog.length ? <ol>{drawLog.map((entry) => <li key={entry.id} className={`is-${entry.status}`}>
+        <strong>{entry.name}</strong>
+        <span>{entry.status === 'skipped' ? 'SKIPPED' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'CLAIMED' : 'PENDING'}</span>
+      </li>)}</ol> : <p>Winner results will appear here.</p>}
+    </aside>
     <div className="led-lucky-machine-stage">
-      <LuckyDrawMachine totalNames={boxState.total} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} cameraView={boxState.cameraView} interactiveCamera={false} />
+      <LuckyDrawMachine totalNames={boxState.total} remainingNames={Math.max(0, boxState.total - drawnCount)} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} cameraView={boxState.cameraView} interactiveCamera={false} />
     </div>
 
     {winner && <div className="led-lucky-winner-backdrop" role="status" aria-live="assertive">
