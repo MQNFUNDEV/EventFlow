@@ -171,7 +171,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
     <aside className="led-lucky-session-log" aria-label="Current session winner results">
-      <header><strong>WINNER LOG</strong><span>{drawnCount} selected</span></header>
+      <header><strong>{boxState.category} Winners!</strong><span>{drawnCount} selected</span></header>
       {drawLog.length ? <ol>{drawLog.map((entry) => <li key={entry.id} className={`is-${entry.status}`}>
         <strong>{entry.name}</strong>
         <span>{entry.status === 'skipped' ? 'SKIPPED' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'CLAIMED' : 'PENDING'}</span>
