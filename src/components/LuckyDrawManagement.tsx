@@ -978,35 +978,47 @@ export default function LuckyDrawManagement() {
     </section>
 
     <section className="panel lucky-draw-box-controls">
-      <div><strong>Lucky Draw Box</strong><span>{boxPhase === 'loading' ? 'Paper slips are entering the box…' : boxPhase === 'loaded' ? 'All name slips are inside. Ready to pull.' : boxPhase === 'cranking' ? 'Lever is cranking…' : boxPhase === 'shaking' ? 'Mixing the name slips…' : boxPhase === 'reveal' ? 'Winner revealed.' : 'Reset the box, set a category, then start the paper feed.'}</span></div>
+      <div className="lucky-draw-box-heading">
+        <div>
+          <strong>Lucky Draw Box</strong>
+          <span>{boxPhase === 'loading' ? 'Paper slips are entering the box…' : boxPhase === 'loaded' ? 'All name slips are inside. Ready to pull.' : boxPhase === 'cranking' ? 'Lever is cranking…' : boxPhase === 'shaking' ? 'Mixing the name slips…' : boxPhase === 'reveal' ? 'Winner revealed.' : 'Reset the box, set a category, then start the paper feed.'}</span>
+        </div>
+        <div className="lucky-draw-box-status"><span className={`is-${boxPhase}`}>{boxPhase === 'idle' ? 'Not loaded' : boxPhase === 'loading' ? 'Loading' : boxPhase === 'loaded' ? 'Ready' : boxPhase === 'reveal' ? 'Winner revealed' : 'In progress'}</span></div>
+      </div>
+
       <div className="lucky-draw-box-actions">
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
         <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
         <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
       </div>
-      <div className="lucky-draw-queue-panel">
-        <div className="lucky-draw-queue-heading"><div><strong>Winner List</strong><span>{winnerQueue.filter((entry) => entry.queue_status === 'pending').length} pending · latest {winnerQueue.length} shown</span></div>
-          <button className="button-primary" onClick={() => void generateWinnerList()} disabled={!roundId || generatingQueue || Boolean(pendingWinner) || winnerQueue.some((entry) => entry.queue_status === 'pending')}>
-            <Users size={16} /> {generatingQueue ? 'Generating…' : winnerQueue.length ? 'Generate next list' : 'Generate Winner List'}
-          </button>
-        </div>
-        {winnerQueue.length ? <ol className="lucky-draw-queue-list">{winnerQueue.map((entry) => <li key={entry.id} className={`is-${entry.queue_status}`}>
-          <span className="lucky-draw-queue-number">{entry.queue_position}</span>
-          <strong>{entry.participant.full_name}</strong>
-          <label className="lucky-draw-queue-status">
-            <input type="checkbox" checked={entry.queue_status === 'collected'} disabled />
-            <span>{entry.queue_status === 'collected' ? 'Prize collected' : entry.queue_status === 'skipped' ? 'Skipped' : 'Pending'}</span>
-          </label>
-        </li>)}</ol> : <p className="lucky-draw-log-empty">Generate a list of 10 names before pulling the lever. EventFlow will keep 10 names pending as the pool allows.</p>}
+
+      <div className="lucky-draw-box-footer">
+        {pendingWinner ? <div className="lucky-draw-controls lucky-draw-winner-review">
+          <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>
+          <div className="lucky-draw-winner-actions">
+            <button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button>
+            <button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button>
+          </div>
+        </div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>{boxLoadingComplete ? 'Pull the lever when ready.' : 'Load the papers before pulling the lever.'}</span></div>}
+        {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
       </div>
-      {pendingWinner ? <div className="lucky-draw-controls lucky-draw-winner-review">
-        <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>
-        <div className="lucky-draw-winner-actions">
-          <button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button>
-          <button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button>
-        </div>
-      </div> : <div className="lucky-draw-prompt"><strong>{eligiblePool.length} eligible</strong><span>{boxLoadingComplete ? 'Pull the lever when ready.' : 'Load the papers before pulling the lever.'}</span></div>}
-      {roundId && <button className="button-secondary lucky-draw-output-update" onClick={() => void publishWheelUpdate()} disabled={loading || spinning || updatingOutput || Boolean(pendingWinner)} title="Start a fresh session using everyone currently checked in. Previous session results remain saved."><RefreshCw size={16} className={updatingOutput ? 'is-spinning' : ''} /> {updatingOutput ? 'Refreshing pool…' : 'Refresh checked-in pool'}</button>}
+    </section>
+
+    <section className="panel lucky-draw-winner-list-panel">
+      <div className="lucky-draw-queue-heading">
+        <div><strong>Winner List</strong><span>{winnerQueue.filter((entry) => entry.queue_status === 'pending').length} pending · {winnerQueue.length} names in the current list</span></div>
+        <button className="button-primary" onClick={() => void generateWinnerList()} disabled={!roundId || generatingQueue || Boolean(pendingWinner) || winnerQueue.some((entry) => entry.queue_status === 'pending')}>
+          <Users size={16} /> {generatingQueue ? 'Generating…' : winnerQueue.length ? 'Generate next list' : 'Generate Winner List'}
+        </button>
+      </div>
+      {winnerQueue.length ? <ol className="lucky-draw-queue-list">{winnerQueue.map((entry) => <li key={entry.id} className={`is-${entry.queue_status}`}>
+        <span className="lucky-draw-queue-number">{entry.queue_position}</span>
+        <strong>{entry.participant.full_name}</strong>
+        <label className="lucky-draw-queue-status">
+          <input type="checkbox" checked={entry.queue_status === 'collected'} disabled />
+          <span>{entry.queue_status === 'collected' ? 'Prize collected' : entry.queue_status === 'skipped' ? 'Skipped' : 'Pending'}</span>
+        </label>
+      </li>)}</ol> : <p className="lucky-draw-log-empty">Generate a list of 10 names here. The Lucky Draw Box above is controlled separately.</p>}
     </section>
 
     <section className="panel lucky-draw-log-panel">
