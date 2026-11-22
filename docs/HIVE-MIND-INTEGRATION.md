@@ -52,7 +52,7 @@ Only Super Admin and Event Admin can submit. The record is inserted into Hive Mi
 ## Operator UI
 
 The EventFlow Overview contains a Hive Mind panel:
-- Automatically checks bridge connectivity when Overview loads.
+- Provides a manual connection check/refresh so no background request is made until an operator asks for it.
 - Shows aggregate metrics and a refresh action.
 - Shows the share-status action only to Super Admin and Event Admin.
 - Makes clear that shared information is aggregate-only.
