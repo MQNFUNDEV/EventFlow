@@ -260,3 +260,9 @@
   .lucky-draw-log-actions { justify-content: flex-start; }
   .lucky-draw-log-actions .lucky-draw-session-count { white-space: normal; }
 }
+
+/* Sound toggle reflects its active state at a glance. */
+.lucky-draw-box-actions button.sound-toggle.is-on{background:#15803d!important;border:1px solid #15803d!important;color:#fff!important}
+.lucky-draw-box-actions button.sound-toggle.is-on:hover{background:#166534!important;border-color:#166534!important;color:#fff!important}
+.lucky-draw-box-actions button.sound-toggle.is-off{background:#b91c1c!important;border:1px solid #b91c1c!important;color:#fff!important}
+.lucky-draw-box-actions button.sound-toggle.is-off:hover{background:#991b1b!important;border-color:#991b1b!important;color:#fff!important}
