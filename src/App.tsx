@@ -18,6 +18,7 @@ import {
   Clock3,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
+import HiveMindPanel from './components/HiveMindPanel'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories } from './lib/participantCategories'
 import './App.css'
 
@@ -657,6 +658,8 @@ function App() {
                   </div>
                 </article>
               </section>
+
+              <HiveMindPanel currentRole={currentRole} />
             </>
           ) : activePage === 'Participants' ? (
             <ParticipantManagement
