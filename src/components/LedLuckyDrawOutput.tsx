@@ -172,7 +172,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
     
     <aside className="led-lucky-session-log" aria-label="Current session winner results">
       <header><strong>{boxState.category} Winners!</strong><span>{drawnCount} selected</span></header>
-      {drawLog.length ? <ol>{drawLog.map((entry) => <li key={entry.id} className={`is-${entry.status}`}>
+      {drawLog.length ? <ol>{drawLog.map((entry) => <li key={entry.id} className={entry.status === 'skipped' ? 'is-skipped' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'is-claimed' : 'is-pending'}>
         <strong>{entry.name}</strong>
         <span>{entry.status === 'skipped' ? 'SKIPPED' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'CLAIMED' : 'PENDING'}</span>
       </li>)}</ol> : <p>Winner results will appear here.</p>}
