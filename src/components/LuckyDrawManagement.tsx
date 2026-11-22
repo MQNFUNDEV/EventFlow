@@ -1020,7 +1020,7 @@ export default function LuckyDrawManagement() {
       </div>
 
       <div className="lucky-draw-box-actions">
-        <button className="button-secondary" onClick={() => void toggleWinnerSound()} aria-pressed={winnerSoundEnabled} title="Enable or mute machine and winner effects on the LED output">{winnerSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {winnerSoundEnabled ? 'On' : 'Off'}</button>
+        <button className={`sound-toggle ${winnerSoundEnabled ? 'is-on' : 'is-off'}`} onClick={() => void toggleWinnerSound()} aria-pressed={winnerSoundEnabled} title="Enable or mute machine and winner effects on the LED output">{winnerSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {winnerSoundEnabled ? 'On' : 'Off'}</button>
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
         <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
         <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
