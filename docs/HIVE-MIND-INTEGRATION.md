@@ -62,7 +62,7 @@ The EventFlow Overview contains a Hive Mind panel:
 
 - Hive Mind Supabase Edge Function `eventflow-bridge` is deployed and ACTIVE, version 2, with platform JWT verification disabled because the function performs its own EventFlow Auth validation.
 - Custom authentication is mandatory for every non-preflight request.
-- EventFlow frontend changes are committed to `main`; GitHub Actions must pass before treating the frontend as deployed.
+- EventFlow main commit `3a8e2541aaea3353030ea1d445fdb7d377b38f10` passed CI run #150 and GitHub Pages deployment #72; the Overview panel is deployed.
 - Authenticated production acceptance still needs a real EventFlow staff session. Verify each of the three roles, the front-desk restriction, aggregate counts, admin submission, and that the Hive Mind record remains `needs-review` until approved.
 
 ## Security limits and next improvements
