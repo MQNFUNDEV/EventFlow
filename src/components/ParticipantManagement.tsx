@@ -60,6 +60,10 @@ function normalisePhone(value: string | null | undefined) {
   return (value ?? '').replace(/\D/g, '')
 }
 
+function normaliseName(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase()
+}
+
 function generateParticipantCode() {
   return `JMX-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
 }
@@ -111,6 +115,19 @@ export default function ParticipantManagement({
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('eventflow-participant-directory')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+        void loadParticipants()
+      })
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [loadParticipants])
+
   function openAddForm() {
     setEditingId(null)
     setForm({ ...emptyForm, category: categories[0]?.id ?? 'staff' })
@@ -140,7 +157,8 @@ export default function ParticipantManagement({
     setForm(emptyForm)
   }
 
-  function findDuplicate(email: string, phone: string, excludeId?: string) {
+  function findDuplicate(fullName: string, email: string, phone: string, excludeId?: string) {
+    const normalName = normaliseName(fullName)
     const normalEmail = normaliseEmail(email)
     const normalPhone = normalisePhone(phone)
 
@@ -149,10 +167,12 @@ export default function ParticipantManagement({
 
       const emailMatch =
         normalEmail && normaliseEmail(participant.email) === normalEmail
-      const phoneMatch =
-        normalPhone && normalisePhone(participant.phone) === normalPhone
+      const identityMatch =
+        normalName && normalPhone &&
+        normaliseName(participant.full_name) === normalName &&
+        normalisePhone(participant.phone) === normalPhone
 
-      return Boolean(emailMatch || phoneMatch)
+      return Boolean(emailMatch || identityMatch)
     })
   }
 
@@ -163,6 +183,7 @@ export default function ParticipantManagement({
     setMessage('')
 
     const duplicate = findDuplicate(
+      form.full_name,
       form.email,
       form.phone,
       editingId ?? undefined,
@@ -199,7 +220,9 @@ export default function ParticipantManagement({
           })
 
     if (result.error) {
-      setError(result.error.message)
+      setError(result.error.code === '23505'
+        ? 'A participant with this email, or the same name and phone number, is already registered. Refresh the directory and check the existing record.'
+        : result.error.message)
     } else {
       setMessage(
         editingId
@@ -307,8 +330,10 @@ export default function ParticipantManagement({
             participants.map((p) => normaliseEmail(p.email)).filter(Boolean),
           )
 
-          const knownPhones = new Set(
-            participants.map((p) => normalisePhone(p.phone)).filter(Boolean),
+          const knownIdentities = new Set(
+            participants
+              .filter((p) => normalisePhone(p.phone))
+              .map((p) => `${normaliseName(p.full_name)}|${normalisePhone(p.phone)}`),
           )
 
           let skipped = 0
@@ -348,19 +373,20 @@ export default function ParticipantManagement({
 
             const normalEmail = normaliseEmail(email)
             const normalPhone = normalisePhone(phone)
+            const identityKey = `${normaliseName(fullName)}|${normalPhone}`
 
             if (
               !fullName ||
               !categories.some((item) => item.id === categoryValue) ||
               (normalEmail && knownEmails.has(normalEmail)) ||
-              (normalPhone && knownPhones.has(normalPhone))
+              (normalPhone && knownIdentities.has(identityKey))
             ) {
               skipped++
               continue
             }
 
             if (normalEmail) knownEmails.add(normalEmail)
-            if (normalPhone) knownPhones.add(normalPhone)
+            if (normalPhone) knownIdentities.add(identityKey)
 
             rowsToInsert.push({
               participant_code: generateParticipantCode(),
@@ -383,7 +409,9 @@ export default function ParticipantManagement({
               .insert(rowsToInsert)
 
             if (insertError) {
-              setError(insertError.message)
+              setError(insertError.code === '23505'
+                ? 'One or more participants already exist. Another admin may have registered the same email or name and phone combination. Refresh the directory and retry only the missing entries.'
+                : insertError.message)
             } else {
               setMessage(
                 `${rowsToInsert.length} participant(s) imported. ${skipped} row(s) skipped because of missing or duplicate information.`,
