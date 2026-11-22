@@ -739,7 +739,7 @@
 .led-lucky-session-log li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:#ffffff12}
 .led-lucky-session-log li strong{overflow:hidden;font-size:clamp(11px,.95vw,17px);text-overflow:ellipsis;white-space:nowrap}
 .led-lucky-session-log li span{padding:4px 7px;border-radius:5px;background:#ffffff18;color:#d7e1ef;font-size:clamp(8px,.65vw,12px);font-weight:900;letter-spacing:.04em;white-space:nowrap}
-.led-lucky-session-log li.is-collected span{background:#14532d;color:#bbf7d0}
+.led-lucky-session-log li.is-claimed span{background:#14532d;color:#bbf7d0}
 .led-lucky-session-log li.is-skipped span{background:#374151;color:#e5e7eb}
 .led-lucky-session-log li.is-pending span{background:#854d0e;color:#fef3c7}
 .led-lucky-session-log>p{margin:0;color:#bdc9d9;font-size:clamp(11px,.9vw,16px)}
