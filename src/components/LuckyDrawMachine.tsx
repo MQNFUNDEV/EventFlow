@@ -7,10 +7,10 @@ export type BoxPhase = 'idle' | 'loading' | 'loaded' | 'cranking' | 'shaking' | 
 export type MachineCameraView = { position: [number, number, number]; target: [number, number, number] }
 type Props = { totalNames?: number; categoryLabel?: string; phase?: BoxPhase; startedAt?: number; animationId?: number; cameraView?: MachineCameraView | null; onCameraChange?: (view: MachineCameraView) => void; interactiveCamera?: boolean }
 
-export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No category selected', phase = 'idle', startedAt = 0, animationId = 0, cameraView = null, onCameraChange, interactiveCamera = true }: Props) {
+export default function LuckyDrawMachine({ totalNames = 0, remainingNames, categoryLabel = 'No category selected', phase = 'idle', startedAt = 0, animationId = 0, cameraView = null, onCameraChange, interactiveCamera = true }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const propsRef = useRef({ totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera })
-  useEffect(() => { propsRef.current = { totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera } }, [totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera])
+  const propsRef = useRef({ totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera })
+  useEffect(() => { propsRef.current = { totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera } }, [totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera])
 
   useEffect(() => {
     const host = hostRef.current
@@ -164,7 +164,7 @@ export default function LuckyDrawMachine({ totalNames = 0, categoryLabel = 'No c
       const elapsed=p.phase==='loading'&&p.startedAt?Math.max(0,Date.now()-p.startedAt):0
       const duration=14000
       const progress=p.phase==='loading'?Math.min(1,elapsed/duration):p.phase==='idle'?0:1
-      const count=p.phase==='loading'?Math.min(p.totalNames,Math.floor(progress*p.totalNames)):p.phase==='idle'?0:p.totalNames
+      const count=p.phase==='loading'?Math.min(p.totalNames,Math.floor(progress*p.totalNames)):p.phase==='idle'?0:Math.max(0,Math.min(p.totalNames,p.remainingNames ?? p.totalNames))
       paint(p.categoryLabel,count)
       const paperFeedProgress=p.phase==='loading'?Math.min(1,elapsed/(duration*.62)):1
       const visiblePapers=p.phase==='idle'?0:Math.min(paperCount,Math.round(paperFeedProgress*paperCount))
