@@ -5,12 +5,12 @@ import './LuckyDrawMachine.css'
 
 export type BoxPhase = 'idle' | 'loading' | 'loaded' | 'cranking' | 'shaking' | 'reveal'
 export type MachineCameraView = { position: [number, number, number]; target: [number, number, number] }
-type Props = { totalNames?: number; categoryLabel?: string; phase?: BoxPhase; startedAt?: number; animationId?: number; cameraView?: MachineCameraView | null; onCameraChange?: (view: MachineCameraView) => void; interactiveCamera?: boolean }
+type Props = { totalNames?: number; remainingNames?: number; categoryLabel?: string; phase?: BoxPhase; startedAt?: number; animationId?: number; cameraView?: MachineCameraView | null; onCameraChange?: (view: MachineCameraView) => void; interactiveCamera?: boolean }
 
 export default function LuckyDrawMachine({ totalNames = 0, remainingNames, categoryLabel = 'No category selected', phase = 'idle', startedAt = 0, animationId = 0, cameraView = null, onCameraChange, interactiveCamera = true }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const propsRef = useRef({ totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera })
-  useEffect(() => { propsRef.current = { totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera } }, [totalNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera])
+  useEffect(() => { propsRef.current = { totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera } }, [totalNames, remainingNames, categoryLabel, phase, startedAt, animationId, cameraView, onCameraChange, interactiveCamera])
 
   useEffect(() => {
     const host = hostRef.current
