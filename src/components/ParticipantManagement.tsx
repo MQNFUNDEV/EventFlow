@@ -19,6 +19,12 @@ type Participant = {
   phone: string | null
   category: Category
   organisation: string | null
+  form_timestamp: string | null
+  ic_number: string | null
+  student_id: string | null
+  university_name: string | null
+  gender: string | null
+  race: string | null
   notes: string | null
   is_active: boolean
   created_at: string
@@ -40,6 +46,12 @@ type ParticipantInsert = {
   phone: string | null
   category: Category
   organisation: string | null
+  form_timestamp: string | null
+  ic_number: string | null
+  student_id: string | null
+  university_name: string | null
+  gender: string | null
+  race: string | null
   notes: string | null
 }
 
@@ -358,8 +370,14 @@ export default function ParticipantManagement({
               'name',
             ])
 
-            const email = getValue(row, ['emailaddress', 'email'])
-            const phone = getValue(row, ['phonenumber', 'mobilenumber', 'mobile', 'phone'])
+            const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
+            const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad'])
+            const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno'])
+            const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution'])
+            const gender = getValue(row, ['jantina', 'gender', 'sex'])
+            const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
+            const email = getValue(row, ['alamateemail', 'emailaddress', 'email'])
+            const phone = getValue(row, ['nombortelefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
             const rawCategory = getValue(row, [
               'category',
               'participantcategory',
@@ -371,7 +389,7 @@ export default function ParticipantManagement({
             const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil') ? categories.find((item) => item.id === 'student') : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer') ? categories.find((item) => item.id === 'staff') : undefined
             const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
 
-            const organisation = getValue(row, [
+            const organisation = universityName || getValue(row, [
               'organisation',
               'organization',
               'company',
@@ -405,6 +423,12 @@ export default function ParticipantManagement({
               phone: phone || null,
               category: categoryValue as Category,
               organisation: organisation || null,
+              form_timestamp: formTimestamp || null,
+              ic_number: icNumber || null,
+              student_id: studentId || null,
+              university_name: universityName || null,
+              gender: gender || null,
+              race: race || null,
               notes: notes || null,
             })
           }
@@ -461,7 +485,10 @@ export default function ParticipantManagement({
       participant.full_name.toLowerCase().includes(term) ||
       participant.participant_code.toLowerCase().includes(term) ||
       (participant.email ?? '').toLowerCase().includes(term) ||
-      (participant.phone ?? '').toLowerCase().includes(term)
+      (participant.phone ?? '').toLowerCase().includes(term) ||
+      (participant.ic_number ?? '').toLowerCase().includes(term) ||
+      (participant.student_id ?? '').toLowerCase().includes(term) ||
+      (participant.university_name ?? '').toLowerCase().includes(term)
 
     const matchesCategory =
       categoryFilter === 'all' || participant.category === categoryFilter
@@ -697,7 +724,7 @@ export default function ParticipantManagement({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, code, email or phone..."
+              placeholder="Search name, code, IC, student ID, email or phone..."
             />
           </div>
 
@@ -751,6 +778,10 @@ export default function ParticipantManagement({
                       {participant.organisation && (
                         <small>{participant.organisation}</small>
                       )}
+                      <small>IC: {participant.ic_number || '—'} · Student ID: {participant.student_id || '—'}</small>
+                      <small>University: {participant.university_name || '—'}</small>
+                      <small>Gender: {participant.gender || '—'} · Race: {participant.race || '—'}</small>
+                      {participant.form_timestamp && <small>Submitted: {participant.form_timestamp}</small>}
                     </td>
 
                     <td>
