@@ -32,6 +32,7 @@ type Participant = {
 
 type ParticipantForm = {
   full_name: string
+  ic_number: string
   email: string
   phone: string
   category: Category
@@ -57,7 +58,8 @@ type ParticipantInsert = {
 
 const emptyForm: ParticipantForm = {
   full_name: '',
-  email: '',
+  ic_number: '',
+  email: ''
   phone: '',
   category: 'staff',
   organisation: '',
@@ -69,6 +71,10 @@ function normaliseEmail(value: string | null | undefined) {
 }
 
 function normalisePhone(value: string | null | undefined) {
+  return (value ?? '').replace(/\D/g, '')
+}
+
+function normaliseIc(value: string | null | undefined) {
   return (value ?? '').replace(/\D/g, '')
 }
 
@@ -162,6 +168,7 @@ export default function ParticipantManagement({
     setEditingId(participant.id)
     setForm({
       full_name: participant.full_name,
+      ic_number: participant.ic_number ?? '',
       email: participant.email ?? '',
       phone: participant.phone ?? '',
       category: participant.category,
@@ -179,23 +186,12 @@ export default function ParticipantManagement({
     setForm(emptyForm)
   }
 
-  function findDuplicate(fullName: string, email: string, phone: string, excludeId?: string) {
-    const normalName = normaliseName(fullName)
-    const normalEmail = normaliseEmail(email)
-    const normalPhone = normalisePhone(phone)
-
-    return participants.find((participant) => {
-      if (participant.id === excludeId) return false
-
-      const emailMatch =
-        normalEmail && normaliseEmail(participant.email) === normalEmail
-      const identityMatch =
-        normalName && normalPhone &&
-        normaliseName(participant.full_name) === normalName &&
-        normalisePhone(participant.phone) === normalPhone
-
-      return Boolean(emailMatch || identityMatch)
-    })
+  function findDuplicate(icNumber: string, excludeId?: string) {
+    const normalIc = normaliseIc(icNumber)
+    if (!normalIc) return undefined
+    return participants.find((participant) =>
+      participant.id !== excludeId && normaliseIc(participant.ic_number) === normalIc,
+    )
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -204,16 +200,18 @@ export default function ParticipantManagement({
     setError('')
     setMessage('')
 
-    const duplicate = findDuplicate(
-      form.full_name,
-      form.email,
-      form.phone,
-      editingId ?? undefined,
-    )
+    const normalIc = normaliseIc(form.ic_number)
+    if ((!editingId || form.ic_number.trim()) && normalIc.length !== 12) {
+      setError('Enter a valid 12-digit IC number. IC number is required for every new registration.')
+      setSaving(false)
+      return
+    }
+
+    const duplicate = findDuplicate(form.ic_number, editingId ?? undefined)
 
     if (duplicate) {
       setError(
-        `Possible duplicate found: ${duplicate.full_name} (${duplicate.participant_code}). Check the email or phone number.`,
+        `This IC number is already registered to ${duplicate.full_name} (${duplicate.participant_code}). Each IC number can only be registered once.`,
       )
       setSaving(false)
       return
@@ -221,6 +219,7 @@ export default function ParticipantManagement({
 
     const values = {
       full_name: form.full_name.trim(),
+      ic_number: normalIc || null,
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       category: form.category,
@@ -243,7 +242,7 @@ export default function ParticipantManagement({
 
     if (result.error) {
       setError(result.error.code === '23505'
-        ? 'A participant with this email, or the same name and phone number, is already registered. Refresh the directory and check the existing record.'
+        ? 'This IC number is already registered. Refresh the directory and check the existing participant.'
         : result.error.message)
     } else {
       setMessage(
@@ -348,22 +347,8 @@ export default function ParticipantManagement({
             return (entry?.[1] ?? '').trim()
           }
 
-          const knownEmails = new Set(
-            participants.map((p) => normaliseEmail(p.email)).filter(Boolean),
-          )
-
-          const knownIdentities = new Set(
-            participants
-              .filter((p) => normalisePhone(p.phone))
-              .map((p) => `${normaliseName(p.full_name)}|${normalisePhone(p.phone)}`),
-          )
           const knownIcNumbers = new Set(
-            participants.map((p) => (p.ic_number ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase()).filter(Boolean),
-          )
-          const knownStudentIds = new Set(
-            participants
-              .filter((p) => p.student_id && p.university_name)
-              .map((p) => `${normaliseName(p.university_name)}|${normaliseName(p.student_id)}`),
+            participants.map((p) => normaliseIc(p.ic_number)).filter(Boolean),
           )
 
           let skipped = 0
@@ -407,28 +392,19 @@ export default function ParticipantManagement({
 
             const notes = getValue(row, ['notes', 'remarks'])
 
-            const normalEmail = normaliseEmail(email)
-            const normalPhone = normalisePhone(phone)
-            const identityKey = `${normaliseName(fullName)}|${normalPhone}`
-            const normalIc = icNumber.replace(/[^a-z0-9]/gi, '').toLowerCase()
-            const studentKey = `${normaliseName(universityName)}|${normaliseName(studentId)}`
+            const normalIc = normaliseIc(icNumber)
 
             if (
               !fullName ||
+              normalIc.length !== 12 ||
               !categories.some((item) => item.id === categoryValue) ||
-              (normalEmail && knownEmails.has(normalEmail)) ||
-              (normalPhone && knownIdentities.has(identityKey)) ||
-              (normalIc && knownIcNumbers.has(normalIc)) ||
-              (studentId && universityName && knownStudentIds.has(studentKey))
+              knownIcNumbers.has(normalIc)
             ) {
               skipped++
               continue
             }
 
-            if (normalEmail) knownEmails.add(normalEmail)
-            if (normalPhone) knownIdentities.add(identityKey)
-            if (normalIc) knownIcNumbers.add(normalIc)
-            if (studentId && universityName) knownStudentIds.add(studentKey)
+            knownIcNumbers.add(normalIc)
 
             rowsToInsert.push({
               participant_code: generateParticipantCode(),
@@ -463,13 +439,20 @@ export default function ParticipantManagement({
                 .from('participants')
                 .insert(batch)
 
-              if (insertError) {
-                insertFailure = insertError.code === '23505'
-                  ? 'A duplicate was detected by the database. Another admin may have imported the same registration at the same time.'
-                  : insertError.message
+              if (insertError?.code === '23505') {
+                for (const record of batch) {
+                  const { error: rowError } = await supabase.from('participants').insert(record)
+                  if (rowError?.code === '23505') skipped++
+                  else if (rowError) { insertFailure = rowError.message; break }
+                  else imported++
+                }
+                if (insertFailure) break
+              } else if (insertError) {
+                insertFailure = insertError.message
                 break
+              } else {
+                imported += batch.length
               }
-              imported += batch.length
             }
 
             if (imported > 0) await loadParticipants()
@@ -646,6 +629,18 @@ export default function ParticipantManagement({
                 required
                 maxLength={150}
                 placeholder="Participant full name"
+              />
+            </label>
+
+            <label>
+              IC number *
+              <input
+                value={form.ic_number}
+                onChange={(e) => setForm({ ...form, ic_number: e.target.value })}
+                required={!editingId || Boolean(form.ic_number)}
+                inputMode="numeric"
+                maxLength={20}
+                placeholder="e.g. 900101-14-5678"
               />
             </label>
 
