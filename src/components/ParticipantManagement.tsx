@@ -721,17 +721,6 @@ export default function ParticipantManagement({
             </label>
 
             <label>
-              Organisation
-              <input
-                value={form.organisation}
-                onChange={(e) =>
-                  setForm({ ...form, organisation: e.target.value })
-                }
-                placeholder="Company, school or organisation"
-              />
-            </label>
-
-            <label>
               Notes
               <input
                 value={form.notes}
