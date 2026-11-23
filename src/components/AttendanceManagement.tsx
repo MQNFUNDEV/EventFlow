@@ -30,6 +30,16 @@ function csvCell(value: string | null | undefined) {
   return `"${(value ?? '').replaceAll('"', '""')}"`
 }
 
+async function fetchAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const rows: T[] = []
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await fetchPage(offset, offset + 999)
+    if (error) return { data: rows, error }
+    rows.push(...(data ?? []))
+    if (!data || data.length < 1000) return { data: rows, error: null }
+  }
+}
+
 export default function AttendanceManagement() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
@@ -44,13 +54,13 @@ export default function AttendanceManagement() {
   const loadData = useCallback(async () => {
     setError('')
     const [participantResult, checkInResult] = await Promise.all([
-      supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name'),
-      supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }),
+      fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
+      fetchAllPages<CheckIn>((from, to) => supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }).order('participant_id').range(from, to)),
     ])
     if (participantResult.error) setError(participantResult.error.message)
-    else setParticipants((participantResult.data ?? []) as Participant[])
+    else setParticipants(participantResult.data)
     if (checkInResult.error) setError((current) => current ? `${current} ${checkInResult.error.message}` : checkInResult.error.message)
-    else setCheckIns((checkInResult.data ?? []) as CheckIn[])
+    else setCheckIns(checkInResult.data)
     setLoading(false)
   }, [])
 
@@ -59,14 +69,14 @@ export default function AttendanceManagement() {
     void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
     async function initialLoad() {
       const [participantResult, checkInResult] = await Promise.all([
-        supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name'),
-        supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }),
+        fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
+        fetchAllPages<CheckIn>((from, to) => supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }).order('participant_id').range(from, to)),
       ])
       if (cancelled) return
       if (participantResult.error) setError(participantResult.error.message)
-      else setParticipants((participantResult.data ?? []) as Participant[])
+      else setParticipants(participantResult.data)
       if (checkInResult.error) setError((current) => current ? `${current} ${checkInResult.error.message}` : checkInResult.error.message)
-      else setCheckIns((checkInResult.data ?? []) as CheckIn[])
+      else setCheckIns(checkInResult.data)
       setLoading(false)
     }
     void initialLoad()

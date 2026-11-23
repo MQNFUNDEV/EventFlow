@@ -68,6 +68,16 @@ function generateParticipantCode() {
   return `JMX-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
 }
 
+async function fetchAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const rows: T[] = []
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await fetchPage(offset, offset + 999)
+    if (error) return { data: rows, error }
+    rows.push(...(data ?? []))
+    if (!data || data.length < 1000) return { data: rows, error: null }
+  }
+}
+
 export default function ParticipantManagement({
   currentRole,
 }: {
@@ -93,9 +103,9 @@ export default function ParticipantManagement({
   const fileInput = useRef<HTMLInputElement>(null)
 
   const loadParticipants = useCallback(async () => {
-    const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
-    if (loadError) setError(loadError.message)
-    else { setParticipants((data ?? []) as Participant[]); setError('') }
+    const result = await fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to))
+    if (result.error) setError(result.error.message)
+    else { setParticipants(result.data); setError('') }
 
     setLoading(false)
   }, [])
@@ -105,10 +115,10 @@ export default function ParticipantManagement({
     async function initialLoad() {
       const { data: settings } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
       if (!cancelled) setCategories(readParticipantCategories(settings?.payload))
-      const { data, error: loadError } = await supabase.from('participants').select('*').order('created_at', { ascending: false })
+      const result = await fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to))
       if (cancelled) return
-      if (loadError) setError(loadError.message)
-      else setParticipants((data ?? []) as Participant[])
+      if (result.error) setError(result.error.message)
+      else setParticipants(result.data)
       setLoading(false)
     }
     void initialLoad()

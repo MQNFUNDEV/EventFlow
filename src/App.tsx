@@ -77,6 +77,16 @@ const roleLabels: Record<string, string> = {
   front_desk: 'Front Desk',
 }
 
+async function fetchAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const rows: T[] = []
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await fetchPage(offset, offset + 999)
+    if (error) return { data: rows, error }
+    rows.push(...(data ?? []))
+    if (!data || data.length < 1000) return { data: rows, error: null }
+  }
+}
+
 type RecentActivityItem = {
   id: string
   type: 'checkin' | 'winner'
@@ -149,8 +159,8 @@ function App() {
         supabase.from('attendance').select('participant_id, checked_in_at, participants!inner(full_name, category, is_active)').eq('participants.is_active', true).order('checked_in_at', { ascending: false }).limit(5),
         supabase.from('draw_winners').select('id, drawn_at, notes, status, participants!inner(full_name, category), draw_rounds!inner(name, pool_type)').eq('notes', 'Confirmed by operator').order('drawn_at', { ascending: false }).limit(5),
         supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
-        supabase.from('participants').select('category').eq('is_active', true),
-        supabase.from('attendance').select('participants!inner(category, is_active)').eq('participants.is_active', true),
+        fetchAllPages<{ category: string }>((from, to) => supabase.from('participants').select('category').eq('is_active', true).order('id').range(from, to)),
+        fetchAllPages<{ participants: { category: string; is_active: boolean } | { category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance').select('participants!inner(category, is_active)').eq('participants.is_active', true).order('participant_id').range(from, to)),
       ])
       if (cancelled) return
       const payload = eventSettings.data?.payload

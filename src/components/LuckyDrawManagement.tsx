@@ -5,6 +5,16 @@ import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName
 import './LuckyDrawManagement.css'
 import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
 
+async function fetchAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const rows: T[] = []
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await fetchPage(offset, offset + 999)
+    if (error) return { data: rows, error }
+    rows.push(...(data ?? []))
+    if (!data || data.length < 1000) return { data: rows, error: null }
+  }
+}
+
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string }
 type QueueEntry = { id: string; participant_id: string; queue_position: number; queue_status: 'available' | 'pending' | 'collected' | 'skipped'; participant: Participant }
@@ -242,14 +252,14 @@ export default function LuckyDrawManagement() {
 
     const [displayStateResult, entriesResult, winnersResult, queueResult] = await Promise.all([
       supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
-      supabase.from('draw_entries')
+      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('draw_entries')
         .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
         .eq('draw_round_id', activeRound.id)
-        .order('participant_id', { ascending: true }),
-      supabase.from('draw_winners')
+        .order('participant_id', { ascending: true }).range(from, to)),
+      fetchAllPages<{ id: string; participant_id: string; status: string; notes: string | null }>((from, to) => supabase.from('draw_winners')
         .select('id, participant_id, status, notes')
         .eq('draw_round_id', activeRound.id)
-        .order('drawn_at', { ascending: false }),
+        .order('drawn_at', { ascending: false }).order('id').range(from, to)),
       supabase.from('draw_entries')
         .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
         .eq('draw_round_id', activeRound.id)
@@ -264,7 +274,7 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const participants = (entriesResult.data ?? []).map((row) => {
+    const participants = entriesResult.data.map((row) => {
       const participant = getRelated(row.participants)
       return participant ? {
         id: row.participant_id,
@@ -283,7 +293,7 @@ export default function LuckyDrawManagement() {
         participant: { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category },
       } : null
     }).filter((entry): entry is QueueEntry => Boolean(entry)).sort((a, b) => a.queue_position - b.queue_position)
-    const previousDraws = winnersResult.data ?? []
+    const previousDraws = winnersResult.data
     const removedParticipants = new Set(previousDraws
       .filter((winner) => winner.status === 'skipped' || winner.notes === 'Confirmed by operator')
       .map((winner) => winner.participant_id))
@@ -361,11 +371,11 @@ export default function LuckyDrawManagement() {
     let cancelled = false
     void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
     async function loadCategoryPreview() {
-      const { data, error: attendanceError } = await supabase.from('attendance')
+      const result = await fetchAllPages<{ participant_id: string; participants: { category: string; is_active: boolean } | { category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
         .select('participant_id, participants!inner(category, is_active)')
-        .eq('participants.is_active', true)
-      if (cancelled || attendanceError) return
-      const counts = (data ?? []).reduce((total, row) => {
+        .eq('participants.is_active', true).order('participant_id').range(from, to))
+      if (cancelled || result.error) return
+      const counts = result.data.reduce((total, row) => {
         const participant = getRelated(row.participants)
         if (participant?.category) total[participant.category] = (total[participant.category] ?? 0) + 1
         return total
@@ -473,16 +483,16 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const { data: attendance, error: attendanceError } = await supabase
+    const attendanceResult = await fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase
       .from('attendance')
       .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
-      .eq('participants.is_active', true)
-    if (attendanceError) {
-      setError(attendanceError.message)
+      .eq('participants.is_active', true).order('participant_id').range(from, to))
+    if (attendanceResult.error) {
+      setError(attendanceResult.error.message)
       setLoading(false)
       return
     }
-    const checkedInParticipants = (attendance ?? []).map((row) => {
+    const checkedInParticipants = attendanceResult.data.map((row) => {
       const participant = getRelated(row.participants)
       return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
     }).filter((participant): participant is Participant => Boolean(participant))
@@ -851,18 +861,19 @@ export default function LuckyDrawManagement() {
     setUpdatingOutput(true)
     setError('')
     setMessage('')
-    const [{ data: attendance, error: attendanceError }, { data: authData, error: authError }] = await Promise.all([
-      supabase.from('attendance')
+    const [attendanceResult, authResult] = await Promise.all([
+      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
         .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
-        .eq('participants.is_active', true),
+        .eq('participants.is_active', true).order('participant_id').range(from, to)),
       supabase.auth.getUser(),
     ])
-    if (attendanceError || authError || !authData.user) {
-      setError(attendanceError?.message ?? authError?.message ?? 'Sign in again to update the draw pool.')
+    const { data: authData, error: authError } = authResult
+    if (attendanceResult.error || authError || !authData.user) {
+      setError(attendanceResult.error?.message ?? authError?.message ?? 'Sign in again to update the draw pool.')
       setUpdatingOutput(false)
       return
     }
-    const checkedIn = (attendance ?? []).map((row) => {
+    const checkedIn = attendanceResult.data.map((row) => {
       const participant = getRelated(row.participants)
       return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
     }).filter((participant): participant is Participant => Boolean(participant))
