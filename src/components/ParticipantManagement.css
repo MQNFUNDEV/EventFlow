@@ -422,3 +422,26 @@
   border-color: #fda29b;
   background: #fff5f4;
 }
+
+
+.participant-pagination,
+.participant-pagination > div,
+.attendance-pagination,
+.attendance-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.participant-pagination,
+.attendance-pagination {
+  justify-content: space-between;
+  padding: 14px 2px 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+.participant-pagination > div > span,
+.attendance-pagination > div > span {
+  padding: 0 6px;
+  white-space: nowrap;
+}
