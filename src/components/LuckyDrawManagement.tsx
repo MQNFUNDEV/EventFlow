@@ -383,8 +383,24 @@ export default function LuckyDrawManagement() {
       setCheckedInCounts(counts)
     }
     void loadCategoryPreview()
-    return () => { cancelled = true }
-  }, [poolType])
+
+    // Keep the category totals in sync while admins are checking guests in.
+    // Both tables are in the Supabase Realtime publication.
+    const channel = supabase
+      .channel('lucky-draw-category-checkin-counts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
+        void loadCategoryPreview()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'participants' }, () => {
+        void loadCategoryPreview()
+      })
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  }, [])
 
   useEffect(() => {
     roundRef.current = roundId
