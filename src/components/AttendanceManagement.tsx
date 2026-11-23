@@ -205,7 +205,7 @@ export default function AttendanceManagement() {
         {loading ? <p className="attendance-empty">Loading attendance…</p> : activeParticipants.length === 0 ? <p className="attendance-empty">No participants match these filters.</p> : (
           <div className="attendance-table-wrap"><table className="attendance-table">
             <thead><tr><th>Participant</th><th>Category</th><th>Status</th><th>Arrival time</th><th><span className="sr-only">Action</span></th></tr></thead>
-            <tbody>{paginatedParticipants.map((participant) => {
+            <tbody>{paginatedParticipants.slice(0, pageSize).map((participant) => {
               const checkIn = checkInsByParticipant.get(participant.id)
               return <tr key={participant.id}>
                 <td><strong>{participant.full_name}</strong><small>{participant.participant_code}</small></td>
