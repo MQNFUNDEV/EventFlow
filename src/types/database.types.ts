@@ -462,12 +462,18 @@ export type Database = {
           category: string
           created_at: string
           email: string | null
+          form_timestamp: string | null
           full_name: string
+          gender: string | null
+          ic_number: string | null
           id: string
           is_active: boolean
           notes: string | null
           organisation: string | null
           participant_code: string
+          race: string | null
+          student_id: string | null
+          university_name: string | null
           phone: string | null
           qr_token: string
           updated_at: string
@@ -476,12 +482,18 @@ export type Database = {
           category: string
           created_at?: string
           email?: string | null
+          form_timestamp?: string | null
           full_name: string
+          gender?: string | null
+          ic_number?: string | null
           id?: string
           is_active?: boolean
           notes?: string | null
           organisation?: string | null
           participant_code: string
+          race?: string | null
+          student_id?: string | null
+          university_name?: string | null
           phone?: string | null
           qr_token?: string
           updated_at?: string
@@ -490,12 +502,18 @@ export type Database = {
           category?: string
           created_at?: string
           email?: string | null
+          form_timestamp?: string | null
           full_name?: string
+          gender?: string | null
+          ic_number?: string | null
           id?: string
           is_active?: boolean
           notes?: string | null
           organisation?: string | null
           participant_code?: string
+          race?: string | null
+          student_id?: string | null
+          university_name?: string | null
           phone?: string | null
           qr_token?: string
           updated_at?: string
