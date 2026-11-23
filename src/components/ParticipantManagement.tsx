@@ -641,7 +641,6 @@ export default function ParticipantManagement({
                 required
                 maxLength={150}
                 placeholder="Participant full name"
-                required
               />
             </label>
 
@@ -650,7 +649,6 @@ export default function ParticipantManagement({
               <input
                 value={form.ic_number}
                 onChange={(e) => setForm({ ...form, ic_number: e.target.value })}
-                required={!editingId || Boolean(form.ic_number)}
                 inputMode="numeric"
                 maxLength={20}
                 placeholder="e.g. 900101-14-5678"
