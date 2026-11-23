@@ -20,7 +20,6 @@ export default function LuckyDrawHexMachine({ totalBalls = 36, categoryLabel = '
 
   useEffect(() => {
     if (phase !== 'loaded') return
-    setCounter(0)
     const target = Math.max(0, totalBalls)
     if (!target) return
     const increment = Math.max(1, Math.ceil(target / 50))
@@ -42,17 +41,19 @@ export default function LuckyDrawHexMachine({ totalBalls = 36, categoryLabel = '
 
   function fillBalls() {
     setAnimationKey((value) => value + 1)
+    setCounter(0)
     setPhase('loaded')
   }
 
   function previewLever() {
-    if (phase === 'empty') setPhase('loaded')
+    if (phase === 'empty') setCounter(Math.max(0, totalBalls))
     setAnimationKey((value) => value + 1)
     setPhase('mixing')
   }
 
   function resetPreview() {
     setAnimationKey((value) => value + 1)
+    setCounter(0)
     setPhase('empty')
   }
 
