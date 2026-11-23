@@ -179,7 +179,7 @@ function App() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [currentRole])
+  }, [currentRole, activePage])
 
   useEffect(() => {
     if (!currentRole || activePage !== 'Overview') return
