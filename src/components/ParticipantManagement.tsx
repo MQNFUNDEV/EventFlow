@@ -66,20 +66,8 @@ const emptyForm: ParticipantForm = {
   notes: '',
 }
 
-function normaliseEmail(value: string | null | undefined) {
-  return (value ?? '').trim().toLowerCase()
-}
-
-function normalisePhone(value: string | null | undefined) {
-  return (value ?? '').replace(/\D/g, '')
-}
-
 function normaliseIc(value: string | null | undefined) {
   return (value ?? '').replace(/\D/g, '')
-}
-
-function normaliseName(value: string | null | undefined) {
-  return (value ?? '').trim().toLowerCase()
 }
 
 function generateParticipantCode() {
