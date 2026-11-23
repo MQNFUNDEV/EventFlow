@@ -1055,7 +1055,7 @@ export default function LuckyDrawManagement() {
 
       <div className="lucky-draw-box-footer">
         {pendingWinner ? <div className="lucky-draw-controls lucky-draw-winner-review">
-          <div className="lucky-draw-selected"><small>SELECTED GUEST</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>
+          <div className="lucky-draw-selected"><small>OUR LUCKY WINNER!!</small><strong>{pendingWinner.full_name}</strong><span>{categoryName(categories, pendingWinner.category)} · {pendingWinner.participant_code}</span></div>
           <div className="lucky-draw-winner-actions">
             <button className="button-primary" onClick={() => void acceptWinner()} disabled={savingWinner}><Check size={16} /> Confirm winner &amp; remove from pool</button>
             <button className="button-secondary" onClick={() => void skipWinner()} disabled={savingWinner}><X size={16} /> Skip winner</button>
