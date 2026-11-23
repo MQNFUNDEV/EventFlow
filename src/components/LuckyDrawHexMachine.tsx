@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import './LuckyDrawHexMachine.css'
 
 type PreviewPhase = 'empty' | 'loaded' | 'mixing'
+type Props = { totalBalls?: number; categoryLabel?: string }
 
 const balls = Array.from({ length: 36 }, (_, index) => ({
   number: String(index + 1).padStart(2, '0'),
@@ -12,9 +13,26 @@ const balls = Array.from({ length: 36 }, (_, index) => ({
   driftY: ((index % 7) - 3) * 10,
 }))
 
-export default function LuckyDrawHexMachine() {
+export default function LuckyDrawHexMachine({ totalBalls = 36, categoryLabel = 'Selected category' }: Props) {
   const [phase, setPhase] = useState<PreviewPhase>('empty')
   const [animationKey, setAnimationKey] = useState(0)
+  const [counter, setCounter] = useState(0)
+
+  useEffect(() => {
+    if (phase !== 'loaded') return
+    setCounter(0)
+    const target = Math.max(0, totalBalls)
+    if (!target) return
+    const increment = Math.max(1, Math.ceil(target / 50))
+    const timer = window.setInterval(() => {
+      setCounter((value) => {
+        const next = Math.min(target, value + increment)
+        if (next >= target) window.clearInterval(timer)
+        return next
+      })
+    }, 30)
+    return () => window.clearInterval(timer)
+  }, [phase, totalBalls, animationKey])
 
   useEffect(() => {
     if (phase !== 'mixing') return
@@ -81,9 +99,9 @@ export default function LuckyDrawHexMachine() {
             <div className="hex-draw-base-top" />
             <div className="hex-draw-counter">
               <small>BALL COUNTER</small>
-              <strong>{phase === 'empty' ? '000' : '036'}</strong>
+              <strong>{String(counter).padStart(3, '0')}</strong>
             </div>
-            <div className="hex-draw-base-label">NUMBERED BALL SYSTEM</div>
+            <div className="hex-draw-base-label">{categoryLabel.toUpperCase()} · NUMBERED BALL SYSTEM</div>
             <div className="hex-draw-base-foot" />
           </div>
 
