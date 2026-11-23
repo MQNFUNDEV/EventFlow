@@ -59,7 +59,7 @@ type ParticipantInsert = {
 const emptyForm: ParticipantForm = {
   full_name: '',
   ic_number: '',
-  email: ''
+  email: '',
   phone: '',
   category: 'staff',
   organisation: '',
