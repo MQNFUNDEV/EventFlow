@@ -357,6 +357,14 @@ export default function ParticipantManagement({
               .filter((p) => normalisePhone(p.phone))
               .map((p) => `${normaliseName(p.full_name)}|${normalisePhone(p.phone)}`),
           )
+          const knownIcNumbers = new Set(
+            participants.map((p) => (p.ic_number ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase()).filter(Boolean),
+          )
+          const knownStudentIds = new Set(
+            participants
+              .filter((p) => p.student_id && p.university_name)
+              .map((p) => `${normaliseName(p.university_name)}|${normaliseName(p.student_id)}`),
+          )
 
           let skipped = 0
           const rowsToInsert: ParticipantInsert[] = []
@@ -402,12 +410,16 @@ export default function ParticipantManagement({
             const normalEmail = normaliseEmail(email)
             const normalPhone = normalisePhone(phone)
             const identityKey = `${normaliseName(fullName)}|${normalPhone}`
+            const normalIc = icNumber.replace(/[^a-z0-9]/gi, '').toLowerCase()
+            const studentKey = `${normaliseName(universityName)}|${normaliseName(studentId)}`
 
             if (
               !fullName ||
               !categories.some((item) => item.id === categoryValue) ||
               (normalEmail && knownEmails.has(normalEmail)) ||
-              (normalPhone && knownIdentities.has(identityKey))
+              (normalPhone && knownIdentities.has(identityKey)) ||
+              (normalIc && knownIcNumbers.has(normalIc)) ||
+              (studentId && universityName && knownStudentIds.has(studentKey))
             ) {
               skipped++
               continue
@@ -415,6 +427,8 @@ export default function ParticipantManagement({
 
             if (normalEmail) knownEmails.add(normalEmail)
             if (normalPhone) knownIdentities.add(identityKey)
+            if (normalIc) knownIcNumbers.add(normalIc)
+            if (studentId && universityName) knownStudentIds.add(studentKey)
 
             rowsToInsert.push({
               participant_code: generateParticipantCode(),
@@ -438,19 +452,34 @@ export default function ParticipantManagement({
               `No new participants imported. ${skipped} row(s) skipped or invalid.`,
             )
           } else {
-            const { error: insertError } = await supabase
-              .from('participants')
-              .insert(rowsToInsert)
+            let imported = 0
+            let insertFailure: string | null = null
 
-            if (insertError) {
-              setError(insertError.code === '23505'
-                ? 'One or more participants already exist. Another admin may have registered the same email or name and phone combination. Refresh the directory and retry only the missing entries.'
-                : insertError.message)
+            // Keep each database request modest so large Google Form exports
+            // can be imported reliably, including later incremental exports.
+            for (let offset = 0; offset < rowsToInsert.length; offset += 500) {
+              const batch = rowsToInsert.slice(offset, offset + 500)
+              const { error: insertError } = await supabase
+                .from('participants')
+                .insert(batch)
+
+              if (insertError) {
+                insertFailure = insertError.code === '23505'
+                  ? 'A duplicate was detected by the database. Another admin may have imported the same registration at the same time.'
+                  : insertError.message
+                break
+              }
+              imported += batch.length
+            }
+
+            if (imported > 0) await loadParticipants()
+
+            if (insertFailure) {
+              setError(`${imported} participant(s) imported before the next batch failed. ${insertFailure} Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.`)
             } else {
               setMessage(
-                `${rowsToInsert.length} participant(s) imported. ${skipped} row(s) skipped because of missing or duplicate information.`,
+                `${imported} participant(s) imported. ${skipped} row(s) skipped because of missing or duplicate information. You can upload the next CSV batch later; existing registrations will be checked again.`,
               )
-              await loadParticipants()
             }
           }
         } catch (err) {
@@ -581,7 +610,7 @@ export default function ParticipantManagement({
       {canImport && (
         <div className="participant-import-help">
           <strong>Import Google Form responses</strong>
-          <span>In Google Sheets, choose File → Download → Comma-separated values (.csv), then use Import CSV. Include a name, email or phone, and a category matching one of the names configured in Settings → Pool Settings. EventFlow creates participant records here, where you can search and filter them.</span>
+          <span>Download the current Google Form responses from Google Sheets as CSV, then choose Import CSV. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Keep the CSV headers intact and ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
         </div>
       )}
 
@@ -781,7 +810,8 @@ export default function ParticipantManagement({
                       <small>IC: {participant.ic_number || '—'} · Student ID: {participant.student_id || '—'}</small>
                       <small>University: {participant.university_name || '—'}</small>
                       <small>Gender: {participant.gender || '—'} · Race: {participant.race || '—'}</small>
-                      {participant.form_timestamp && <small>Submitted: {participant.form_timestamp}</small>}
+                      <small>Submitted: {participant.form_timestamp || '—'}</small>
+                      {participant.notes && <small>Notes: {participant.notes}</small>}
                     </td>
 
                     <td>
