@@ -115,7 +115,7 @@ function timeAgo(value: string) {
 
 const pageDescription: Record<string, string> = {
   Overview: 'Monitor your event at a glance.',
-  Participants: 'Manage your Johor Meetup X participants and their details.',
+  Participants: 'Manage participant registrations and their details.',
   Attendance: 'Track arrivals and manage event check-in.',
   'Lucky Draw': 'Manage draw rounds and announce winners.',
   'LED Display': 'Control what appears on your event display.',
@@ -477,7 +477,7 @@ function App() {
           <section className="page-heading">
             <div>
               <h1>{activePage}</h1>
-              <p>{pageDescription[activePage]}</p>
+              <p>{activePage === 'Participants' ? `Manage ${eventName} participants and their registration details.` : pageDescription[activePage]}</p>
             </div>
 
 
@@ -674,6 +674,7 @@ function App() {
           ) : activePage === 'Participants' ? (
             <ParticipantManagement
               currentRole={currentRole as 'super_admin' | 'event_admin' | 'front_desk'}
+              eventName={eventName}
             />
           ) : activePage === 'Attendance' ? (
             <AttendanceManagement />
