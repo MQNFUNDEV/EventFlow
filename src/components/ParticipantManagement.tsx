@@ -677,19 +677,16 @@ export default function ParticipantManagement({
             </label>
 
             <label>
-              Category *
-              <select
-                value={form.category}
+              Phone number
+              <input
+                type="tel"
+                value={form.phone}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    category: e.target.value as Category,
-                  })
+                  setForm({ ...form, phone: e.target.value })
                 }
+                placeholder="+60 12-345 6789"
                 required
-              >
-                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
+              />
             </label>
 
             <label>
@@ -706,16 +703,19 @@ export default function ParticipantManagement({
             </label>
 
             <label>
-              Phone number
-              <input
-                type="tel"
-                value={form.phone}
+              Category *
+              <select
+                value={form.category}
                 onChange={(e) =>
-                  setForm({ ...form, phone: e.target.value })
+                  setForm({
+                    ...form,
+                    category: e.target.value as Category,
+                  })
                 }
-                placeholder="+60 12-345 6789"
                 required
-              />
+              >
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
             </label>
 
             <label>
