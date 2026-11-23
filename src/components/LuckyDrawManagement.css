@@ -266,3 +266,13 @@
 .lucky-draw-box-actions button.sound-toggle.is-on:hover{background:#166534!important;border-color:#166534!important;color:#fff!important}
 .lucky-draw-box-actions button.sound-toggle.is-off{background:#b91c1c!important;border:1px solid #b91c1c!important;color:#fff!important}
 .lucky-draw-box-actions button.sound-toggle.is-off:hover{background:#991b1b!important;border-color:#991b1b!important;color:#fff!important}
+
+/* Side-by-side machine concept selector. The existing paper-slip machine remains the default. */
+.lucky-draw-machine-switch{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 15px;border:1px solid #e5eaf1;border-radius:10px;background:#fff}
+.lucky-draw-machine-switch>span{color:#536176;font-size:11px;font-weight:800}
+.lucky-draw-machine-switch>div{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.lucky-draw-machine-switch button{display:inline-flex;align-items:center;gap:8px;min-height:35px;padding:0 12px;border:1px solid #dce3ed;border-radius:7px;background:#fff;color:#5b687a;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.lucky-draw-machine-switch button small{padding:3px 5px;border-radius:4px;background:#f0f3f7;color:#7a8798;font-size:8px;font-weight:900;letter-spacing:.3px}
+.lucky-draw-machine-switch button.is-selected{border-color:#6d84a5;background:#f0f5fb;color:#233b5a;box-shadow:inset 0 0 0 1px #6d84a522}
+.lucky-draw-machine-switch button.is-selected small{background:#dce8f6;color:#34577f}
+@media(max-width:700px){.lucky-draw-machine-switch{align-items:flex-start;flex-direction:column}.lucky-draw-machine-switch>div{width:100%}.lucky-draw-machine-switch button{flex:1;justify-content:center}}
