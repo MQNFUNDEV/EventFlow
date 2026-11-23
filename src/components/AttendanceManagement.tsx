@@ -45,6 +45,8 @@ export default function AttendanceManagement() {
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
   const [checkIns, setCheckIns] = useState<CheckIn[]>([])
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
   const [category, setCategory] = useState('all')
   const [view, setView] = useState<'all' | 'checked_in' | 'waiting'>('all')
   const [loading, setLoading] = useState(true)
@@ -116,6 +118,9 @@ export default function AttendanceManagement() {
     })
   }, [participants, checkInsByParticipant, search, category, view])
   const checkedInCount = participants.filter((participant) => checkInsByParticipant.has(participant.id)).length
+  const totalPages = Math.max(1, Math.ceil(activeParticipants.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedParticipants = activeParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const checkInParticipant = useCallback(async (participant: Participant) => {
     setSavingId(participant.id)
@@ -188,11 +193,11 @@ export default function AttendanceManagement() {
 
       <section className="panel attendance-list-panel">
         <div className="attendance-toolbar">
-          <label className="attendance-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, code, email or phone" /></label>
-          <select aria-label="Filter by category" value={category} onChange={(event) => setCategory(event.target.value)}>
+          <label className="attendance-search"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setCurrentPage(1) }} placeholder="Search name, code, email or phone" /></label>
+          <select aria-label="Filter by category" value={category} onChange={(event) => { setCategory(event.target.value); setCurrentPage(1) }}>
             <option value="all">All categories</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <select aria-label="Filter by attendance status" value={view} onChange={(event) => setView(event.target.value as typeof view)}>
+          <select aria-label="Filter by attendance status" value={view} onChange={(event) => { setView(event.target.value as typeof view); setCurrentPage(1) }}>
             <option value="all">Everyone</option><option value="waiting">Not checked in</option><option value="checked_in">Checked in</option>
           </select>
         </div>
@@ -200,7 +205,7 @@ export default function AttendanceManagement() {
         {loading ? <p className="attendance-empty">Loading attendance…</p> : activeParticipants.length === 0 ? <p className="attendance-empty">No participants match these filters.</p> : (
           <div className="attendance-table-wrap"><table className="attendance-table">
             <thead><tr><th>Participant</th><th>Category</th><th>Status</th><th>Arrival time</th><th><span className="sr-only">Action</span></th></tr></thead>
-            <tbody>{activeParticipants.map((participant) => {
+            <tbody>{paginatedParticipants.map((participant) => {
               const checkIn = checkInsByParticipant.get(participant.id)
               return <tr key={participant.id}>
                 <td><strong>{participant.full_name}</strong><small>{participant.participant_code}</small></td>
@@ -211,6 +216,18 @@ export default function AttendanceManagement() {
               </tr>
             })}</tbody>
           </table></div>
+        )}
+        {!loading && activeParticipants.length > 0 && (
+          <div className="attendance-pagination">
+            <span>Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, activeParticipants.length)} of {activeParticipants.length}</span>
+            <div>
+              <button type="button" className="button-secondary" onClick={() => setCurrentPage(1)} disabled={safePage === 1}>First</button>
+              <button type="button" className="button-secondary" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={safePage === 1}>Previous</button>
+              <span>Page {safePage} of {totalPages}</span>
+              <button type="button" className="button-secondary" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={safePage === totalPages}>Next</button>
+              <button type="button" className="button-secondary" onClick={() => setCurrentPage(totalPages)} disabled={safePage === totalPages}>Last</button>
+            </div>
+          </div>
         )}
       </section>
       <p className="attendance-footnote">Export creates a CSV file on this device that can be opened in Excel or Google Sheets. Check-in is recorded in EventFlow.</p>
