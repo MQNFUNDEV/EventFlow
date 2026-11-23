@@ -1012,7 +1012,7 @@ export default function LuckyDrawManagement() {
     </div>
     {machineDesign === 'paper'
       ? <LuckyDrawMachine totalNames={pool.length || selectedCategoryCheckIns || 0} categoryLabel={poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType)} phase={boxPhase} startedAt={boxStartedAt} animationId={boxAnimationId} onCameraChange={(view) => { void publishBoxState({ machine_camera: view }) }} />
-      : <LuckyDrawHexMachine />}
+      : <LuckyDrawHexMachine totalBalls={pool.length || selectedCategoryCheckIns || 36} categoryLabel={poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType)} />}
     <section className="panel lucky-draw-setup">
       <label>Session name<input value={roundName} onChange={(event) => setRoundName(event.target.value)} disabled={Boolean(roundId)} /><small className="lucky-draw-field-hint">Shown as the heading on the live LED screen. Set it before loading the guest pool.</small></label>
       <label>Guest category<select value={poolType} onChange={(event) => setPoolType(event.target.value as PoolType)} disabled={Boolean(roundId)}><option value="everyone">Everyone checked in</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name} checked in</option>)}</select><small className="lucky-draw-category-preview">{selectedCategoryCheckIns !== null ? <><strong>{selectedCategoryCheckIns}</strong> currently checked in for this category</> : 'Loading checked-in count…'}</small></label>
