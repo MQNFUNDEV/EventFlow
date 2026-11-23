@@ -35,6 +35,10 @@ type ParticipantForm = {
   ic_number: string
   email: string
   phone: string
+  student_id: string
+  university_name: string
+  gender: string
+  race: string
   category: Category
   organisation: string
   notes: string
@@ -61,6 +65,10 @@ const emptyForm: ParticipantForm = {
   ic_number: '',
   email: '',
   phone: '',
+  student_id: '',
+  university_name: '',
+  gender: '',
+  race: '',
   category: 'staff',
   organisation: '',
   notes: '',
@@ -86,8 +94,10 @@ async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise
 
 export default function ParticipantManagement({
   currentRole,
+  eventName,
 }: {
   currentRole: Role
+  eventName: string
 }) {
   const canManage = currentRole === 'super_admin' || currentRole === 'event_admin'
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
@@ -98,6 +108,8 @@ export default function ParticipantManagement({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('active')
   const [loading, setLoading] = useState(true)
@@ -159,8 +171,12 @@ export default function ParticipantManagement({
       ic_number: participant.ic_number ?? '',
       email: participant.email ?? '',
       phone: participant.phone ?? '',
+      student_id: participant.student_id ?? '',
+      university_name: participant.university_name ?? '',
+      gender: participant.gender ?? '',
+      race: participant.race ?? '',
       category: participant.category,
-      organisation: participant.organisation ?? '',
+      organisation: participant.university_name ?? participant.organisation ?? '',
       notes: participant.notes ?? '',
     })
     setFormOpen(true)
@@ -210,6 +226,11 @@ export default function ParticipantManagement({
       ic_number: normalIc || null,
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
+      student_id: form.student_id.trim() || null,
+      university_name: form.university_name.trim() || form.organisation.trim() || null,
+      gender: form.gender.trim() || null,
+      race: form.race.trim() || null,
+      form_timestamp: editingId ? undefined : new Date().toISOString(),
       category: form.category,
       organisation: form.organisation.trim() || null,
       notes: form.notes.trim() || null,
@@ -502,6 +523,9 @@ export default function ParticipantManagement({
   })
 
   const activeCount = participants.filter((p) => p.is_active).length
+  const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   return (
     <div className="participant-management">
@@ -589,11 +613,11 @@ export default function ParticipantManagement({
         <section className="participant-form-panel">
           <div className="participant-form-heading">
             <div>
-              <h3>{editingId ? 'Edit participant' : 'Add new participant'}</h3>
+              <h3>{editingId ? 'Edit participant' : `Walk-in registration · ${eventName}`}</h3>
               <p>
                 {editingId
                   ? 'Update this participant’s registration details.'
-                  : 'Enter the participant details for Johor Meetup X.'}
+                  : 'Enter the same registration details collected by the online form.'}
               </p>
             </div>
 
@@ -630,6 +654,26 @@ export default function ParticipantManagement({
                 maxLength={20}
                 placeholder="e.g. 900101-14-5678"
               />
+            </label>
+
+            <label>
+              Student ID
+              <input value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })} placeholder="Student / matric number" />
+            </label>
+
+            <label>
+              University name
+              <input value={form.university_name} onChange={(e) => setForm({ ...form, university_name: e.target.value, organisation: e.target.value })} placeholder="Name of university" />
+            </label>
+
+            <label>
+              Gender
+              <input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} placeholder="Gender" />
+            </label>
+
+            <label>
+              Race
+              <input value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} placeholder="Race" />
             </label>
 
             <label>
@@ -722,11 +766,11 @@ export default function ParticipantManagement({
         <div className="participant-list-heading">
           <div>
             <h3>Participant Directory</h3>
-            <p>Search and manage Johor Meetup X registrations.</p>
+            <p>Search and manage {eventName} registrations.</p>
           </div>
 
           <span className="participant-count">
-            {filteredParticipants.length} shown
+            {filteredParticipants.length} total · {paginatedParticipants.length} on this page
           </span>
         </div>
 
@@ -735,14 +779,14 @@ export default function ParticipantManagement({
             <Search size={17} />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
               placeholder="Search name, code, IC, student ID, email or phone..."
             />
           </div>
 
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1) }}
           >
             <option value="all">All categories</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
@@ -750,7 +794,7 @@ export default function ParticipantManagement({
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -782,7 +826,7 @@ export default function ParticipantManagement({
               </thead>
 
               <tbody>
-                {filteredParticipants.map((participant) => (
+                {paginatedParticipants.map((participant) => (
                   <tr key={participant.id}>
                     <td>
                       <strong>{participant.full_name}</strong>
@@ -859,6 +903,18 @@ export default function ParticipantManagement({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && filteredParticipants.length > 0 && (
+          <div className="participant-pagination">
+            <span>Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredParticipants.length)} of {filteredParticipants.length}</span>
+            <div>
+              <button type="button" className="participant-secondary-button" onClick={() => setCurrentPage(1)} disabled={safePage === 1}>First</button>
+              <button type="button" className="participant-secondary-button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={safePage === 1}>Previous</button>
+              <span>Page {safePage} of {totalPages}</span>
+              <button type="button" className="participant-secondary-button" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={safePage === totalPages}>Next</button>
+              <button type="button" className="participant-secondary-button" onClick={() => setCurrentPage(totalPages)} disabled={safePage === totalPages}>Last</button>
+            </div>
           </div>
         )}
       </section>
