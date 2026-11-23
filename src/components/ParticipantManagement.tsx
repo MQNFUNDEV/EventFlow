@@ -641,6 +641,7 @@ export default function ParticipantManagement({
                 required
                 maxLength={150}
                 placeholder="Participant full name"
+                required
               />
             </label>
 
@@ -653,27 +654,28 @@ export default function ParticipantManagement({
                 inputMode="numeric"
                 maxLength={20}
                 placeholder="e.g. 900101-14-5678"
+                required
               />
             </label>
 
             <label>
               Student ID
-              <input value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })} placeholder="Student / matric number" />
+              <input value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })} placeholder="Student / matric number" required />
             </label>
 
             <label>
               University name
-              <input value={form.university_name} onChange={(e) => setForm({ ...form, university_name: e.target.value, organisation: e.target.value })} placeholder="Name of university" />
+              <input value={form.university_name} onChange={(e) => setForm({ ...form, university_name: e.target.value, organisation: e.target.value })} placeholder="Name of university" required />
             </label>
 
             <label>
               Gender
-              <input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} placeholder="Gender" />
+              <input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} placeholder="Gender" required />
             </label>
 
             <label>
               Race
-              <input value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} placeholder="Race" />
+              <input value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} placeholder="Race" required />
             </label>
 
             <label>
@@ -686,6 +688,7 @@ export default function ParticipantManagement({
                     category: e.target.value as Category,
                   })
                 }
+                required
               >
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
@@ -700,6 +703,7 @@ export default function ParticipantManagement({
                   setForm({ ...form, email: e.target.value })
                 }
                 placeholder="name@example.com"
+                required
               />
             </label>
 
@@ -712,6 +716,7 @@ export default function ParticipantManagement({
                   setForm({ ...form, phone: e.target.value })
                 }
                 placeholder="+60 12-345 6789"
+                required
               />
             </label>
 
