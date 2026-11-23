@@ -59,7 +59,8 @@ export default function AttendanceManagement() {
     ])
     if (participantResult.error) setError(participantResult.error.message)
     else setParticipants(participantResult.data)
-    if (checkInResult.error) setError((current) => current ? `${current} ${checkInResult.error.message}` : checkInResult.error.message)
+    const checkInLoadError = checkInResult.error
+    if (checkInLoadError) setError((current) => current ? `${current} ${checkInLoadError.message}` : checkInLoadError.message)
     else setCheckIns(checkInResult.data)
     setLoading(false)
   }, [])
@@ -75,7 +76,8 @@ export default function AttendanceManagement() {
       if (cancelled) return
       if (participantResult.error) setError(participantResult.error.message)
       else setParticipants(participantResult.data)
-      if (checkInResult.error) setError((current) => current ? `${current} ${checkInResult.error.message}` : checkInResult.error.message)
+      const checkInLoadError = checkInResult.error
+      if (checkInLoadError) setError((current) => current ? `${current} ${checkInLoadError.message}` : checkInLoadError.message)
       else setCheckIns(checkInResult.data)
       setLoading(false)
     }
