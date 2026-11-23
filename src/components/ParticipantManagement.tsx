@@ -617,7 +617,7 @@ export default function ParticipantManagement({
               <p>
                 {editingId
                   ? 'Update this participant’s registration details.'
-                  : 'Enter the same registration details collected by the online form.'}
+                  : 'Enter the same registration details collected by the online form. The submission timestamp is recorded automatically.'}
               </p>
             </div>
 
@@ -758,7 +758,7 @@ export default function ParticipantManagement({
         <div className="participant-list-heading">
           <div>
             <h3>Participant Directory</h3>
-            <p>Search and manage {eventName} registrations.</p>
+            <p>Search and manage {eventName} registrations · maximum 50 records per page.</p>
           </div>
 
           <span className="participant-count">
@@ -818,7 +818,7 @@ export default function ParticipantManagement({
               </thead>
 
               <tbody>
-                {paginatedParticipants.map((participant) => (
+                {paginatedParticipants.slice(0, pageSize).map((participant) => (
                   <tr key={participant.id}>
                     <td>
                       <strong>{participant.full_name}</strong>
