@@ -137,7 +137,7 @@ function App() {
   const [dashboardLoading, setDashboardLoading] = useState(false)
   const [dashboardError, setDashboardError] = useState('')
   const [dashboardReload, setDashboardReload] = useState(0)
-  const [eventName, setEventName] = useState('Johor Meetup X')
+  const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
   const [localTime, setLocalTime] = useState(() => new Date())
@@ -146,6 +146,40 @@ function App() {
     const timer = window.setInterval(() => setLocalTime(new Date()), 1000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!currentRole) return
+    let cancelled = false
+
+    async function loadConfiguredEventName() {
+      const { data, error } = await supabase
+        .from('display_state')
+        .select('payload')
+        .eq('id', 1)
+        .maybeSingle()
+
+      if (cancelled || error) return
+      const payload = data?.payload
+      const configuredName = payload && typeof payload === 'object' && 'event_name' in payload
+        ? (payload as { event_name?: unknown }).event_name
+        : null
+      setEventName(typeof configuredName === 'string' ? configuredName.trim() : '')
+    }
+
+    void loadConfiguredEventName()
+
+    const channel = supabase
+      .channel('event-settings-name')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, () => {
+        void loadConfiguredEventName()
+      })
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  }, [currentRole])
 
   useEffect(() => {
     if (!currentRole || activePage !== 'Overview') return
@@ -165,7 +199,7 @@ function App() {
       if (cancelled) return
       const payload = eventSettings.data?.payload
       if (payload && typeof payload === 'object') {
-        setEventName(typeof payload.event_name === 'string' && payload.event_name.trim() ? payload.event_name.trim() : 'Johor Meetup X')
+        setEventName(typeof payload.event_name === 'string' ? payload.event_name.trim() : '')
         setEventDate(typeof payload.event_date === 'string' ? payload.event_date.trim() : '')
         setEventLocation(typeof payload.event_location === 'string' ? payload.event_location.trim() : '')
       }
