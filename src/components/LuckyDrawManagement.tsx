@@ -157,7 +157,7 @@ export default function LuckyDrawManagement() {
   const refreshWinnerQueue = useCallback(async (targetRoundId: string | null = roundId) => {
     if (!targetRoundId) { setWinnerQueue([]); return }
     const { data, error: queueError } = await supabase.from('draw_entries')
-      .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
+      .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category, ic_number)')
       .eq('draw_round_id', targetRoundId)
       .not('queue_position', 'is', null)
       .order('queue_position', { ascending: false })
@@ -165,7 +165,7 @@ export default function LuckyDrawManagement() {
     if (queueError) { setError(queueError.message); return }
     setWinnerQueue((data ?? []).map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? {
+      return participant && (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) ? {
         id: row.id,
         participant_id: row.participant_id,
         queue_position: row.queue_position ?? 0,
@@ -178,7 +178,7 @@ export default function LuckyDrawManagement() {
         },
       } : null
     }).filter((entry): entry is QueueEntry => Boolean(entry)).sort((a, b) => a.queue_position - b.queue_position))
-  }, [roundId])
+  }, [roundId, icRegionRule])
 
   const replenishWinnerQueue = useCallback(async (targetRoundId: string) => {
     const { count, error: countError } = await supabase.from('draw_entries')
@@ -263,7 +263,7 @@ export default function LuckyDrawManagement() {
         .eq('draw_round_id', activeRound.id)
         .order('drawn_at', { ascending: false }).order('id').range(from, to)),
       supabase.from('draw_entries')
-        .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category)')
+        .select('id, participant_id, queue_position, queue_status, participants!inner(id, full_name, participant_code, category, ic_number)')
         .eq('draw_round_id', activeRound.id)
         .not('queue_position', 'is', null)
         .order('queue_position', { ascending: false })
@@ -276,6 +276,12 @@ export default function LuckyDrawManagement() {
       return
     }
 
+    const restoredPayload = displayStateResult.data?.payload && typeof displayStateResult.data.payload === 'object' ? displayStateResult.data.payload as Record<string, unknown> : {}
+    const savedIcRule = restoredPayload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined
+    const restoredCodes = Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes
+    const restoredRule: IcRegionRule = { enabled: savedIcRule?.enabled === true, allowed_codes: restoredCodes.length ? restoredCodes : DEFAULT_IC_REGION_RULE.allowed_codes }
+    setIcRegionRule(restoredRule)
+
     const participants = entriesResult.data.map((row) => {
       const participant = getRelated(row.participants)
       return participant ? {
@@ -285,10 +291,10 @@ export default function LuckyDrawManagement() {
         category: participant.category,
         ic_number: participant.ic_number,
       } : null
-    }).filter((participant): participant is Participant => Boolean(participant) && (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)))
+    }).filter((participant): participant is Participant => Boolean(participant) && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)))
     const queuedEntries = (queueResult.data ?? []).map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? {
+      return participant && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)) ? {
         id: row.id,
         participant_id: row.participant_id,
         queue_position: row.queue_position ?? 0,
@@ -325,9 +331,7 @@ export default function LuckyDrawManagement() {
     setExcludedIds(removedParticipants)
     setPendingWinner(pendingParticipant)
     setPendingWinnerRowId(pendingParticipant ? pendingRow?.id ?? null : null)
-    const savedPayload = displayStateResult.data?.payload && typeof displayStateResult.data.payload === 'object'
-      ? displayStateResult.data.payload as Record<string, unknown>
-      : {}
+    const savedPayload = restoredPayload
     setWinnerSoundEnabled(savedPayload.sound_enabled === true)
     const savedPhase = savedPayload.box_phase
     const savedStartedAt = typeof savedPayload.box_started_at === 'number' ? savedPayload.box_started_at : 0
@@ -374,13 +378,13 @@ export default function LuckyDrawManagement() {
     let cancelled = false
     void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) { setCategories(readParticipantCategories(data?.payload)); const payload = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}; const saved = payload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined; const codes = Array.isArray(saved?.allowed_codes) ? saved.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes; setIcRegionRule({ enabled: saved?.enabled === true, allowed_codes: codes.length ? codes : DEFAULT_IC_REGION_RULE.allowed_codes }) } })
     async function loadCategoryPreview() {
-      const result = await fetchAllPages<{ participant_id: string; participants: { category: string; is_active: boolean } | { category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
-        .select('participant_id, participants!inner(category, is_active)')
+      const result = await fetchAllPages<{ participant_id: string; participants: { category: string; is_active: boolean; ic_number: string | null } | { category: string; is_active: boolean; ic_number: string | null }[] | null }>((from, to) => supabase.from('attendance')
+        .select('participant_id, participants!inner(category, is_active, ic_number)')
         .eq('participants.is_active', true).order('participant_id').range(from, to))
       if (cancelled || result.error) return
       const counts = result.data.reduce((total, row) => {
         const participant = getRelated(row.participants)
-        if (participant?.category) total[participant.category] = (total[participant.category] ?? 0) + 1
+        if (participant?.category && (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes))) total[participant.category] = (total[participant.category] ?? 0) + 1
         return total
       }, {} as Record<string, number>)
       setCheckedInCounts(counts)
@@ -403,7 +407,7 @@ export default function LuckyDrawManagement() {
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [])
+  }, [icRegionRule])
 
   useEffect(() => {
     roundRef.current = roundId
