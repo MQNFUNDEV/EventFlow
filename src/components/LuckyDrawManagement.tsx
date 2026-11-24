@@ -292,30 +292,39 @@ export default function LuckyDrawManagement() {
         ic_number: participant.ic_number,
       } : null
     }).filter((participant): participant is Participant => participant !== null && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)))
+    const previousDraws = winnersResult.data
+    const confirmedParticipantIds = new Set(previousDraws
+      .filter((winner) => winner.notes === 'Confirmed by operator')
+      .map((winner) => winner.participant_id))
+    const skippedParticipantIds = new Set(previousDraws
+      .filter((winner) => winner.status === 'skipped')
+      .map((winner) => winner.participant_id))
     const queuedEntries = (queueResult.data ?? []).map((row) => {
       const participant = getRelated(row.participants)
+      const recoveredStatus = confirmedParticipantIds.has(row.participant_id)
+        ? 'collected'
+        : skippedParticipantIds.has(row.participant_id)
+          ? 'skipped'
+          : row.queue_status as QueueEntry['queue_status']
       return participant && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)) ? {
         id: row.id,
         participant_id: row.participant_id,
         queue_position: row.queue_position ?? 0,
-        queue_status: row.queue_status as QueueEntry['queue_status'],
+        queue_status: recoveredStatus,
         participant: { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category },
       } : null
     }).filter((entry): entry is QueueEntry => Boolean(entry)).sort((a, b) => a.queue_position - b.queue_position)
-    const previousDraws = winnersResult.data
-    const removedParticipants = new Set(previousDraws
-      .filter((winner) => winner.status === 'skipped' || winner.notes === 'Confirmed by operator')
-      .map((winner) => winner.participant_id))
+    const removedParticipants = new Set([...confirmedParticipantIds, ...skippedParticipantIds])
     const legacyCollectedIds = previousDraws.filter((winner) => winner.notes === 'Confirmed by operator').map((winner) => winner.participant_id)
     const legacySkippedIds = previousDraws.filter((winner) => winner.status === 'skipped').map((winner) => winner.participant_id)
     if (legacyCollectedIds.length) {
       const { error: syncError } = await supabase.from('draw_entries').update({ queue_status: 'collected' })
-        .eq('draw_round_id', activeRound.id).eq('queue_status', 'available').in('participant_id', legacyCollectedIds)
+        .eq('draw_round_id', activeRound.id).in('queue_status', ['available', 'pending']).in('participant_id', legacyCollectedIds)
       if (syncError) { setError(syncError.message); setLoading(false); return }
     }
     if (legacySkippedIds.length) {
       const { error: syncError } = await supabase.from('draw_entries').update({ queue_status: 'skipped' })
-        .eq('draw_round_id', activeRound.id).eq('queue_status', 'available').in('participant_id', legacySkippedIds)
+        .eq('draw_round_id', activeRound.id).in('queue_status', ['available', 'pending']).in('participant_id', legacySkippedIds)
       if (syncError) { setError(syncError.message); setLoading(false); return }
     }
     const pendingRow = previousDraws.find((winner) => winner.status === 'pending' && winner.notes !== 'Confirmed by operator')
