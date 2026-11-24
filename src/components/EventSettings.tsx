@@ -235,7 +235,7 @@ export default function EventSettings() {
         setEventLocation(values.event_location ?? '')
         const savedIcRule = values.ic_region_rule
         setIcRuleEnabled(typeof savedIcRule?.enabled === 'boolean' ? savedIcRule.enabled : DEFAULT_IC_REGION_RULE.enabled)
-        setIcAllowedCodes((Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes).join(', '))
+        setIcAllowedCodes((Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes).join(', '))
         const savedCategories = Array.isArray(values.participant_categories) ? values.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : []
         setParticipantCategories(savedCategories.length ? savedCategories : DEFAULT_CATEGORIES)
         setCategoryCount(savedCategories.length || DEFAULT_CATEGORIES.length)
@@ -308,7 +308,7 @@ export default function EventSettings() {
     setSaving(true)
     setError('')
     setMessage('')
-    const allowedCodes = [...new Set(icAllowedCodes.split(',').map((code) => code.trim()).filter((code) => /^\\d{2}$/.test(code)))]
+    const allowedCodes = [...new Set(icAllowedCodes.split(',').map((code) => code.trim()).filter((code) => /^\d{2}$/.test(code)))]
     if (icRuleEnabled && !allowedCodes.length) {
       setError('Enter at least one valid two-digit IC region code, separated by commas.')
       setSaving(false)
