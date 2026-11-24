@@ -291,7 +291,7 @@ export default function LuckyDrawManagement() {
         category: participant.category,
         ic_number: participant.ic_number,
       } : null
-    }).filter((participant): participant is Participant => Boolean(participant) && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)))
+    }).filter((participant): participant is Participant => participant !== null && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)))
     const queuedEntries = (queueResult.data ?? []).map((row) => {
       const participant = getRelated(row.participants)
       return participant && (!restoredRule.enabled || isIcRegionEligible(participant.ic_number, restoredRule.allowed_codes)) ? {
@@ -367,7 +367,7 @@ export default function LuckyDrawManagement() {
       ? 'Active draw restored. The last name is ready to confirm or skip.'
       : `Active draw restored with ${participants.length - removedParticipants.size} eligible guests.`)
     setLoading(false)
-  }, [icRegionRule])
+  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void restoreActiveRound() }, 0)
@@ -698,7 +698,7 @@ export default function LuckyDrawManagement() {
       return
     }
     const { data: nextEntry, error: queueError } = await supabase.from('draw_entries')
-      .select('id, participant_id, participants!inner(id, full_name, participant_code, category)')
+      .select('id, participant_id, participants!inner(id, full_name, participant_code, category, ic_number)')
       .eq('draw_round_id', roundId)
       .eq('queue_status', 'pending')
       .order('queue_position', { ascending: true })
@@ -712,11 +712,19 @@ export default function LuckyDrawManagement() {
       setError(queueError?.message ?? 'No pending winner is queued. Generate a winner list first.')
       return
     }
+    if (icRegionRule.enabled && !isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) {
+      const { error: excludeError } = await supabase.from('draw_entries').update({ queue_status: 'skipped', queue_position: null }).eq('id', nextEntry.id)
+      if (excludeError) setError(excludeError.message)
+      else setError('This guest no longer meets the IC region rule and has been excluded from the draw pool.')
+      await refreshWinnerQueue(roundId)
+      return
+    }
     await spinCandidates({
       id: nextEntry.participant_id,
       full_name: participant.full_name,
       participant_code: participant.participant_code,
       category: participant.category,
+      ic_number: participant.ic_number,
     }, nextEntry.id)
   }
 
