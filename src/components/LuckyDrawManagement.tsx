@@ -1032,7 +1032,7 @@ export default function LuckyDrawManagement() {
   }
 
   return <main className="lucky-draw-page" style={themeStyle}>
-    <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from guests who have checked in. Every selected guest is removed from future spins.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
+    <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from checked-in guests with valid IC region codes 01 or 23. Invalid or missing ICs stay in Attendance Directory but are excluded from this pool.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
     {error && <div className="lucky-draw-message error" role="alert">{error}</div>}
     {message && <div className="lucky-draw-message success" role="status">{message}</div>}
     <LuckyDrawMachine totalNames={pool.length || selectedCategoryCheckIns || 0} categoryLabel={poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType)} phase={boxPhase} startedAt={boxStartedAt} animationId={boxAnimationId} onCameraChange={(view) => { void publishBoxState({ machine_camera: view }) }} />
