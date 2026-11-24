@@ -3,6 +3,7 @@ import { Check, Download, RefreshCw, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './AttendanceManagement.css'
+import { DEFAULT_IC_REGION_RULE, isIcRegionEligible, type IcRegionRule } from '../lib/icRegionEligibility'
 
 type Participant = {
   id: string
@@ -10,6 +11,7 @@ type Participant = {
   full_name: string
   email: string | null
   phone: string | null
+  ic_number: string | null
   category: string
   is_active: boolean
 }
@@ -43,6 +45,7 @@ async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise
 export default function AttendanceManagement() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
+  const [icRegionRule, setIcRegionRule] = useState<IcRegionRule>(DEFAULT_IC_REGION_RULE)
   const [checkIns, setCheckIns] = useState<CheckIn[]>([])
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -56,7 +59,7 @@ export default function AttendanceManagement() {
   const loadData = useCallback(async () => {
     setError('')
     const [participantResult, checkInResult] = await Promise.all([
-      fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
+      fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, ic_number, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
       fetchAllPages<CheckIn>((from, to) => supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }).order('participant_id').range(from, to)),
     ])
     if (participantResult.error) setError(participantResult.error.message)
@@ -69,10 +72,17 @@ export default function AttendanceManagement() {
 
   useEffect(() => {
     let cancelled = false
-    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
+    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => {
+      if (cancelled) return
+      setCategories(readParticipantCategories(data?.payload))
+      const payload = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}
+      const savedRule = payload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined
+      const savedCodes = Array.isArray(savedRule?.allowed_codes) ? savedRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes
+      setIcRegionRule({ enabled: typeof savedRule?.enabled === 'boolean' ? savedRule.enabled : DEFAULT_IC_REGION_RULE.enabled, allowed_codes: savedCodes.length ? savedCodes : DEFAULT_IC_REGION_RULE.allowed_codes })
+    })
     async function initialLoad() {
       const [participantResult, checkInResult] = await Promise.all([
-        fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
+        fetchAllPages<Participant>((from, to) => supabase.from('participants').select('id, participant_code, full_name, email, phone, ic_number, category, is_active').eq('is_active', true).order('full_name').order('id').range(from, to)),
         fetchAllPages<CheckIn>((from, to) => supabase.from('attendance').select('participant_id, checked_in_at, checked_in_by, check_in_method').order('checked_in_at', { ascending: false }).order('participant_id').range(from, to)),
       ])
       if (cancelled) return
@@ -96,6 +106,15 @@ export default function AttendanceManagement() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         void loadData()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'display_state' }, () => {
+        void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => {
+          const payload = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}
+          const savedRule = payload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined
+          const savedCodes = Array.isArray(savedRule?.allowed_codes) ? savedRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes
+          setIcRegionRule({ enabled: typeof savedRule?.enabled === 'boolean' ? savedRule.enabled : DEFAULT_IC_REGION_RULE.enabled, allowed_codes: savedCodes.length ? savedCodes : DEFAULT_IC_REGION_RULE.allowed_codes })
+          setCategories(readParticipantCategories(data?.payload))
+        })
+      })
       .subscribe()
 
     return () => {
@@ -111,7 +130,7 @@ export default function AttendanceManagement() {
     const term = search.trim().toLowerCase()
     return participants.filter((participant) => {
       const checkIn = checkInsByParticipant.get(participant.id)
-      const matchesSearch = !term || [participant.full_name, participant.participant_code, participant.email, participant.phone]
+      const matchesSearch = !term || [participant.full_name, participant.participant_code, participant.ic_number, participant.email, participant.phone]
         .some((field) => field?.toLowerCase().includes(term))
       return matchesSearch && (category === 'all' || participant.category === category) &&
         (view === 'all' || (view === 'checked_in' ? Boolean(checkIn) : !checkIn))
@@ -204,11 +223,15 @@ export default function AttendanceManagement() {
 
         {loading ? <p className="attendance-empty">Loading attendance…</p> : activeParticipants.length === 0 ? <p className="attendance-empty">No participants match these filters.</p> : (
           <div className="attendance-table-wrap"><table className="attendance-table">
-            <thead><tr><th>Participant</th><th>Category</th><th>Status</th><th>Arrival time</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <thead><tr><th>Participant / IC</th><th>Category</th><th>Status</th><th>Arrival time</th><th><span className="sr-only">Action</span></th></tr></thead>
             <tbody>{paginatedParticipants.slice(0, pageSize).map((participant) => {
               const checkIn = checkInsByParticipant.get(participant.id)
               return <tr key={participant.id}>
-                <td><strong>{participant.full_name}</strong><small>{participant.participant_code}</small></td>
+                <td>
+                  <strong className={icRegionRule.enabled && !isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes) ? 'attendance-ic-ineligible' : undefined}>{participant.full_name}</strong>
+                  <small className="attendance-participant-code">{participant.participant_code}</small>
+                  <small className={icRegionRule.enabled && !isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes) ? 'attendance-ic-number attendance-ic-ineligible' : 'attendance-ic-number'}>IC: {participant.ic_number || 'Not provided'}</small>
+                </td>
                 <td className="attendance-capitalize">{categoryName(categories, participant.category)}</td>
                 <td><span className={`attendance-badge ${checkIn ? 'checked' : 'waiting'}`}>{checkIn ? 'Checked in' : 'Expected'}</span></td>
                 <td>{checkIn ? formatTime(checkIn.checked_in_at) : '—'}</td>
