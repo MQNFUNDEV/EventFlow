@@ -1126,7 +1126,7 @@ export default function LuckyDrawManagement() {
           <input type="checkbox" checked={entry.queue_status === 'collected'} disabled />
           <span>{entry.queue_status === 'collected' ? 'Prize collected' : entry.queue_status === 'skipped' ? 'Skipped' : 'Pending'}</span>
         </label>
-      </li>)}</ol> : <p className="lucky-draw-log-empty">Generate a list of 10 names here. The Lucky Draw Box above is controlled separately.</p>}
+      </li>)}</ol> : <p className="lucky-draw-log-empty">{roundId ? 'Generate a list of 10 names here. The Lucky Draw Box above is controlled separately.' : 'No active winner queue. The latest saved winner results remain available below.'}</p>}
     </section>
 
     <section className="panel lucky-draw-log-panel">
