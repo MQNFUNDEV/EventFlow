@@ -232,8 +232,8 @@ export default function LuckyDrawManagement() {
     setLoading(true)
     const { data: activeRounds, error: roundError } = await supabase
       .from('draw_rounds')
-      .select('id, name, pool_type, prize_category_id')
-      .eq('status', 'drawing')
+      .select('id, name, pool_type, prize_category_id, status')
+      .in('status', ['ready', 'drawing'])
       .order('updated_at', { ascending: false })
       .limit(2)
     if (roundError) {
@@ -248,6 +248,16 @@ export default function LuckyDrawManagement() {
     }
     const activeRound = activeRounds?.[0]
     if (!activeRound) {
+      setLoading(false)
+      return
+    }
+    if (activeRound.status === 'ready') {
+      const { error: closeError } = await supabase.from('draw_rounds')
+        .update({ status: 'completed', updated_at: new Date().toISOString() })
+        .eq('id', activeRound.id)
+        .eq('status', 'ready')
+      if (closeError) setError(`An interrupted pool setup was found and could not be safely closed: ${closeError.message}`)
+      else setMessage('An unfinished pool setup was safely closed after refresh. No winner was drawn. Set the category again to load a complete pool.')
       setLoading(false)
       return
     }
@@ -492,7 +502,7 @@ export default function LuckyDrawManagement() {
     setMessage('')
     const { data: existingRound, error: existingRoundError } = await supabase.from('draw_rounds')
       .select('id')
-      .eq('status', 'drawing')
+      .in('status', ['ready', 'drawing'])
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle()
