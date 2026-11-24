@@ -1388,3 +1388,150 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* OPERATOR DISPLAY THEME */
+.theme-toggle {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #52627a;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background .18s, border-color .18s, color .18s;
+}
+.theme-toggle:hover {
+  background: #f1f4f9;
+  border-color: #c5d2e5;
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid #4779ed;
+  outline-offset: 2px;
+}
+.app-shell[data-theme="dark"] {
+  background: #101722;
+  color: #d8e0ec;
+  color-scheme: dark;
+}
+.app-shell[data-theme="dark"] .main-area { background: #101722; }
+.app-shell[data-theme="dark"] .topbar {
+  background: #151f2d;
+  border-bottom-color: #293648;
+}
+.app-shell[data-theme="dark"] .breadcrumb > span:first-child { color: #8796aa; }
+.app-shell[data-theme="dark"] .breadcrumb-divider { color: #536176; }
+.app-shell[data-theme="dark"] .breadcrumb strong { color: #e4ebf5; }
+.app-shell[data-theme="dark"] .system-status { color: #aab7c9; }
+.app-shell[data-theme="dark"] .theme-toggle {
+  background: #202c3c;
+  border-color: #39495f;
+  color: #e1e9f5;
+}
+.app-shell[data-theme="dark"] .theme-toggle:hover { background: #29384b; }
+.app-shell[data-theme="dark"] .page-heading h1,
+.app-shell[data-theme="dark"] .placeholder-panel h2 { color: #edf2fa; }
+.app-shell[data-theme="dark"] .page-heading p { color: #91a0b4; }
+.app-shell[data-theme="dark"] .stat-card,
+.app-shell[data-theme="dark"] .panel {
+  background: #182333;
+  border-color: #2a394d;
+  box-shadow: 0 2px 8px #00000020;
+}
+.app-shell[data-theme="dark"] .stat-label,
+.app-shell[data-theme="dark"] .panel-header p,
+.app-shell[data-theme="dark"] .stat-footer,
+.app-shell[data-theme="dark"] .category-stat span,
+.app-shell[data-theme="dark"] .activity-details span,
+.app-shell[data-theme="dark"] .attendance-number span,
+.app-shell[data-theme="dark"] .attendance-legend > div { color: #91a0b4; }
+.app-shell[data-theme="dark"] .stat-value,
+.app-shell[data-theme="dark"] .panel-header h3,
+.app-shell[data-theme="dark"] .attendance-number strong,
+.app-shell[data-theme="dark"] .category-stat strong,
+.app-shell[data-theme="dark"] .activity-details strong,
+.app-shell[data-theme="dark"] .quick-actions strong { color: #e4ebf5; }
+.app-shell[data-theme="dark"] .more-button { color: #94a4ba; }
+.app-shell[data-theme="dark"] .more-button:hover { background: #263448; }
+.app-shell[data-theme="dark"] .button-secondary {
+  background: #202d3e;
+  border-color: #3a4a60;
+  color: #d3deec;
+}
+.app-shell[data-theme="dark"] .button-secondary:hover {
+  background: #29394d;
+  border-color: #617b9d;
+}
+.app-shell[data-theme="dark"] .quick-actions button {
+  background: #1b293a;
+  border-color: #304057;
+}
+.app-shell[data-theme="dark"] .quick-actions button:hover {
+  background: #23344a;
+  border-color: #5876a2;
+}
+.app-shell[data-theme="dark"] .quick-actions small,
+.app-shell[data-theme="dark"] .page-footer { color: #8796aa; }
+.app-shell[data-theme="dark"] .activity-item { border-bottom-color: #2a394d; }
+.app-shell[data-theme="dark"] .activity-avatar { background: #293b55; color: #b8ceef; }
+.app-shell[data-theme="dark"] .activity-item.is-winner .activity-avatar { background: #493b25; color: #f0c979; }
+.app-shell[data-theme="dark"] .system-row { border-bottom-color: #2a394d; }
+.app-shell[data-theme="dark"] .system-row > div { color: #aab7c9; }
+.app-shell[data-theme="dark"] .system-note {
+  background: #202d3e;
+  color: #aab7c9;
+}
+.app-shell[data-theme="dark"] .attendance-divider,
+.app-shell[data-theme="dark"] .page-footer { border-color: #2a394d; }
+.app-shell[data-theme="dark"] .progress-track { background: #654b32; }
+.app-shell[data-theme="dark"] .dashboard-data-error {
+  background: #3a252b;
+  border-color: #70404a;
+  color: #ffb8bd;
+}
+.app-shell[data-theme="dark"] .dashboard-activity-empty,
+.app-shell[data-theme="dark"] .placeholder-panel p { color: #9aa9bd; }
+.app-shell[data-theme="dark"] .placeholder-icon { background: #253a59; color: #a9c6ff; }
+.app-shell[data-theme="dark"] .hive-mind-heading-icon { background: #253a59; color: #a9c6ff; }
+.app-shell[data-theme="dark"] .hive-mind-connection-label { color: #e0e8f4; }
+.app-shell[data-theme="dark"] .hive-mind-project-key { background: #263447; color: #aab8cb; }
+.app-shell[data-theme="dark"] .hive-mind-metrics > div { background: #202d3e; border-color: #304057; }
+.app-shell[data-theme="dark"] .hive-mind-metrics span,
+.app-shell[data-theme="dark"] .hive-mind-privacy,
+.app-shell[data-theme="dark"] .hive-mind-checked-at { color: #aab7c9; }
+.app-shell[data-theme="dark"] .hive-mind-metrics strong { color: #e4ebf5; }
+.app-shell[data-theme="dark"] .hive-mind-actions { border-top-color: #304057; }
+.app-shell[data-theme="dark"] .hive-mind-error { background: #3a252b; color: #ffb8bd; }
+.app-shell[data-theme="dark"] .hive-mind-success { background: #19382f; color: #9ce0c2; }
+
+/* Dark surfaces for the management modules rendered inside the shared shell. */
+.app-shell[data-theme="dark"] input,
+.app-shell[data-theme="dark"] select,
+.app-shell[data-theme="dark"] textarea {
+  background-color: #111c2a;
+  border-color: #3a4a60;
+  color: #e3ebf6;
+}
+.app-shell[data-theme="dark"] input::placeholder,
+.app-shell[data-theme="dark"] textarea::placeholder { color: #7f8ea3; }
+.app-shell[data-theme="dark"] table th { background: #202d3e; color: #b9c7d9; }
+.app-shell[data-theme="dark"] table td { border-color: #2d3c50; color: #d2dce9; }
+.app-shell[data-theme="dark"] [class*="modal"],
+.app-shell[data-theme="dark"] [class*="dialog"] {
+  color: #dbe4f0;
+}
+.app-shell[data-theme="dark"] [class*="modal"] > div,
+.app-shell[data-theme="dark"] [class*="dialog"] > div {
+  background-color: #182333;
+  border-color: #35465d;
+}
+@media (max-width: 560px) {
+  .theme-toggle { width: 34px; min-width: 34px; padding: 0; }
+  .theme-toggle span { display: none; }
+}
