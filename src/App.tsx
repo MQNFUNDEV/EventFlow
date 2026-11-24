@@ -380,7 +380,7 @@ function App() {
 
   if (roleError || !currentRole) {
     return (
-      <div className="app-shell">
+      <div className="app-shell" data-theme={theme}>
         <main className="main-area">
           <div className="page-content">
             <section className="panel placeholder-panel">
@@ -406,7 +406,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       {sidebarOpen && (
         <button
           className="mobile-backdrop"
