@@ -4,7 +4,7 @@ export type IcRegionRule = {
 }
 
 export const DEFAULT_IC_REGION_RULE: IcRegionRule = {
-  enabled: true,
+  enabled: false,
   allowed_codes: ['01', '23'],
 }
 
