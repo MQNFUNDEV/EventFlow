@@ -475,11 +475,8 @@ export default function LuckyDrawManagement() {
   }, [roundId, historyRoundId])
 
   useEffect(() => {
+    if (roundId) return
     let cancelled = false
-    if (roundId) {
-      setHistoryRoundId(roundId)
-      return () => { cancelled = true }
-    }
     void supabase.from('draw_rounds').select('id').eq('status', 'completed')
       .order('updated_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => { if (!cancelled) setHistoryRoundId(data?.id ?? null) })
