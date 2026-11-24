@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ImagePlus, Save, RefreshCw, ScanLine, Palette, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import './EventSettings.css'
+import { DEFAULT_IC_REGION_RULE, type IcRegionRule } from '../lib/icRegionEligibility'
 
 type EventPayload = {
   event_name?: string
@@ -13,6 +14,7 @@ type EventPayload = {
   scene_backgrounds?: Partial<Record<BackgroundScene, SceneBackground>>
   assets_updated_at?: string
   participant_categories?: ParticipantCategory[]
+  ic_region_rule?: IcRegionRule
   [key: string]: unknown
 }
 
@@ -166,12 +168,14 @@ async function compressUploadedKV(file: File) {
 }
 
 export default function EventSettings() {
-  const [settingsTab, setSettingsTab] = useState<'led' | 'event' | 'pool'>('event')
+  const [settingsTab, setSettingsTab] = useState<'led' | 'event' | 'pool' | 'eligibility'>('event')
   const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_CATEGORIES)
   const [categoryCount, setCategoryCount] = useState(2)
   const [eventName, setEventName] = useState('Johor Meetup X')
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
+  const [icRuleEnabled, setIcRuleEnabled] = useState(DEFAULT_IC_REGION_RULE.enabled)
+  const [icAllowedCodes, setIcAllowedCodes] = useState(DEFAULT_IC_REGION_RULE.allowed_codes.join(', '))
   const [generatedFill, setGeneratedFill] = useState('')
   const [backgroundPath, setBackgroundPath] = useState('')
   const [keyVisual, setKeyVisual] = useState(KV_PATH)
@@ -229,6 +233,9 @@ export default function EventSettings() {
         setEventName(values.event_name ?? 'Johor Meetup X')
         setEventDate(values.event_date ?? '')
         setEventLocation(values.event_location ?? '')
+        const savedIcRule = values.ic_region_rule
+        setIcRuleEnabled(typeof savedIcRule?.enabled === 'boolean' ? savedIcRule.enabled : DEFAULT_IC_REGION_RULE.enabled)
+        setIcAllowedCodes((Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes).join(', '))
         const savedCategories = Array.isArray(values.participant_categories) ? values.participant_categories.filter((item): item is ParticipantCategory => Boolean(item) && typeof item.id === 'string' && typeof item.name === 'string') : []
         setParticipantCategories(savedCategories.length ? savedCategories : DEFAULT_CATEGORIES)
         setCategoryCount(savedCategories.length || DEFAULT_CATEGORIES.length)
@@ -294,6 +301,25 @@ export default function EventSettings() {
       await savePayloadPatch(eventPatch)
       setMessage('Event details saved and synced to the dashboard and LED output.')
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save event details.') }
+    setSaving(false)
+  }
+
+  async function saveIcEligibilityRule() {
+    setSaving(true)
+    setError('')
+    setMessage('')
+    const allowedCodes = [...new Set(icAllowedCodes.split(',').map((code) => code.trim()).filter((code) => /^\\d{2}$/.test(code)))]
+    if (icRuleEnabled && !allowedCodes.length) {
+      setError('Enter at least one valid two-digit IC region code, separated by commas.')
+      setSaving(false)
+      return
+    }
+    try {
+      await savePayloadPatch({ ic_region_rule: { enabled: icRuleEnabled, allowed_codes: allowedCodes } })
+      setMessage(icRuleEnabled
+        ? `IC eligibility rule saved. Allowed region codes: ${allowedCodes.join(', ')}.`
+        : 'IC region eligibility highlighting is disabled for this event.')
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save the IC eligibility rule.') }
     setSaving(false)
   }
 
@@ -469,6 +495,7 @@ export default function EventSettings() {
       <button type="button" role="tab" aria-selected={settingsTab === 'led'} className={settingsTab === 'led' ? 'active' : ''} onClick={() => { setSettingsTab('led'); setError(''); setMessage('') }}>LED Settings</button>
       <button type="button" role="tab" aria-selected={settingsTab === 'event'} className={settingsTab === 'event' ? 'active' : ''} onClick={() => { setSettingsTab('event'); setError(''); setMessage('') }}>Event Settings</button>
       <button type="button" role="tab" aria-selected={settingsTab === 'pool'} className={settingsTab === 'pool' ? 'active' : ''} onClick={() => { setSettingsTab('pool'); setError(''); setMessage('') }}>Pool Settings</button>
+      <button type="button" role="tab" aria-selected={settingsTab === 'eligibility'} className={settingsTab === 'eligibility' ? 'active' : ''} onClick={() => { setSettingsTab('eligibility'); setError(''); setMessage('') }}>IC Eligibility</button>
     </nav>
     {error && <div className="event-settings-message error" role="alert">{error}</div>}
     {message && <div className="event-settings-message success" role="status">{message}</div>}
@@ -497,7 +524,13 @@ export default function EventSettings() {
         <div className="event-settings-actions"><label className="event-settings-upload button-secondary"><Upload size={16} /> Upload KV image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void uploadKV(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={loading || saving} /></label>{!keyVisualIsFullHd && <><button className="button-secondary" onClick={() => void generateFill()} disabled={loading || generating || scanning || saving}><ImagePlus size={16} /> {generating ? 'Generating fill…' : 'Regenerate 16:9 fill'}</button><button className="button-primary" onClick={() => void saveFill()} disabled={loading || saving || !generatedFill}>{saving ? 'Saving…' : <><Save size={16} /> {backgroundPath ? 'Replace LED Welcome Page fill' : 'Save for LED Welcome Page'}</>}</button></>}</div>
         <p className="event-settings-hint">Changes sync automatically to the live LED output screen. The original poster file remains unchanged.</p>
       </section>
-    </> : settingsTab === 'pool' ? <section className="panel event-settings-card">
+    </> : settingsTab === 'eligibility' ? <section className="panel event-settings-card">
+      <div className="event-settings-card-heading"><div><h3>IC region eligibility</h3><p>Event-specific attendee screening rule. The Attendance Directory highlights the participant name and IC number in red when the IC is malformed or its region code is not on the allowed list. This rule does not delete participants or change attendance records.</p></div></div>
+      <label className="event-ic-rule-toggle"><input type="checkbox" checked={icRuleEnabled} onChange={(event) => setIcRuleEnabled(event.target.checked)} disabled={loading || saving} /> Enable IC region highlighting for this event</label>
+      <label className="event-ic-rule-codes">Allowed two-digit region codes<input value={icAllowedCodes} onChange={(event) => setIcAllowedCodes(event.target.value)} placeholder="01, 23" disabled={loading || saving || !icRuleEnabled} /></label>
+      <p className="event-settings-hint">Separate codes with commas. IC formats accepted: 999999-XX-9999 or 999999XX9999. The two digits in positions 7–8 are checked. Current event default: 01 and 23.</p>
+      <button className="button-primary" onClick={() => void saveIcEligibilityRule()} disabled={loading || saving}>{saving ? 'Saving…' : <><Save size={16} /> Save IC eligibility rule</>}</button>
+    </section> : settingsTab === 'pool' ? <section className="panel event-settings-card">
       <div className="event-settings-card-heading"><div><h3>Participant pool categories</h3><p>Set how many participant categories this event uses. These names appear in participant records, attendance filters and Lucky Draw pools.</p></div></div>
       <label className="pool-category-count">Number of categories<select value={categoryCount} onChange={(event) => resizeCategories(Number(event.target.value))} disabled={loading || saving}>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
       <div className="pool-category-fields">{participantCategories.slice(0, categoryCount).map((category, index) => <label key={category.id}>Category {index + 1} name<input value={category.name} maxLength={60} onChange={(event) => setParticipantCategories((current) => current.map((item) => item.id === category.id ? { ...item, name: event.target.value } : item))} placeholder={`Category ${index + 1}`} disabled={loading || saving} /></label>)}</div>
