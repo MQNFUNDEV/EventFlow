@@ -278,7 +278,7 @@ export default function LuckyDrawManagement() {
 
     const restoredPayload = displayStateResult.data?.payload && typeof displayStateResult.data.payload === 'object' ? displayStateResult.data.payload as Record<string, unknown> : {}
     const savedIcRule = restoredPayload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined
-    const restoredCodes = Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes
+    const restoredCodes = Array.isArray(savedIcRule?.allowed_codes) ? savedIcRule.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes
     const restoredRule: IcRegionRule = { enabled: savedIcRule?.enabled === true, allowed_codes: restoredCodes.length ? restoredCodes : DEFAULT_IC_REGION_RULE.allowed_codes }
     setIcRegionRule(restoredRule)
 
