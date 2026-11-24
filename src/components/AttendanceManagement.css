@@ -255,3 +255,19 @@
   font-size: 12px;
 }
 .attendance-pagination > div > span { padding: 0 6px; white-space: nowrap; }
+
+
+.attendance-table td:first-child .attendance-ic-ineligible {
+  color: #c62828 !important;
+}
+
+.attendance-table td:first-child .attendance-ic-number {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15px;
+}
+
+.attendance-table td:first-child .attendance-participant-code {
+  margin-top: 3px;
+}
