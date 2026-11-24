@@ -53,6 +53,7 @@ export default function LuckyDrawManagement() {
   const [generatingQueue, setGeneratingQueue] = useState(false)
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<Winner[]>([])
+  const [historyRoundId, setHistoryRoundId] = useState<string | null>(null)
   const [confirmedWinnerCount, setConfirmedWinnerCount] = useState(0)
   const [skippedWinnerCount, setSkippedWinnerCount] = useState(0)
   const [pendingWinner, setPendingWinner] = useState<Participant | null>(null)
@@ -433,7 +434,7 @@ export default function LuckyDrawManagement() {
     categoryRef.current = prizeCategoryId
   }, [roundId, prizeCategoryId])
 
-  const refreshWinnerHistory = useCallback(async (targetRoundId: string | null = roundId) => {
+  const refreshWinnerHistory = useCallback(async (targetRoundId: string | null = roundId ?? historyRoundId) => {
     if (!targetRoundId) {
       setHistory([])
       setConfirmedWinnerCount(0)
@@ -471,6 +472,18 @@ export default function LuckyDrawManagement() {
       participant: getRelated(row.participants) ?? { full_name: 'Guest', category: '' },
       round: getRelated(row.draw_rounds) ?? { name: 'Lucky Draw', pool_type: 'everyone' },
     })) as Winner[])
+  }, [roundId, historyRoundId])
+
+  useEffect(() => {
+    let cancelled = false
+    if (roundId) {
+      setHistoryRoundId(roundId)
+      return () => { cancelled = true }
+    }
+    void supabase.from('draw_rounds').select('id').eq('status', 'completed')
+      .order('updated_at', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setHistoryRoundId(data?.id ?? null) })
+    return () => { cancelled = true }
   }, [roundId])
 
   useEffect(() => {
@@ -1117,7 +1130,7 @@ export default function LuckyDrawManagement() {
     </section>
 
     <section className="panel lucky-draw-log-panel">
-      <div className="lucky-draw-log-heading"><div><h3>Current session winners</h3><p>This list resets with the draw pool. Results from previous sessions remain saved.</p></div><div className="lucky-draw-log-actions"><strong className="lucky-draw-session-count confirmed">Confirmed winners: {confirmedWinnerCount}</strong><strong className="lucky-draw-session-count skipped">Skipped winners: {skippedWinnerCount}</strong></div></div>
+      <div className="lucky-draw-log-heading"><div><h3>{roundId ? 'Current session winners' : 'Latest saved session winners'}</h3><p>{roundId ? 'Results are saved to this draw session.' : 'No active draw session. Showing the latest saved results in read-only mode.'}</p></div><div className="lucky-draw-log-actions"><strong className="lucky-draw-session-count confirmed">Confirmed winners: {confirmedWinnerCount}</strong><strong className="lucky-draw-session-count skipped">Skipped winners: {skippedWinnerCount}</strong></div></div>
       {history.length ? <div className="lucky-draw-log-list">{history.map((winner, index) => <article className={`lucky-draw-log-row ${winner.status === 'skipped' ? 'is-skipped' : ''} ${index > 0 && history[index - 1].round.pool_type !== winner.round.pool_type ? 'is-category-break' : ''}`} key={winner.id}>
         <div className="lucky-draw-log-number"><Trophy size={17} /></div>
         <div className="lucky-draw-log-person"><strong>{winner.participant.full_name}</strong><span>{winner.round.pool_type === 'everyone' ? 'Everyone' : categoryName(categories, winner.round.pool_type)} draw · {winner.round.name}</span></div>
