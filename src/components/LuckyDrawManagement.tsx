@@ -501,9 +501,9 @@ export default function LuckyDrawManagement() {
       return
     }
 
-    const attendanceResult = await fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase
+    const attendanceResult = await fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean }[] | null }>((from, to) => supabase
       .from('attendance')
-      .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
+      .select('participant_id, participants!inner(id, full_name, participant_code, category, ic_number, is_active)')
       .eq('participants.is_active', true).order('participant_id').range(from, to))
     if (attendanceResult.error) {
       setError(attendanceResult.error.message)
@@ -880,8 +880,8 @@ export default function LuckyDrawManagement() {
     setError('')
     setMessage('')
     const [attendanceResult, authResult] = await Promise.all([
-      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
-        .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
+      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
+        .select('participant_id, participants!inner(id, full_name, participant_code, category, ic_number, is_active)')
         .eq('participants.is_active', true).order('participant_id').range(from, to)),
       supabase.auth.getUser(),
     ])
@@ -893,7 +893,7 @@ export default function LuckyDrawManagement() {
     }
     const checkedIn = attendanceResult.data.map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
+      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category, ic_number: participant.ic_number } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const refreshedPool = checkedIn
       .filter((participant) => (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) && (poolType === 'everyone' || participant.category === poolType))
