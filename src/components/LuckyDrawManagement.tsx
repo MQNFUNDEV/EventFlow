@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LuckyDrawManagement.css'
 import LuckyDrawMachine, { type BoxPhase } from './LuckyDrawMachine'
+import { DEFAULT_IC_REGION_RULE, isIcRegionEligible, type IcRegionRule } from '../lib/icRegionEligibility'
 
 async function fetchAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
   const rows: T[] = []
@@ -16,7 +17,7 @@ async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise
 }
 
 type PoolType = string
-type Participant = { id: string; full_name: string; participant_code: string; category: string }
+type Participant = { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null }
 type QueueEntry = { id: string; participant_id: string; queue_position: number; queue_status: 'available' | 'pending' | 'collected' | 'skipped'; participant: Participant }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
 type ThemePayload = { theme_colors?: unknown }
@@ -41,6 +42,7 @@ function getRelated<T>(value: T | T[] | null | undefined) {
 export default function LuckyDrawManagement() {
   const [poolType, setPoolType] = useState<PoolType>('everyone')
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
+  const [icRegionRule, setIcRegionRule] = useState<IcRegionRule>(DEFAULT_IC_REGION_RULE)
   const [checkedInCounts, setCheckedInCounts] = useState<Record<string, number> | null>(null)
   const [roundName, setRoundName] = useState('Lucky Draw Session')
   const [roundId, setRoundId] = useState<string | null>(null)
@@ -252,8 +254,8 @@ export default function LuckyDrawManagement() {
 
     const [displayStateResult, entriesResult, winnersResult, queueResult] = await Promise.all([
       supabase.from('display_state').select('payload').eq('id', 1).maybeSingle(),
-      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('draw_entries')
-        .select('participant_id, participants!inner(id, full_name, participant_code, category, is_active)')
+      fetchAllPages<{ participant_id: string; participants: { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean } | { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null; is_active: boolean }[] | null }>((from, to) => supabase.from('draw_entries')
+        .select('participant_id, participants!inner(id, full_name, participant_code, category, ic_number, is_active)')
         .eq('draw_round_id', activeRound.id)
         .order('participant_id', { ascending: true }).range(from, to)),
       fetchAllPages<{ id: string; participant_id: string; status: string; notes: string | null }>((from, to) => supabase.from('draw_winners')
@@ -369,7 +371,7 @@ export default function LuckyDrawManagement() {
 
   useEffect(() => {
     let cancelled = false
-    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) setCategories(readParticipantCategories(data?.payload)) })
+    void supabase.from('display_state').select('payload').eq('id', 1).maybeSingle().then(({ data }) => { if (!cancelled) { setCategories(readParticipantCategories(data?.payload)); const payload = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}; const saved = payload.ic_region_rule as { enabled?: unknown; allowed_codes?: unknown } | undefined; const codes = Array.isArray(saved?.allowed_codes) ? saved.allowed_codes.filter((code): code is string => typeof code === 'string' && /^\d{2}$/.test(code)) : DEFAULT_IC_REGION_RULE.allowed_codes; setIcRegionRule({ enabled: saved?.enabled === true, allowed_codes: codes.length ? codes : DEFAULT_IC_REGION_RULE.allowed_codes }) } })
     async function loadCategoryPreview() {
       const result = await fetchAllPages<{ participant_id: string; participants: { category: string; is_active: boolean } | { category: string; is_active: boolean }[] | null }>((from, to) => supabase.from('attendance')
         .select('participant_id, participants!inner(category, is_active)')
@@ -510,13 +512,13 @@ export default function LuckyDrawManagement() {
     }
     const checkedInParticipants = attendanceResult.data.map((row) => {
       const participant = getRelated(row.participants)
-      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
+      return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category, ic_number: participant.ic_number } : null
     }).filter((participant): participant is Participant => Boolean(participant))
-    const categoryPool = checkedInParticipants.filter((participant) => poolType === 'everyone' || participant.category === poolType).sort((a, b) => a.id.localeCompare(b.id))
+    const categoryPool = checkedInParticipants.filter((participant) => (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) && (poolType === 'everyone' || participant.category === poolType)).sort((a, b) => a.id.localeCompare(b.id))
     if (!categoryPool.length) {
       setPool([])
       setExcludedIds(new Set())
-      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw.`)
+      setError(`No eligible checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw. Allowed IC region codes: ${icRegionRule.allowed_codes.join(', ')}.`)
       setLoading(false)
       return
     }
@@ -580,7 +582,7 @@ export default function LuckyDrawManagement() {
     setBoxPhase('idle'); setBoxStartedAt(0); setBoxAnimationId((value) => value + 1); setBoxLoadingComplete(false)
     await refreshWinnerHistory()
     setLoading(false)
-  }, [poolType, roundName, categories, boxAnimationId, refreshWinnerHistory, restoreActiveRound])
+  }, [poolType, roundName, categories, boxAnimationId, refreshWinnerHistory, restoreActiveRound, icRegionRule])
 
   const spinCandidates = useCallback(async (chosen: Participant, queueEntryId: string) => {
     const activeRoundId = roundRef.current
@@ -894,7 +896,7 @@ export default function LuckyDrawManagement() {
       return participant ? { id: row.participant_id, full_name: participant.full_name, participant_code: participant.participant_code, category: participant.category } : null
     }).filter((participant): participant is Participant => Boolean(participant))
     const refreshedPool = checkedIn
-      .filter((participant) => poolType === 'everyone' || participant.category === poolType)
+      .filter((participant) => (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) && (poolType === 'everyone' || participant.category === poolType))
       .sort((a, b) => a.id.localeCompare(b.id))
     if (!refreshedPool.length) {
       setError(`No checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw.`)
