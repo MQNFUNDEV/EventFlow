@@ -283,8 +283,9 @@ export default function LuckyDrawManagement() {
         full_name: participant.full_name,
         participant_code: participant.participant_code,
         category: participant.category,
+        ic_number: participant.ic_number,
       } : null
-    }).filter((participant): participant is Participant => Boolean(participant))
+    }).filter((participant): participant is Participant => Boolean(participant) && (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)))
     const queuedEntries = (queueResult.data ?? []).map((row) => {
       const participant = getRelated(row.participants)
       return participant ? {
@@ -899,7 +900,7 @@ export default function LuckyDrawManagement() {
       .filter((participant) => (!icRegionRule.enabled || isIcRegionEligible(participant.ic_number, icRegionRule.allowed_codes)) && (poolType === 'everyone' || participant.category === poolType))
       .sort((a, b) => a.id.localeCompare(b.id))
     if (!refreshedPool.length) {
-      setError(`No checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw.`)
+      setError(`No eligible checked-in ${poolType === 'everyone' ? 'guests' : categoryName(categories, poolType)} are available for this draw. Allowed IC region codes: ${icRegionRule.allowed_codes.join(', ')}.`)
       setUpdatingOutput(false)
       return
     }
