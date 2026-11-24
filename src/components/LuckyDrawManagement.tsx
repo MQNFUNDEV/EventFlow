@@ -18,7 +18,7 @@ async function fetchAllPages<T>(fetchPage: (from: number, to: number) => Promise
 
 type PoolType = string
 type Participant = { id: string; full_name: string; participant_code: string; category: string; ic_number: string | null }
-type QueueEntry = { id: string; participant_id: string; queue_position: number; queue_status: 'available' | 'pending' | 'collected' | 'skipped'; participant: Participant }
+type QueueEntry = { id: string; participant_id: string; queue_position: number; queue_status: 'available' | 'pending' | 'collected' | 'skipped'; participant: Omit<Participant, 'ic_number'> }
 type Winner = { id: string; participant_id: string; status: 'pending' | 'collected' | 'skipped'; drawn_at: string; notes: string | null; participant: { full_name: string; category: string }; round: { name: string; pool_type: PoolType } }
 type ThemePayload = { theme_colors?: unknown }
 
@@ -363,7 +363,7 @@ export default function LuckyDrawManagement() {
       ? 'Active draw restored. The last name is ready to confirm or skip.'
       : `Active draw restored with ${participants.length - removedParticipants.size} eligible guests.`)
     setLoading(false)
-  }, [])
+  }, [icRegionRule])
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void restoreActiveRound() }, 0)
