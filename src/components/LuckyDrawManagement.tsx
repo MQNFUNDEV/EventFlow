@@ -630,7 +630,7 @@ export default function LuckyDrawManagement() {
     void publishBoxState({ box_phase: 'reveal' })
     setMessage('Winner revealed. Confirm them or skip and draw again.')
     void refreshWinnerHistory()
-  }, [refreshWinnerHistory])
+  }, [refreshWinnerHistory, refreshWinnerQueue])
 
   async function generateWinnerList() {
     if (!roundId || generatingQueue || pendingWinner) return
