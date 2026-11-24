@@ -16,6 +16,8 @@ import {
   LogOut,
   BookOpen,
   Clock3,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import HiveMindPanel from './components/HiveMindPanel'
@@ -141,6 +143,22 @@ function App() {
   const [eventDate, setEventDate] = useState('')
   const [eventLocation, setEventLocation] = useState('')
   const [localTime, setLocalTime] = useState(() => new Date())
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return window.localStorage.getItem('eventflow-theme') === 'dark' ? 'dark' : 'light'
+    } catch {
+      return 'light'
+    }
+  })
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try {
+      window.localStorage.setItem('eventflow-theme', theme)
+    } catch {
+      // Keep the selected theme active for this session if storage is unavailable.
+    }
+  }, [theme])
 
   useEffect(() => {
     const timer = window.setInterval(() => setLocalTime(new Date()), 1000)
@@ -347,7 +365,7 @@ function App() {
 
   if (roleLoading) {
     return (
-      <div className="app-shell">
+      <div className="app-shell" data-theme={theme}>
         <main className="main-area">
           <div className="page-content">
             <section className="panel placeholder-panel">
@@ -500,6 +518,17 @@ function App() {
           </div>
 
           <div className="topbar-right">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-pressed={theme === 'dark'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
             <div className="system-status">
               <span className="status-dot" />
               System operational
