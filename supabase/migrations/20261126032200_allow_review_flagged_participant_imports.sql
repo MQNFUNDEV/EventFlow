@@ -3,6 +3,7 @@
 CREATE OR REPLACE FUNCTION public.enforce_participant_ic_number()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = ''
 AS $function$
 BEGIN
   IF TG_OP = 'INSERT'
