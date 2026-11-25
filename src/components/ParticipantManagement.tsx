@@ -431,6 +431,7 @@ export default function ParticipantManagement({
     }
     const knownIcNumbers = new Set(participants.map((p) => normaliseIc(p.ic_number)).filter(Boolean))
     let skipped = 0
+    const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0 }
     const rowsToInsert: ParticipantInsert[] = []
     for (const row of rows) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name'])
@@ -443,7 +444,11 @@ export default function ParticipantManagement({
       const email = getValue(row, ['alamateemail', 'emailaddress', 'email'])
       const phone = getValue(row, ['nombortelefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
       const rawCategory = getValue(row, ['category', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus']).toLowerCase()
-      const matchedCategory = categories.find((item) => item.id.toLowerCase() === rawCategory || item.name.toLowerCase() === rawCategory)
+      const normaliseCategory = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+      const normalCategory = normaliseCategory(rawCategory)
+      const matchedCategory = categories.find((item) =>
+        normaliseCategory(item.id) === normalCategory || normaliseCategory(item.name) === normalCategory,
+      )
       const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil')
         ? categories.find((item) => item.id === 'student')
         : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
@@ -456,6 +461,10 @@ export default function ParticipantManagement({
       const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
       if (!fullName || normalIc.length !== 12 || !categories.some((item) => item.id === categoryValue) || knownIcNumbers.has(normalIc)) {
         skipped++
+        if (!fullName) skipReasons['Missing name']++
+        else if (normalIc.length !== 12) skipReasons['Invalid IC (must be 12 digits)']++
+        else if (!categories.some((item) => item.id === categoryValue)) skipReasons['Unknown category']++
+        else skipReasons['Duplicate IC']++
         continue
       }
       knownIcNumbers.add(normalIc)
@@ -468,7 +477,8 @@ export default function ParticipantManagement({
       })
     }
     if (!rowsToInsert.length) {
-      setMessage('No new participants imported. ' + skipped + ' row(s) skipped or invalid.')
+      const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
+      setMessage('No new participants imported. ' + skipped + ' row(s) skipped. ' + (breakdown || 'No valid participant rows found.'))
       return
     }
     let imported = 0
@@ -491,7 +501,8 @@ export default function ParticipantManagement({
     if (insertFailure) {
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
     } else {
-      setMessage(imported + ' participant(s) imported from ' + fileType + '. ' + skipped + ' row(s) skipped because of missing or duplicate information. You can upload the next batch later; existing registrations will be checked again.')
+      const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
+      setMessage(imported + ' participant(s) imported from ' + fileType + '. ' + skipped + ' row(s) skipped.' + (breakdown ? ' ' + breakdown + '.' : '') + ' Existing registrations will be checked again on the next import.')
     }
   }
 
