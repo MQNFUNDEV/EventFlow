@@ -65,6 +65,7 @@ export default function LuckyDrawManagement() {
   const [spinning, setSpinning] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [winnerSoundEnabled, setWinnerSoundEnabled] = useState(false)
   const [boxPhase, setBoxPhase] = useState<BoxPhase>('idle')
   const [boxStartedAt, setBoxStartedAt] = useState(0)
   const [boxAnimationId, setBoxAnimationId] = useState(0)
