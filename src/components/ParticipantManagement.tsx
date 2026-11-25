@@ -462,7 +462,6 @@ export default function ParticipantManagement({
     const seenFileIcNumbers = new Map<string, number[]>()
     const rowsToInsert: ParticipantInsert[] = []
     const existingIdsToFlag = new Set<string>()
-    let issueRows = 0
     for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
@@ -534,7 +533,7 @@ export default function ParticipantManagement({
       })
     }
 
-    issueRows = rowsToInsert.filter((record) => record.needs_review).length
+    const issueRows = rowsToInsert.filter((record) => record.needs_review).length
 
     // Move existing matching registrations out of the normal-IC unique index
     // before inserting their new duplicate copies. Keep all submitted field values.
