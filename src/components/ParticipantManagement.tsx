@@ -709,7 +709,10 @@ export default function ParticipantManagement({
       (statusFilter === 'completed' && checkedIn && issues.length === 0)
 
     return matchesSearch && matchesCategory && matchesStatus
-  })
+  }).sort((a, b) =>
+    a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base', numeric: true }) ||
+    a.id.localeCompare(b.id),
+  )
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
   const issueCount = participants.filter((p) => participantIssues(p).length > 0).length
