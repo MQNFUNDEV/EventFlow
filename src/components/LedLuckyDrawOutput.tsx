@@ -205,7 +205,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
 
   useEffect(() => () => { void audioContextRef.current?.close() }, [])
 
-  return <div className="led-lucky-output" style={themeStyle} onPointerDown={unlockOutputAudio}>
+  return <div className={`led-lucky-output ${view === 'box' ? 'is-box-only' : view === 'winners' ? 'is-winners-only' : ''}`} style={themeStyle} onPointerDown={unlockOutputAudio}>
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
     {view !== 'box' && <aside className="led-lucky-session-log" aria-label="Current session winner results">
