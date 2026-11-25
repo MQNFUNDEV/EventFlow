@@ -29,6 +29,7 @@ type Participant = {
   needs_review: boolean
   import_issue_reasons: string[]
   created_at: string
+  updated_at: string | null
 }
 
 type ParticipantForm = {
@@ -716,6 +717,9 @@ export default function ParticipantManagement({
   )
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
+  const wasRevised = (participant: Participant) =>
+    Boolean(participant.updated_at && participant.created_at &&
+      new Date(participant.updated_at).getTime() > new Date(participant.created_at).getTime())
   const issueCount = participants.filter((p) => participantIssues(p).length > 0).length
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
@@ -1021,7 +1025,10 @@ export default function ParticipantManagement({
                   return (
                   <tr key={participant.id} className={issues.length ? 'participant-row--issues' : undefined}>
                     <td>
-                      <strong>{participant.full_name}</strong>
+                      <strong className={wasRevised(participant) ? 'participant-name--revised' : undefined}>
+                        {participant.full_name}
+                        {wasRevised(participant) && <span className="participant-revised-label">REVISED</span>}
+                      </strong>
                       <small>{participant.participant_code}</small>
                       {participant.organisation && (
                         <small>{participant.organisation}</small>
