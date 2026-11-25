@@ -116,7 +116,7 @@ export default function ParticipantManagement({
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('not_checked_in')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -670,7 +670,7 @@ export default function ParticipantManagement({
     setCheckedInIds(new Set())
     setSearch('')
     setCategoryFilter('all')
-    setStatusFilter('not_checked_in')
+    setStatusFilter('all')
     setCurrentPage(1)
     await loadParticipants()
     setMessage(`Directory cleared. ${result?.participants_deleted ?? participants.length} guest record(s) permanently deleted from the shared database. The directory has been refreshed and is ready for a new upload.`)
@@ -704,8 +704,9 @@ export default function ParticipantManagement({
     const issues = participantIssues(participant)
     const checkedIn = checkedInIds.has(participant.id)
     const matchesStatus =
-      (statusFilter === 'not_checked_in' && !checkedIn && issues.length === 0) ||
+      statusFilter === 'all' ||
       (statusFilter === 'with_issues' && issues.length > 0) ||
+      (statusFilter === 'not_checked_in' && !checkedIn && issues.length === 0) ||
       (statusFilter === 'completed' && checkedIn && issues.length === 0)
 
     return matchesSearch && matchesCategory && matchesStatus
@@ -982,9 +983,10 @@ export default function ParticipantManagement({
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
           >
-            <option value="not_checked_in">Haven't checked in</option>
-            <option value="with_issues">With issues</option>
-            <option value="completed">Completed</option>
+            <option value="all">All Participants</option>
+            <option value="with_issues">Need attention</option>
+            <option value="not_checked_in">Haven't Check in</option>
+            <option value="completed">Complete Check In</option>
           </select>
         </div>
 
