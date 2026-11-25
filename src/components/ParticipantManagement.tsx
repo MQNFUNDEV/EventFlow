@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  Plus, Search, RefreshCw, Pencil, UserX, UserCheck,
-  Upload, Users, X, Trash2,
+  Plus, Search, RefreshCw, Pencil, Upload, Users, X,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -103,6 +102,7 @@ export default function ParticipantManagement({
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [checkedInIds, setCheckedInIds] = useState<Set<string>>(new Set())
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
   const [form, setForm] = useState<ParticipantForm>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -111,20 +111,23 @@ export default function ParticipantManagement({
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('active')
+  const [statusFilter, setStatusFilter] = useState('not_checked_in')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
   const loadParticipants = useCallback(async () => {
-    const result = await fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to))
-    if (result.error) setError(result.error.message)
-    else { setParticipants(result.data); setError('') }
-
+    const [participantResult, attendanceResult] = await Promise.all([
+      fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to)),
+      fetchAllPages<{ participant_id: string }>((from, to) => supabase.from('attendance').select('participant_id').range(from, to)),
+    ])
+    if (participantResult.error) setError(participantResult.error.message)
+    else { setParticipants(participantResult.data); setError('') }
+    if (attendanceResult.error) setError(attendanceResult.error.message)
+    else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
     setLoading(false)
   }, [])
 
@@ -133,10 +136,15 @@ export default function ParticipantManagement({
     async function initialLoad() {
       const { data: settings } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
       if (!cancelled) setCategories(readParticipantCategories(settings?.payload))
-      const result = await fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to))
+      const [result, attendanceResult] = await Promise.all([
+        fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to)),
+        fetchAllPages<{ participant_id: string }>((from, to) => supabase.from('attendance').select('participant_id').range(from, to)),
+      ])
       if (cancelled) return
       if (result.error) setError(result.error.message)
       else setParticipants(result.data)
+      if (attendanceResult.error) setError(attendanceResult.error.message)
+      else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
       setLoading(false)
     }
     void initialLoad()
@@ -147,6 +155,9 @@ export default function ParticipantManagement({
     const channel = supabase
       .channel('eventflow-participant-directory')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+        void loadParticipants()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         void loadParticipants()
       })
       .subscribe()
@@ -266,65 +277,6 @@ export default function ParticipantManagement({
     setSaving(false)
   }
 
-  async function toggleActive(participant: Participant) {
-    const action = participant.is_active ? 'deactivate' : 'reactivate'
-
-    if (
-      !window.confirm(
-        `Are you sure you want to ${action} ${participant.full_name}?`,
-      )
-    ) {
-      return
-    }
-
-    setError('')
-    setMessage('')
-
-    const { error: updateError } = await supabase
-      .from('participants')
-      .update({
-        is_active: !participant.is_active,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', participant.id)
-
-    if (updateError) {
-      setError(updateError.message)
-    } else {
-      setMessage(`Participant ${action}d successfully.`)
-      await loadParticipants()
-    }
-  }
-
-  async function clearDirectory() {
-    if (!canManage || clearing) return
-    const activeParticipants = participants.filter((participant) => participant.is_active).length
-    if (!activeParticipants) return
-
-    const confirmed = window.confirm(
-      `Clear the active participant directory? This will deactivate all ${activeParticipants} active participants. Attendance and Lucky Draw history will be preserved, and participants can be restored from the Inactive filter.`,
-    )
-    if (!confirmed) return
-
-    setClearing(true)
-    setError('')
-    setMessage('')
-    const { error: clearError } = await supabase
-      .from('participants')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('is_active', true)
-
-    if (clearError) {
-      setError(clearError.message)
-    } else {
-      setSearch('')
-      setCategoryFilter('all')
-      setStatusFilter('active')
-      setMessage(`${activeParticipants} participant(s) moved to Inactive. Attendance and Lucky Draw history were preserved.`)
-      await loadParticipants()
-    }
-    setClearing(false)
-  }
   async function readZipText(view: DataView, path: string): Promise<string> {
     const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
     let endOffset = -1
@@ -547,6 +499,14 @@ export default function ParticipantManagement({
     }
   }
 
+  function participantIssues(participant: Participant) {
+    const issues: string[] = []
+    if (!participant.full_name.trim()) issues.push('Missing guest name')
+    if (normaliseIc(participant.ic_number).length !== 12) issues.push('Invalid IC (must be 12 digits)')
+    if (!categories.some((category) => category.id === participant.category)) issues.push('Unknown category')
+    return issues
+  }
+
   const filteredParticipants = participants.filter((participant) => {
     const term = search.trim().toLowerCase()
 
@@ -563,15 +523,18 @@ export default function ParticipantManagement({
     const matchesCategory =
       categoryFilter === 'all' || participant.category === categoryFilter
 
+    const issues = participantIssues(participant)
+    const checkedIn = checkedInIds.has(participant.id)
     const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && participant.is_active) ||
-      (statusFilter === 'inactive' && !participant.is_active)
+      (statusFilter === 'not_checked_in' && !checkedIn && issues.length === 0) ||
+      (statusFilter === 'with_issues' && issues.length > 0) ||
+      (statusFilter === 'completed' && checkedIn && issues.length === 0)
 
     return matchesSearch && matchesCategory && matchesStatus
   })
 
-  const activeCount = participants.filter((p) => p.is_active).length
+  const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
+  const issueCount = participants.filter((p) => participantIssues(p).length > 0).length
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
   const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
@@ -585,7 +548,7 @@ export default function ParticipantManagement({
           </div>
           <div>
             <strong>{participants.length} participants</strong>
-            <span>{activeCount} active registrations</span>
+            <span>{completedCount} completed · {issueCount} with issues</span>
           </div>
         </div>
 
@@ -625,18 +588,6 @@ export default function ParticipantManagement({
           >
             <RefreshCw size={16} /> Refresh
           </button>
-
-          {canManage && (
-            <button
-              className="participant-secondary-button participant-clear-button"
-              type="button"
-              onClick={() => void clearDirectory()}
-              disabled={clearing || loading || activeCount === 0}
-              title="Deactivate all active participants while preserving attendance and draw history"
-            >
-              <Trash2 size={16} /> {clearing ? 'Clearing…' : 'Clear'}
-            </button>
-          )}
 
           <button
             className="participant-primary-button"
@@ -837,9 +788,9 @@ export default function ParticipantManagement({
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
           >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="all">All statuses</option>
+            <option value="not_checked_in">Haven't checked in</option>
+            <option value="with_issues">With issues</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
 
@@ -867,8 +818,12 @@ export default function ParticipantManagement({
               </thead>
 
               <tbody>
-                {paginatedParticipants.slice(0, pageSize).map((participant) => (
-                  <tr key={participant.id}>
+                {paginatedParticipants.slice(0, pageSize).map((participant) => {
+                  const issues = participantIssues(participant)
+                  const checkedIn = checkedInIds.has(participant.id)
+                  const statusLabel = issues.length ? 'With issues' : checkedIn ? 'Completed' : "Haven't checked in"
+                  return (
+                  <tr key={participant.id} className={issues.length ? 'participant-row--issues' : undefined}>
                     <td>
                       <strong>{participant.full_name}</strong>
                       <small>{participant.participant_code}</small>
@@ -896,11 +851,10 @@ export default function ParticipantManagement({
                     </td>
 
                     <td>
-                      <span
-                        className={`participant-status ${participant.is_active ? 'active' : 'inactive'}`}
-                      >
-                        {participant.is_active ? 'Active' : 'Inactive'}
+                      <span className={`participant-status ${issues.length ? 'issue' : checkedIn ? 'active' : 'pending'}`}>
+                        {statusLabel}
                       </span>
+                      {issues.map((issue) => <small className="participant-issue-text" key={issue}>{issue}</small>)}
                     </td>
 
                     <td>
@@ -915,33 +869,11 @@ export default function ParticipantManagement({
                             <Pencil size={15} /> Edit
                           </button>
                         )}
-
-                        {canManage && (
-                          <button
-                            type="button"
-                            className="participant-action-button"
-                            onClick={() => void toggleActive(participant)}
-                            title={
-                              participant.is_active
-                                ? 'Deactivate participant'
-                                : 'Reactivate participant'
-                            }
-                          >
-                            {participant.is_active ? (
-                              <>
-                                <UserX size={15} /> Deactivate
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck size={15} /> Reactivate
-                              </>
-                            )}
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
