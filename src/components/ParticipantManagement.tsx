@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  Plus, Search, RefreshCw, Pencil, Upload, Users, X,
+  Plus, Search, RefreshCw, Pencil, Upload, Users, X, Trash2,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -499,6 +499,44 @@ export default function ParticipantManagement({
     }
   }
 
+  async function deleteParticipant(participant: Participant) {
+    if (!canManage) return
+    const confirmed = window.confirm(
+      `Permanently delete ${participant.full_name} (${participant.participant_code}) from the shared EventFlow database? This also permanently removes their attendance and Lucky Draw records. This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setError('')
+    setMessage('')
+    // Remove dependent operational records first because these foreign keys intentionally restrict deletion.
+    const dependentDeletes = await Promise.all([
+      supabase.from('draw_winners').delete().eq('participant_id', participant.id),
+      supabase.from('draw_entries').delete().eq('participant_id', participant.id),
+      supabase.from('attendance').delete().eq('participant_id', participant.id),
+      supabase.from('participant_invitations').delete().eq('participant_id', participant.id),
+      supabase.from('push_subscriptions').delete().eq('participant_id', participant.id),
+    ])
+    const dependentError = dependentDeletes.find((result) => result.error)?.error
+    if (dependentError) {
+      setError(`Could not delete participant records completely: ${dependentError.message}. The participant record was kept.`)
+      return
+    }
+
+    const { error: deleteError } = await supabase.from('participants').delete().eq('id', participant.id)
+    if (deleteError) {
+      setError(`Could not delete participant: ${deleteError.message}`)
+      return
+    }
+
+    setCheckedInIds((current) => {
+      const next = new Set(current)
+      next.delete(participant.id)
+      return next
+    })
+    setMessage(`${participant.full_name} and their related records were permanently deleted from the shared database.`)
+    await loadParticipants()
+  }
+
   function participantIssues(participant: Participant) {
     const issues: string[] = []
     if (!participant.full_name.trim()) issues.push('Missing guest name')
@@ -867,6 +905,14 @@ export default function ParticipantManagement({
                             title="Edit participant"
                           >
                             <Pencil size={15} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="participant-action-button participant-delete-button"
+                            onClick={() => void deleteParticipant(participant)}
+                            title="Permanently delete participant and related database records"
+                          >
+                            <Trash2 size={15} /> Delete
                           </button>
                         )}
                       </div>
