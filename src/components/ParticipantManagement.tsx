@@ -208,12 +208,26 @@ export default function ParticipantManagement({
     setForm(emptyForm)
   }
 
-  function findDuplicate(icNumber: string, excludeId?: string) {
+  function findDuplicates(icNumber: string, excludeId?: string) {
     const normalIc = normaliseIc(icNumber)
-    if (!normalIc) return undefined
-    return participants.find((participant) =>
+    if (!normalIc) return []
+    return participants.filter((participant) =>
       participant.id !== excludeId && normaliseIc(participant.ic_number) === normalIc,
     )
+  }
+
+  async function flagDuplicateRegistrations(duplicates: Participant[]) {
+    for (const duplicate of duplicates) {
+      const reasons = Array.from(new Set([
+        ...(duplicate.import_issue_reasons ?? []),
+        'Duplicate IC registration — verify guest details',
+      ]))
+      const { error: updateError } = await supabase
+        .from('participants')
+        .update({ needs_review: true, import_issue_reasons: reasons, updated_at: new Date().toISOString() })
+        .eq('id', duplicate.id)
+      if (updateError) throw updateError
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -235,16 +249,18 @@ export default function ParticipantManagement({
       return
     }
 
-    const duplicate = findDuplicate(form.ic_number, editingId ?? undefined)
-
-    if (duplicate) {
-      setError(
-        `This IC number is already registered to ${duplicate.full_name} (${duplicate.participant_code}). Each IC number can only be registered once.`,
-      )
-      setSaving(false)
-      return
+    const duplicates = findDuplicates(form.ic_number, editingId ?? undefined)
+    if (duplicates.length) {
+      try {
+        await flagDuplicateRegistrations(duplicates)
+      } catch (duplicateError) {
+        setError(duplicateError instanceof Error ? duplicateError.message : 'Could not flag the existing duplicate registrations for review.')
+        setSaving(false)
+        return
+      }
     }
 
+    const duplicateIssue = duplicates.length > 0 ? ['Duplicate IC registration — verify guest details'] : []
     const values = {
       full_name: form.full_name.trim(),
       ic_number: normalIc || null,
@@ -258,8 +274,8 @@ export default function ParticipantManagement({
       category: form.category,
       organisation: form.organisation.trim() || null,
       notes: form.notes.trim() || null,
-      needs_review: !form.full_name.trim() || normalIc.length !== 12 || !categories.some((item) => item.id === form.category),
-      import_issue_reasons: [],
+      needs_review: !form.full_name.trim() || normalIc.length !== 12 || !categories.some((item) => item.id === form.category) || duplicateIssue.length > 0,
+      import_issue_reasons: duplicateIssue,
       updated_at: new Date().toISOString(),
     }
 
@@ -281,9 +297,9 @@ export default function ParticipantManagement({
         : result.error.message)
     } else {
       setMessage(
-        editingId
-          ? 'Participant updated.'
-          : 'Participant added successfully.',
+        duplicates.length
+          ? `Duplicate registration detected. This record and ${duplicates.length} existing matching record(s) have been saved/marked red in Guest With Issues for admin verification.`
+          : editingId ? 'Participant updated.' : 'Participant added successfully.',
       )
       closeForm()
       await loadParticipants()
@@ -435,12 +451,17 @@ export default function ParticipantManagement({
       })
       return (entry?.[1] ?? '').trim()
     }
-    // Snapshot the live database immediately before import; never rely on stale React state.
-    const knownIcNumbers = new Set(existingParticipants.map((p) => normaliseIc(p.ic_number)).filter(Boolean))
-    const seenFileIcNumbers = new Set<string>()
-    let skipped = 0
-    const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0, 'Duplicate IC in uploaded file': 0 }
+    // Preserve every indexed registration. Any repeated IC is a review issue,
+    // not a reason to discard either the existing or newly submitted record.
+    const existingByIc = new Map<string, Participant[]>()
+    for (const participant of existingParticipants) {
+      const ic = normaliseIc(participant.ic_number)
+      if (!ic) continue
+      existingByIc.set(ic, [...(existingByIc.get(ic) ?? []), participant])
+    }
+    const seenFileIcNumbers = new Map<string, number[]>()
     const rowsToInsert: ParticipantInsert[] = []
+    const existingIdsToFlag = new Set<string>()
     let issueRows = 0
     for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
@@ -468,29 +489,33 @@ export default function ParticipantManagement({
       const digitsOnly = normaliseIc(icNumber)
       const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
 
-      // Existing database registrations are skipped, but repeated rows inside this
-      // uploaded file are retained and visibly flagged instead of being discarded.
-      if (normalIc && knownIcNumbers.has(normalIc)) {
-        skipped++
-        skipReasons['Duplicate IC']++
-        continue
-      }
-
       const issues: string[] = []
       if (!fullName) issues.push('Missing guest name')
       if (normalIc.length !== 12) issues.push('Invalid IC (must be 12 digits)')
       if (!categoryValue) issues.push('Unknown category')
-      if (normalIc && seenFileIcNumbers.has(normalIc)) {
-        issues.push('Duplicate IC in uploaded file')
-        skipReasons['Duplicate IC in uploaded file']++
+
+      if (normalIc) {
+        const existingMatches = existingByIc.get(normalIc) ?? []
+        if (existingMatches.length) {
+          issues.push('Duplicate IC registration — verify guest details')
+          existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
+        }
+        const priorRows = seenFileIcNumbers.get(normalIc) ?? []
+        if (priorRows.length) {
+          issues.push('Duplicate IC registration in uploaded file — verify guest details')
+          for (const priorIndex of priorRows) {
+            const prior = rowsToInsert[priorIndex]
+            prior.needs_review = true
+            prior.import_issue_reasons = Array.from(new Set([
+              ...(prior.import_issue_reasons ?? []),
+              'Duplicate IC registration in uploaded file — verify guest details',
+            ]))
+          }
+        }
+        seenFileIcNumbers.set(normalIc, [...priorRows, rowsToInsert.length])
       }
-      if (issues.length) {
-        issueRows++
-        if (!fullName) skipReasons['Missing name']++
-        if (normalIc.length !== 12) skipReasons['Invalid IC (must be 12 digits)']++
-        if (!categoryValue) skipReasons['Unknown category']++
-      }
-      if (normalIc) seenFileIcNumbers.add(normalIc)
+
+      if (issues.length) issueRows++
       rowsToInsert.push({
         participant_code: generateParticipantCode(),
         full_name: fullName || `NEEDS REVIEW · Import row ${rowIndex + 1}`,
@@ -509,9 +534,29 @@ export default function ParticipantManagement({
         import_issue_reasons: issues,
       })
     }
+
+    // Move existing matching registrations out of the normal-IC unique index
+    // before inserting their new duplicate copies. Keep all submitted field values.
+    for (const participantId of existingIdsToFlag) {
+      const existing = existingParticipants.find((participant) => participant.id === participantId)
+      if (!existing) continue
+      const reasons = Array.from(new Set([
+        ...(existing.import_issue_reasons ?? []),
+        'Duplicate IC registration — verify guest details',
+      ]))
+      const { error: flagError } = await supabase
+        .from('participants')
+        .update({ needs_review: true, import_issue_reasons: reasons, updated_at: new Date().toISOString() })
+        .eq('id', participantId)
+      if (flagError) {
+        setError('Could not mark existing duplicate registrations for review. No new rows were imported. ' + flagError.message)
+        await loadParticipants()
+        return
+      }
+    }
     if (!rowsToInsert.length) {
       const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage('No new guests imported. ' + skipped + ' duplicate row(s) skipped. ' + (breakdown || 'No valid participant rows found.'))
+      setMessage('No guest records were imported. ' + (breakdown || 'No valid participant rows found.'))
       return
     }
     let imported = 0
@@ -522,8 +567,10 @@ export default function ParticipantManagement({
       if (insertError?.code === '23505') {
         for (const record of batch) {
           const { error: rowError } = await supabase.from('participants').insert(record)
-          if (rowError?.code === '23505') skipped++
-          else if (rowError) { insertFailure = rowError.message; break }
+          if (rowError?.code === '23505') {
+            insertFailure = 'A duplicate IC still conflicts with the database unique index. The source row has not been discarded; refresh the directory and retry after review flags are saved.'
+            break
+          } else if (rowError) { insertFailure = rowError.message; break }
           else imported++
         }
         if (insertFailure) break
@@ -537,7 +584,7 @@ export default function ParticipantManagement({
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
     } else {
       const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage(imported + ' guest record(s) saved from ' + fileType + ', including ' + issueRows + ' guest(s) flagged for review. ' + skipped + ' duplicate row(s) skipped.' + (breakdown ? ' ' + breakdown + '.' : '') + ' Existing registrations will not be duplicated.')
+      setMessage(imported + ' guest registration record(s) saved from ' + fileType + ', including ' + issueRows + ' record(s) flagged for admin review. Duplicate registrations are preserved; all matching records appear in Guest With Issues.' + (breakdown ? ' ' + breakdown + '.' : ''))
     }
   }
 
