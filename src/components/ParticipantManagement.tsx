@@ -357,8 +357,10 @@ export default function ParticipantManagement({
     const parseIndex = (value: string) => {
       const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d+)\s*\.?$/i)
       if (!match) return null
-      const number = Number(match[1])
-      return Number.isSafeInteger(number) && number > 0 ? number : null
+      // Keep the index as digits instead of converting to Number, so there
+      // is no artificial upper bound from JavaScript's numeric precision.
+      const digits = match[1].replace(/^0+/, '')
+      return digits.length ? digits : null
     }
     // Some spreadsheets use an unlabeled first column. Infer it when at
     // least two rows contain valid positive numeric indexes in that column.
