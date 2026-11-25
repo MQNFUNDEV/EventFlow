@@ -134,7 +134,10 @@ export default function AttendanceManagement() {
         .some((field) => field?.toLowerCase().includes(term))
       return matchesSearch && (category === 'all' || participant.category === category) &&
         (view === 'all' || (view === 'checked_in' ? Boolean(checkIn) : !checkIn))
-    })
+    }).sort((left, right) =>
+      left.full_name.localeCompare(right.full_name, undefined, { sensitivity: 'base', numeric: true }) ||
+      left.id.localeCompare(right.id),
+    )
   }, [participants, checkInsByParticipant, search, category, view])
   const checkedInCount = participants.filter((participant) => checkInsByParticipant.has(participant.id)).length
   const totalPages = Math.max(1, Math.ceil(activeParticipants.length / pageSize))
