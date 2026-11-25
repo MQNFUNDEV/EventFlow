@@ -547,9 +547,11 @@ function App() {
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
-          <div style={{ display: activePage === 'Lucky Draw' && canManageParticipants ? 'block' : 'none' }}>
-            <LuckyDrawManagement />
-          </div>
+          {canManageParticipants && (
+            <div style={{ display: activePage === 'Lucky Draw' ? 'block' : 'none' }}>
+              <LuckyDrawManagement />
+            </div>
+          )}
           {isOverview ? (
             <>
               <section className="welcome-banner">
