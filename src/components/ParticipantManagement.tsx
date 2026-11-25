@@ -103,6 +103,7 @@ export default function ParticipantManagement({
   eventName: string
 }) {
   const canManage = currentRole === 'super_admin' || currentRole === 'event_admin'
+  const isSuperAdmin = currentRole === 'super_admin'
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -119,6 +120,7 @@ export default function ParticipantManagement({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
@@ -532,7 +534,7 @@ export default function ParticipantManagement({
   }
 
   async function deleteParticipant(participant: Participant) {
-    if (!canManage) return
+    if (!isSuperAdmin) return
     const confirmed = window.confirm(
       `Permanently delete ${participant.full_name} (${participant.participant_code}) from the shared EventFlow database? This also permanently removes their attendance and Lucky Draw records. This cannot be undone.`,
     )
@@ -540,32 +542,41 @@ export default function ParticipantManagement({
 
     setError('')
     setMessage('')
-    // Remove dependent operational records first because these foreign keys intentionally restrict deletion.
-    const dependentDeletes = await Promise.all([
-      supabase.from('draw_winners').delete().eq('participant_id', participant.id),
-      supabase.from('draw_entries').delete().eq('participant_id', participant.id),
-      supabase.from('attendance').delete().eq('participant_id', participant.id),
-      supabase.from('participant_invitations').delete().eq('participant_id', participant.id),
-      supabase.from('push_subscriptions').delete().eq('participant_id', participant.id),
-    ])
-    const dependentError = dependentDeletes.find((result) => result.error)?.error
-    if (dependentError) {
-      setError(`Could not delete participant records completely: ${dependentError.message}. The participant record was kept.`)
-      return
-    }
-
-    const { error: deleteError } = await supabase.from('participants').delete().eq('id', participant.id)
+    const { error: deleteError } = await supabase.rpc('delete_participant_permanently', { p_participant_id: participant.id })
     if (deleteError) {
       setError(`Could not delete participant: ${deleteError.message}`)
       return
     }
 
     setCheckedInIds((current) => {
-      const next = new Set(current)
-      next.delete(participant.id)
-      return next
+      const updated = new Set(current)
+      updated.delete(participant.id)
+      return updated
     })
     setMessage(`${participant.full_name} and their related records were permanently deleted from the shared database.`)
+    await loadParticipants()
+  }
+
+  async function clearParticipantDirectory() {
+    if (!isSuperAdmin || clearing) return
+    const confirmed = window.confirm(
+      `PERMANENTLY DELETE ALL ${participants.length} GUEST RECORDS? This will also delete all attendance, Lucky Draw entries, winners and draw rounds. Event settings, categories and admin accounts will be kept. This cannot be undone. Continue?`,
+    )
+    if (!confirmed) return
+
+    setClearing(true)
+    setError('')
+    setMessage('')
+    const { data, error: clearError } = await supabase.rpc('clear_participant_directory')
+    setClearing(false)
+    if (clearError) {
+      setError(`Could not clear the participant directory: ${clearError.message}`)
+      return
+    }
+
+    const result = data as { participants_deleted?: number } | null
+    setCheckedInIds(new Set())
+    setMessage(`Directory cleared. ${result?.participants_deleted ?? participants.length} guest record(s) permanently deleted. You can now import the new list.`)
     await loadParticipants()
   }
 
@@ -646,6 +657,18 @@ export default function ParticipantManagement({
                 {importing ? 'Importing...' : 'Import CSV / Excel'}
               </button>
             </>
+          )}
+
+          {isSuperAdmin && (
+            <button
+              className="participant-secondary-button participant-delete-button"
+              type="button"
+              onClick={() => void clearParticipantDirectory()}
+              disabled={clearing || loading || participants.length === 0}
+              title="Permanently delete all guest records and their attendance and Lucky Draw history"
+            >
+              <Trash2 size={16} /> {clearing ? 'Deleting list...' : 'Delete All Guests'}
+            </button>
           )}
 
           <button
@@ -941,14 +964,16 @@ export default function ParticipantManagement({
                           >
                             <Pencil size={15} /> Edit
                           </button>
-                          <button
-                            type="button"
-                            className="participant-action-button participant-delete-button"
-                            onClick={() => void deleteParticipant(participant)}
-                            title="Permanently delete participant and related database records"
-                          >
-                            <Trash2 size={15} /> Delete
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              className="participant-action-button participant-delete-button"
+                              onClick={() => void deleteParticipant(participant)}
+                              title="Permanently delete participant and related database records"
+                            >
+                              <Trash2 size={15} /> Delete
+                            </button>
+                          )}
                           </>
                         )}
                       </div>
