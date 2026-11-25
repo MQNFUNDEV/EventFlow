@@ -345,11 +345,33 @@ export default function ParticipantManagement({
     const headerIndex = candidates.reduce((best, row, index) => headerScore(row) > headerScore(candidates[best] ?? []) ? index : best, 0)
     const headers = (matrix[headerIndex] ?? []).map((value) => (value ?? '').trim().replace(/^\\uFEFF/, ''))
     if (headerScore(headers) < 4) throw new Error('Could not identify the participant header row. Include Full Name / Nama Penuh and IC Number / No. Kad Pengenalan columns.')
-    return matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim())).map((row) => {
-      const record: Record<string, string> = {}
-      headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
-      return record
+    // Identify a serial/index column (BIL., No., Number, #, S/N, etc.).
+    // When present, only rows carrying an index from 1 to 999 are guest rows.
+    const indexHeaders = ['bil', 'bilangan', 'no', 'number', 'index', 'serial', 'serialno', 'sno', 'srno', 'sn', '#']
+    const indexColumn = headers.findIndex((header) => {
+      const key = normalise(header)
+      return indexHeaders.includes(key) || ['bil', 'bilangan', 'serialno', 'sno', 'srno'].some((alias) => key.startsWith(alias))
     })
+    const dataRows = matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim()))
+    const parseIndex = (value: string) => {
+      const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d{1,3})\s*\.?$/i)
+      if (!match) return null
+      const number = Number(match[1])
+      return number >= 1 && number <= 999 ? number : null
+    }
+    // Some spreadsheets use an unlabeled first column. Infer it only when
+    // its values clearly form an ascending guest index sequence.
+    const inferredIndexColumn = indexColumn < 0 && dataRows.filter((row) => parseIndex(row[0] ?? '') !== null).length >= 2
+      ? 0
+      : indexColumn
+    const hasIndexColumn = inferredIndexColumn >= 0
+    return dataRows
+      .filter((row) => !hasIndexColumn || parseIndex(row[inferredIndexColumn] ?? '') !== null)
+      .map((row) => {
+        const record: Record<string, string> = {}
+        headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
+        return record
+      })
   }
 
   async function parseXlsxFile(file: File): Promise<Record<string, string>[]> {
