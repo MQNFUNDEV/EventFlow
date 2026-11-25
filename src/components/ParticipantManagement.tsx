@@ -434,16 +434,16 @@ export default function ParticipantManagement({
     const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0 }
     const rowsToInsert: ParticipantInsert[] = []
     for (const row of rows) {
-      const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name'])
+      const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
-      const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad'])
-      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno'])
-      const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution'])
+      const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan'])
+      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik'])
+      const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution', 'institusi'])
       const gender = getValue(row, ['jantina', 'gender', 'sex'])
       const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
-      const email = getValue(row, ['alamateemail', 'emailaddress', 'email'])
-      const phone = getValue(row, ['nombortelefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
-      const rawCategory = getValue(row, ['category', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus']).toLowerCase()
+      const email = getValue(row, ['alamateemail', 'alamatemel', 'emailaddress', 'email', 'emel'])
+      const phone = getValue(row, ['nombortelefon', 'not telefon', 'notel', 'telefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
+      const rawCategory = getValue(row, ['category', 'kategori', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus']).toLowerCase()
       const normaliseCategory = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
       const normalCategory = normaliseCategory(rawCategory)
       const matchedCategory = categories.find((item) =>
@@ -454,8 +454,8 @@ export default function ParticipantManagement({
         : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
           ? categories.find((item) => item.id === 'staff') : undefined
       const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
-      const organisation = universityName || getValue(row, ['organisation', 'organization', 'company', 'school', 'institution'])
-      const notes = getValue(row, ['notes', 'remarks'])
+      const organisation = universityName || getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'institution', 'sekolah'])
+      const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota'])
       // Excel may store a leading-zero Malaysian IC as an 11-digit number.
       const digitsOnly = normaliseIc(icNumber)
       const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
@@ -640,7 +640,7 @@ export default function ParticipantManagement({
       {canImport && (
         <div className="participant-import-help">
           <strong>Import Google Form responses</strong>
-          <span>Download the current Google Form responses from Google Sheets as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically; EventFlow detects column headings and maps name, IC, student ID, university, gender, race, email, phone, category, timestamp and notes. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Keep the CSV headers intact and ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
+          <span>Download the current Google Form responses from Google Sheets as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically. EventFlow recognises English and Bahasa Malaysia column headings, including Full Name / Nama Penuh, IC Number / No. Kad Pengenalan, Phone Number / No. Telefon and Category / Kategori. It maps name, IC, student ID, university, gender, race, email, phone, category, timestamp and notes; serial-number and total-pax columns are ignored. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
         </div>
       )}
 
