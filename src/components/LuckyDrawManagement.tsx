@@ -76,65 +76,6 @@ export default function LuckyDrawManagement() {
   const winnerActionLockRef = useRef(false)
   const leverActionLockRef = useRef(false)
   const leverTimersRef = useRef<number[]>([])
-  const currentUserIdRef = useRef<string | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [isController, setIsController] = useState(false)
-  const [winnerSoundEnabled, setWinnerSoundEnabled] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    async function syncController() {
-      const [{ data: userData }, { data: stateData }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from('display_state')
-          .select('active_controller_user_id, controller_lease_expires_at')
-          .eq('id', 1)
-          .maybeSingle(),
-      ])
-      if (cancelled) return
-      const userId = userData.user?.id ?? null
-      currentUserIdRef.current = userId
-      setCurrentUserId(userId)
-      setIsController(Boolean(
-        userId &&
-        stateData?.active_controller_user_id === userId &&
-        stateData?.controller_lease_expires_at &&
-        new Date(stateData.controller_lease_expires_at).getTime() > Date.now()
-      ))
-    }
-    void syncController()
-    const channel = supabase
-      .channel('lucky-draw-controller-ownership')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
-        const nextRow = change.new as { active_controller_user_id?: string | null; controller_lease_expires_at?: string | null } | null
-        const userId = currentUserIdRef.current
-        setIsController(Boolean(
-          userId &&
-          nextRow?.active_controller_user_id === userId &&
-          nextRow?.controller_lease_expires_at &&
-          new Date(nextRow.controller_lease_expires_at).getTime() > Date.now()
-        ))
-      })
-      .subscribe()
-    return () => {
-      cancelled = true
-      void supabase.removeChannel(channel)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isController || !currentUserId) return
-    const heartbeat = window.setInterval(async () => {
-      const { data, error: heartbeatError } = await supabase.rpc('acquire_display_controller', { p_lease_seconds: 90 })
-      const lease = Array.isArray(data) ? data[0] : data
-      if (heartbeatError || !lease?.acquired || lease.controller_user_id !== currentUserId) {
-        setIsController(false)
-        setError(heartbeatError?.message ?? 'LED controller ownership was lost. Lucky Draw controls are locked.')
-      }
-    }, 20000)
-    return () => window.clearInterval(heartbeat)
-  }, [isController, currentUserId])
-
   async function toggleWinnerSound() {
     const nextEnabled = !winnerSoundEnabled
     const saved = await publishBoxState({ sound_enabled: nextEnabled })
@@ -1057,16 +998,6 @@ export default function LuckyDrawManagement() {
     ? Math.max(0, selectedCategoryCheckIns - pool.length)
     : 0
   const themeStyle = { '--draw-theme-3': themeColors[2], '--draw-theme-4': themeColors[3], '--draw-theme-5': themeColors[4] } as CSSProperties
-
-  if (!isController) {
-    return <main className="lucky-draw-page" style={themeStyle}>
-      <section className="panel lucky-draw-controller-lock">
-        <h2>Lucky Draw controls are locked</h2>
-        <p>One administrator must own the LED Display controller before operating the Lucky Draw session. Open LED Display, take control, then return here.</p>
-        {currentUserId && <small>Signed-in admin ID: {currentUserId}</small>}
-      </section>
-    </main>
-  }
 
   return <main className="lucky-draw-page" style={themeStyle}>
     <header className="lucky-draw-heading"><div><span className="lucky-draw-eyebrow"><Trophy size={14} /> GUEST RAFFLE</span><p>Draw only from checked-in guests with valid IC region codes 01 or 23. Invalid or missing ICs stay in Attendance Directory but are excluded from this pool.</p></div><button className="button-secondary" onClick={() => void reloadHistory()} disabled={loading}><RefreshCw size={16} /> Refresh log</button></header>
