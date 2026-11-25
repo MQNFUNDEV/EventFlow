@@ -363,6 +363,28 @@ export default function ParticipantManagement({
     throw new Error('The Excel workbook is missing a required worksheet file: ' + path)
   }
 
+  function recordsFromMatrix(matrix: string[][]): Record<string, string>[] {
+    const normalise = (value: string) => (value ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    const nameHeaders = ['fullname', 'participantname', 'yourname', 'name', 'namapenuh', 'namapeserta', 'nama']
+    const icHeaders = ['icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'nomboric']
+    const categoryHeaders = ['category', 'kategori', 'participantcategory', 'kategoripeserta']
+    const headerScore = (row: string[]) => {
+      const values = row.map(normalise)
+      return Number(values.some((value) => nameHeaders.includes(value) || nameHeaders.some((alias) => alias.length > 4 && value.includes(alias)))) * 4
+        + Number(values.some((value) => icHeaders.includes(value) || icHeaders.some((alias) => alias.length > 4 && value.includes(alias)))) * 2
+        + Number(values.some((value) => categoryHeaders.includes(value) || categoryHeaders.some((alias) => value.includes(alias)))) * 2
+    }
+    const candidates = matrix.slice(0, 40)
+    const headerIndex = candidates.reduce((best, row, index) => headerScore(row) > headerScore(candidates[best] ?? []) ? index : best, 0)
+    const headers = (matrix[headerIndex] ?? []).map((value) => (value ?? '').trim().replace(/^\\uFEFF/, ''))
+    if (headerScore(headers) < 4) throw new Error('Could not identify the participant header row. Include Full Name / Nama Penuh and IC Number / No. Kad Pengenalan columns.')
+    return matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim())).map((row) => {
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
+      return record
+    })
+  }
+
   async function parseXlsxFile(file: File): Promise<Record<string, string>[]> {
     if (file.size > 20 * 1024 * 1024) throw new Error('Excel files must be 20 MB or smaller.')
     const view = new DataView(await file.arrayBuffer())
@@ -407,15 +429,7 @@ export default function ParticipantManagement({
       }
       return values
     })
-    const headerIndex = matrix.findIndex((row) => row.some((value) => value?.trim()))
-    if (headerIndex < 0) throw new Error('The first worksheet does not contain a header row.')
-    const headers = matrix[headerIndex].map((value) => (value ?? '').trim())
-    if (!headers.some(Boolean)) throw new Error('Could not detect column headings in the first worksheet.')
-    return matrix.slice(headerIndex + 1).filter((row) => row.some((value) => value?.trim())).map((row) => {
-      const record: Record<string, string> = {}
-      headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
-      return record
-    })
+    return recordsFromMatrix(matrix)
   }
 
   async function processImportRows(rows: Record<string, string>[], fileType: 'CSV' | 'Excel') {
@@ -434,7 +448,7 @@ export default function ParticipantManagement({
     const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0 }
     const rowsToInsert: ParticipantInsert[] = []
     for (const row of rows) {
-      const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta'])
+      const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
       const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan'])
       const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik'])
@@ -520,10 +534,10 @@ export default function ParticipantManagement({
         if (!rows.length) throw new Error('No participant rows were found in the first worksheet.')
         await processImportRows(rows, 'Excel')
       } else {
-        const result = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve, reject) => {
-          Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: true, complete: resolve, error: reject })
+        const result = await new Promise<Papa.ParseResult<string[]>>((resolve, reject) => {
+          Papa.parse<string[]>(file, { header: false, skipEmptyLines: true, complete: resolve, error: reject })
         })
-        await processImportRows(result.data, 'CSV')
+        await processImportRows(recordsFromMatrix(result.data), 'CSV')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : (isExcel ? 'Excel' : 'CSV') + ' import failed.')
