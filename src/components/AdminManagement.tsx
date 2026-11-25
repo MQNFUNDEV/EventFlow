@@ -56,6 +56,10 @@ export default function AdminManagement({ currentRole }: { currentRole: AdminRol
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const sortedAdmins = [...admins].sort((left, right) =>
+    left.email.localeCompare(right.email, undefined, { sensitivity: 'base', numeric: true }) ||
+    left.user_id.localeCompare(right.user_id),
+  )
 
   async function callAdminFunction(payload: Record<string, unknown>) {
     const { data, error: functionError } = await supabase.functions.invoke(
@@ -363,7 +367,7 @@ useEffect(() => {
               </thead>
 
               <tbody>
-                {admins.map((admin) => {
+                {sortedAdmins.map((admin) => {
                   const isSelf = admin.user_id === currentUserId
 
                   return (
