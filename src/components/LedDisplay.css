@@ -753,3 +753,14 @@
 .led-lucky-session-log li.is-fade-2{opacity:.5}
 .led-lucky-session-log li.is-fade-3{opacity:.25}
 .led-lucky-session-log li.is-fade-4{opacity:.05}
+
+
+/* Dedicated LED output layouts */
+.led-lucky-output.is-box-only .led-lucky-machine-stage{left:50%;top:6vh;width:min(90vw,1600px);height:88vh;transform:translateX(-50%)}
+.led-lucky-output.is-winners-only .led-lucky-session-log{left:4vw;right:4vw;top:5vh;bottom:5vh;width:auto;padding:3vh 3vw}
+.led-lucky-output.is-winners-only .led-lucky-session-log header strong{font-size:clamp(24px,3vw,48px)}
+.led-lucky-output.is-winners-only .led-lucky-session-log header span{font-size:clamp(16px,1.5vw,24px)}
+.led-lucky-output.is-winners-only .led-lucky-session-log ol{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.led-lucky-output.is-winners-only .led-lucky-session-log li{padding:16px 20px;min-height:5vh}
+.led-lucky-output.is-winners-only .led-lucky-session-log li strong{font-size:clamp(18px,1.8vw,32px)}
+.led-lucky-output.is-winners-only .led-lucky-session-log li span{font-size:clamp(12px,1vw,18px)}
