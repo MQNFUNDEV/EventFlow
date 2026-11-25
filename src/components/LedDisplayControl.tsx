@@ -25,7 +25,10 @@ export default function LedDisplayControl() {
   const [leaseActive, setLeaseActive] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const isController = Boolean(currentUserId && controllerUserId === currentUserId)
-  const outputLink = currentUserId ? `${window.location.origin}${window.location.pathname}#/display?controller=${encodeURIComponent(currentUserId)}` : ''
+  const controllerQuery = currentUserId ? `controller=${encodeURIComponent(currentUserId)}` : ''
+  const outputLink = currentUserId ? `${window.location.origin}${window.location.pathname}#/display?${controllerQuery}` : ''
+  const boxOnlyLink = currentUserId ? `${window.location.origin}${window.location.pathname}#/display?${controllerQuery}&view=box` : ''
+  const winnerListLink = currentUserId ? `${window.location.origin}${window.location.pathname}#/display?${controllerQuery}&view=winners` : ''
 
   const refreshController = useCallback(async () => {
     const [{ data: userData, error: userError }, { data: stateData, error: stateError }] = await Promise.all([
@@ -142,11 +145,11 @@ export default function LedDisplayControl() {
     setSaving(false)
   }
 
-  async function copyOutputLink() {
-    if (!isController || !outputLink) return
+  async function copyOutputLink(link: string, label: string) {
+    if (!isController || !link) return
     try {
-      await navigator.clipboard.writeText(outputLink)
-      setMessage('Unique display link copied. Open it on the LED laptop and sign in with this same admin account.')
+      await navigator.clipboard.writeText(link)
+      setMessage(`${label} link copied. Open it on the display device and sign in with this same admin account.`)
     } catch {
       setError('Could not copy the link. Select and copy it from the box below.')
     }
@@ -204,8 +207,12 @@ export default function LedDisplayControl() {
     </section>
     {loading && <p className="led-loading">Connecting to the live display…</p>}
     <section className="led-output-link panel">
-      <div><h3>LED laptop output link</h3><p>{isController ? 'This unique link is bound to your admin ID. Sign in on the LED laptop with the same admin account.' : 'Take control first. Only the active controller can generate and copy the display link.'}</p></div>
-      <div className="led-link-row"><input aria-label="LED laptop display link" readOnly value={isController ? outputLink : 'Take control to generate your unique display link'} onFocus={(event) => event.currentTarget.select()} /><button className="button-primary" onClick={() => void copyOutputLink()} disabled={!isController}><Copy size={16} /> Copy link</button></div>
+      <div><h3>Full LED output</h3><p>Complete display: Lucky Draw Box animation and winner list together.</p></div>
+      <div className="led-link-row"><input aria-label="Full LED output link" readOnly value={isController ? outputLink : 'Take control to generate your unique display links'} onFocus={(event) => event.currentTarget.select()} /><button className="button-primary" onClick={() => void copyOutputLink(outputLink, 'Full LED output')} disabled={!isController}><Copy size={16} /> Copy link</button></div>
+      <div><h3>Box animation only</h3><p>Shows only the 3D Lucky Draw Box animation.</p></div>
+      <div className="led-link-row"><input aria-label="Box animation only link" readOnly value={isController ? boxOnlyLink : 'Take control to generate your unique display links'} onFocus={(event) => event.currentTarget.select()} /><button className="button-primary" onClick={() => void copyOutputLink(boxOnlyLink, 'Box animation')} disabled={!isController}><Copy size={16} /> Copy link</button></div>
+      <div><h3>Winner list only</h3><p>Shows only the live winner list.</p></div>
+      <div className="led-link-row"><input aria-label="Winner list only link" readOnly value={isController ? winnerListLink : 'Take control to generate your unique display links'} onFocus={(event) => event.currentTarget.select()} /><button className="button-primary" onClick={() => void copyOutputLink(winnerListLink, 'Winner list')} disabled={!isController}><Copy size={16} /> Copy link</button></div>
     </section>
   </div>
 }
