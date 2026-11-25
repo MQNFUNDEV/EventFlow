@@ -325,177 +325,201 @@ export default function ParticipantManagement({
     }
     setClearing(false)
   }
-  async function handleCsvImport(file?: File) {
-    if (!file || !canImport) return
+  async function readZipText(view: DataView, path: string): Promise<string> {
+    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+    let endOffset = -1
+    for (let offset = Math.max(0, bytes.length - 65557); offset <= bytes.length - 22; offset++) {
+      if (view.getUint32(offset, true) === 0x06054b50) endOffset = offset
+    }
+    if (endOffset < 0) throw new Error('This Excel file is not a valid .xlsx workbook.')
+    const entryCount = view.getUint16(endOffset + 10, true)
+    let cursor = view.getUint32(endOffset + 16, true)
+    const decoder = new TextDecoder()
+    for (let index = 0; index < entryCount; index++) {
+      if (view.getUint32(cursor, true) !== 0x02014b50) break
+      const method = view.getUint16(cursor + 10, true)
+      const compressedSize = view.getUint32(cursor + 20, true)
+      const uncompressedSize = view.getUint32(cursor + 24, true)
+      const nameLength = view.getUint16(cursor + 28, true)
+      const extraLength = view.getUint16(cursor + 30, true)
+      const commentLength = view.getUint16(cursor + 32, true)
+      const localOffset = view.getUint32(cursor + 42, true)
+      const name = decoder.decode(bytes.slice(cursor + 46, cursor + 46 + nameLength))
+      cursor += 46 + nameLength + extraLength + commentLength
+      if (name !== path) continue
+      if (uncompressedSize > 25 * 1024 * 1024) throw new Error('The selected Excel worksheet is too large (25 MB limit).')
+      if (method !== 0 && method !== 8) throw new Error('This Excel workbook uses an unsupported compression method.')
+      const localNameLength = view.getUint16(localOffset + 26, true)
+      const localExtraLength = view.getUint16(localOffset + 28, true)
+      const dataOffset = localOffset + 30 + localNameLength + localExtraLength
+      const compressed = bytes.slice(dataOffset, dataOffset + compressedSize)
+      if (method === 0) return decoder.decode(compressed)
+      if (typeof DecompressionStream === 'undefined') throw new Error('Your browser cannot read compressed Excel files. Please use the latest Chrome or Edge.')
+      const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
+      const result = await new Response(stream).arrayBuffer()
+      if (result.byteLength > 25 * 1024 * 1024) throw new Error('The selected Excel worksheet is too large (25 MB limit).')
+      return decoder.decode(result)
+    }
+    throw new Error('The Excel workbook is missing a required worksheet file: ' + path)
+  }
 
+  async function parseXlsxFile(file: File): Promise<Record<string, string>[]> {
+    if (file.size > 20 * 1024 * 1024) throw new Error('Excel files must be 20 MB or smaller.')
+    const view = new DataView(await file.arrayBuffer())
+    const workbookXml = new DOMParser().parseFromString(await readZipText(view, 'xl/workbook.xml'), 'application/xml')
+    const relationshipsXml = new DOMParser().parseFromString(await readZipText(view, 'xl/_rels/workbook.xml.rels'), 'application/xml')
+    if (workbookXml.querySelector('parsererror') || relationshipsXml.querySelector('parsererror')) throw new Error('The Excel workbook structure could not be read.')
+    const firstSheet = workbookXml.getElementsByTagName('sheet')[0]
+    const relationshipId = firstSheet?.getAttribute('r:id')
+    if (!relationshipId) throw new Error('The Excel workbook does not contain a readable worksheet.')
+    const relationship = Array.from(relationshipsXml.getElementsByTagName('Relationship')).find((item) => item.getAttribute('Id') === relationshipId)
+    const target = relationship?.getAttribute('Target')
+    if (!target) throw new Error('Could not locate the first worksheet in this Excel workbook.')
+    const sheetPath = target.startsWith('/') ? target.slice(1) : 'xl/' + target.replace(/^\.?\//, '')
+    const sharedStrings: string[] = []
+    try {
+      const stringsXml = new DOMParser().parseFromString(await readZipText(view, 'xl/sharedStrings.xml'), 'application/xml')
+      for (const item of Array.from(stringsXml.getElementsByTagName('si'))) {
+        sharedStrings.push(Array.from(item.getElementsByTagName('t')).map((node) => node.textContent ?? '').join(''))
+      }
+    } catch { /* Inline-string workbooks do not need sharedStrings.xml. */ }
+    const sheetXml = new DOMParser().parseFromString(await readZipText(view, sheetPath), 'application/xml')
+    if (sheetXml.querySelector('parsererror')) throw new Error('The first Excel worksheet contains invalid XML.')
+    const worksheetRows = Array.from(sheetXml.getElementsByTagName('row'))
+    if (!worksheetRows.length) throw new Error('The first worksheet is empty.')
+    const columnIndex = (reference: string) => {
+      const letters = reference.match(/[A-Z]+/i)?.[0]?.toUpperCase() ?? ''
+      let value = 0
+      for (const letter of letters) value = value * 26 + letter.charCodeAt(0) - 64
+      return Math.max(0, value - 1)
+    }
+    const matrix: string[][] = worksheetRows.map((row) => {
+      const values: string[] = []
+      for (const cell of Array.from(row.getElementsByTagName('c'))) {
+        const index = columnIndex(cell.getAttribute('r') ?? '')
+        const type = cell.getAttribute('t')
+        const value = cell.getElementsByTagName('v')[0]?.textContent ?? ''
+        let display = value
+        if (type === 's') display = sharedStrings[Number(value)] ?? ''
+        else if (type === 'inlineStr') display = Array.from(cell.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
+        else if (type === 'b') display = value === '1' ? 'TRUE' : 'FALSE'
+        values[index] = display.trim()
+      }
+      return values
+    })
+    const headerIndex = matrix.findIndex((row) => row.some((value) => value?.trim()))
+    if (headerIndex < 0) throw new Error('The first worksheet does not contain a header row.')
+    const headers = matrix[headerIndex].map((value) => (value ?? '').trim())
+    if (!headers.some(Boolean)) throw new Error('Could not detect column headings in the first worksheet.')
+    return matrix.slice(headerIndex + 1).filter((row) => row.some((value) => value?.trim())).map((row) => {
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
+      return record
+    })
+  }
+
+  async function processImportRows(rows: Record<string, string>[], fileType: 'CSV' | 'Excel') {
+    const getValue = (row: Record<string, string>, names: string[]) => {
+      const normaliseHeader = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+      const aliases = names.map(normaliseHeader)
+      const entries = Object.entries(row)
+      const entry = entries.find(([key]) => aliases.includes(normaliseHeader(key))) ?? entries.find(([key]) => {
+        const header = normaliseHeader(key)
+        return aliases.some((alias) => alias.length >= 5 && header.includes(alias))
+      })
+      return (entry?.[1] ?? '').trim()
+    }
+    const knownIcNumbers = new Set(participants.map((p) => normaliseIc(p.ic_number)).filter(Boolean))
+    let skipped = 0
+    const rowsToInsert: ParticipantInsert[] = []
+    for (const row of rows) {
+      const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name'])
+      const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
+      const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad'])
+      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno'])
+      const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution'])
+      const gender = getValue(row, ['jantina', 'gender', 'sex'])
+      const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
+      const email = getValue(row, ['alamateemail', 'emailaddress', 'email'])
+      const phone = getValue(row, ['nombortelefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
+      const rawCategory = getValue(row, ['category', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus']).toLowerCase()
+      const matchedCategory = categories.find((item) => item.id.toLowerCase() === rawCategory || item.name.toLowerCase() === rawCategory)
+      const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil')
+        ? categories.find((item) => item.id === 'student')
+        : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
+          ? categories.find((item) => item.id === 'staff') : undefined
+      const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
+      const organisation = universityName || getValue(row, ['organisation', 'organization', 'company', 'school', 'institution'])
+      const notes = getValue(row, ['notes', 'remarks'])
+      // Excel may store a leading-zero Malaysian IC as an 11-digit number.
+      const digitsOnly = normaliseIc(icNumber)
+      const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
+      if (!fullName || normalIc.length !== 12 || !categories.some((item) => item.id === categoryValue) || knownIcNumbers.has(normalIc)) {
+        skipped++
+        continue
+      }
+      knownIcNumbers.add(normalIc)
+      rowsToInsert.push({
+        participant_code: generateParticipantCode(), full_name: fullName,
+        email: email || null, phone: phone || null, category: categoryValue as Category,
+        organisation: organisation || null, form_timestamp: formTimestamp || null,
+        ic_number: normalIc, student_id: studentId || null, university_name: universityName || null,
+        gender: gender || null, race: race || null, notes: notes || null,
+      })
+    }
+    if (!rowsToInsert.length) {
+      setMessage('No new participants imported. ' + skipped + ' row(s) skipped or invalid.')
+      return
+    }
+    let imported = 0
+    let insertFailure: string | null = null
+    for (let offset = 0; offset < rowsToInsert.length; offset += 500) {
+      const batch = rowsToInsert.slice(offset, offset + 500)
+      const { error: insertError } = await supabase.from('participants').insert(batch)
+      if (insertError?.code === '23505') {
+        for (const record of batch) {
+          const { error: rowError } = await supabase.from('participants').insert(record)
+          if (rowError?.code === '23505') skipped++
+          else if (rowError) { insertFailure = rowError.message; break }
+          else imported++
+        }
+        if (insertFailure) break
+      } else if (insertError) { insertFailure = insertError.message; break }
+      else imported += batch.length
+    }
+    if (imported > 0) await loadParticipants()
+    if (insertFailure) {
+      setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
+    } else {
+      setMessage(imported + ' participant(s) imported from ' + fileType + '. ' + skipped + ' row(s) skipped because of missing or duplicate information. You can upload the next batch later; existing registrations will be checked again.')
+    }
+  }
+
+  async function handleFileImport(file?: File) {
+    if (!file || !canImport) return
+    const isExcel = /\.xlsx$/i.test(file.name)
+    const isCsv = /\.csv$/i.test(file.name)
+    if (!isExcel && !isCsv) { setError('Choose a .csv or .xlsx file.'); return }
     setImporting(true)
     setError('')
     setMessage('')
-
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-
-      complete: async (result) => {
-        try {
-          const getValue = (
-            row: Record<string, string>,
-            names: string[],
-          ) => {
-            const normaliseHeader = (value: string) =>
-              value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
-            const aliases = names.map(normaliseHeader)
-            const rowEntries = Object.entries(row)
-            const entry = rowEntries.find(([key]) =>
-              aliases.includes(normaliseHeader(key)),
-            ) ?? rowEntries.find(([key]) => {
-              const header = normaliseHeader(key)
-              return aliases.some((alias) => alias.length >= 5 && header.includes(alias))
-            })
-
-            return (entry?.[1] ?? '').trim()
-          }
-
-          const knownIcNumbers = new Set(
-            participants.map((p) => normaliseIc(p.ic_number)).filter(Boolean),
-          )
-
-          let skipped = 0
-          const rowsToInsert: ParticipantInsert[] = []
-
-          for (const row of result.data) {
-            const fullName = getValue(row, [
-              'fullname',
-              'participantname',
-              'yourname',
-              'whatisyourfullname',
-              'name',
-            ])
-
-            const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
-            const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad'])
-            const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno'])
-            const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution'])
-            const gender = getValue(row, ['jantina', 'gender', 'sex'])
-            const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
-            const email = getValue(row, ['alamateemail', 'emailaddress', 'email'])
-            const phone = getValue(row, ['nombortelefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
-            const rawCategory = getValue(row, [
-              'category',
-              'participantcategory',
-              'studentstaff',
-              'staffstudent',
-              'employmentstatus',
-            ]).toLowerCase()
-            const matchedCategory = categories.find((item) => item.id.toLowerCase() === rawCategory || item.name.toLowerCase() === rawCategory)
-            const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil') ? categories.find((item) => item.id === 'student') : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer') ? categories.find((item) => item.id === 'staff') : undefined
-            const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
-
-            const organisation = universityName || getValue(row, [
-              'organisation',
-              'organization',
-              'company',
-              'school',
-              'institution',
-            ])
-
-            const notes = getValue(row, ['notes', 'remarks'])
-
-            const normalIc = normaliseIc(icNumber)
-
-            if (
-              !fullName ||
-              normalIc.length !== 12 ||
-              !categories.some((item) => item.id === categoryValue) ||
-              knownIcNumbers.has(normalIc)
-            ) {
-              skipped++
-              continue
-            }
-
-            knownIcNumbers.add(normalIc)
-
-            rowsToInsert.push({
-              participant_code: generateParticipantCode(),
-              full_name: fullName,
-              email: email || null,
-              phone: phone || null,
-              category: categoryValue as Category,
-              organisation: organisation || null,
-              form_timestamp: formTimestamp || null,
-              ic_number: icNumber || null,
-              student_id: studentId || null,
-              university_name: universityName || null,
-              gender: gender || null,
-              race: race || null,
-              notes: notes || null,
-            })
-          }
-
-          if (rowsToInsert.length === 0) {
-            setMessage(
-              `No new participants imported. ${skipped} row(s) skipped or invalid.`,
-            )
-          } else {
-            let imported = 0
-            let insertFailure: string | null = null
-
-            // Keep each database request modest so large Google Form exports
-            // can be imported reliably, including later incremental exports.
-            for (let offset = 0; offset < rowsToInsert.length; offset += 500) {
-              const batch = rowsToInsert.slice(offset, offset + 500)
-              const { error: insertError } = await supabase
-                .from('participants')
-                .insert(batch)
-
-              if (insertError?.code === '23505') {
-                for (const record of batch) {
-                  const { error: rowError } = await supabase.from('participants').insert(record)
-                  if (rowError?.code === '23505') skipped++
-                  else if (rowError) { insertFailure = rowError.message; break }
-                  else imported++
-                }
-                if (insertFailure) break
-              } else if (insertError) {
-                insertFailure = insertError.message
-                break
-              } else {
-                imported += batch.length
-              }
-            }
-
-            if (imported > 0) await loadParticipants()
-
-            if (insertFailure) {
-              setError(`${imported} participant(s) imported before the next batch failed. ${insertFailure} Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.`)
-            } else {
-              setMessage(
-                `${imported} participant(s) imported. ${skipped} row(s) skipped because of missing or duplicate information. You can upload the next CSV batch later; existing registrations will be checked again.`,
-              )
-            }
-          }
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : 'CSV import failed.',
-          )
-        } finally {
-          setImporting(false)
-
-          if (fileInput.current) {
-            fileInput.current.value = ''
-          }
-        }
-      },
-
-      error: (parseError) => {
-        setError(parseError.message)
-        setImporting(false)
-
-        if (fileInput.current) {
-          fileInput.current.value = ''
-        }
-      },
-    })
+    try {
+      if (isExcel) {
+        const rows = await parseXlsxFile(file)
+        if (!rows.length) throw new Error('No participant rows were found in the first worksheet.')
+        await processImportRows(rows, 'Excel')
+      } else {
+        const result = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve, reject) => {
+          Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: true, complete: resolve, error: reject })
+        })
+        await processImportRows(result.data, 'CSV')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (isExcel ? 'Excel' : 'CSV') + ' import failed.')
+    } finally {
+      setImporting(false)
+      if (fileInput.current) fileInput.current.value = ''
+    }
   }
 
   const filteredParticipants = participants.filter((participant) => {
@@ -546,10 +570,10 @@ export default function ParticipantManagement({
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="participant-file-input"
                 onChange={(event) =>
-                  void handleCsvImport(event.target.files?.[0])
+                  void handleFileImport(event.target.files?.[0])
                 }
               />
 
@@ -560,7 +584,7 @@ export default function ParticipantManagement({
                 onClick={() => fileInput.current?.click()}
               >
                 <Upload size={16} />
-                {importing ? 'Importing...' : 'Import CSV'}
+                {importing ? 'Importing...' : 'Import CSV / Excel'}
               </button>
             </>
           )}
@@ -605,7 +629,7 @@ export default function ParticipantManagement({
       {canImport && (
         <div className="participant-import-help">
           <strong>Import Google Form responses</strong>
-          <span>Download the current Google Form responses from Google Sheets as CSV, then choose Import CSV. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Keep the CSV headers intact and ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
+          <span>Download the current Google Form responses from Google Sheets as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically; EventFlow detects column headings and maps name, IC, student ID, university, gender, race, email, phone, category, timestamp and notes. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Keep the CSV headers intact and ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
         </div>
       )}
 
