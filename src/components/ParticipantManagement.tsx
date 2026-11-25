@@ -346,21 +346,22 @@ export default function ParticipantManagement({
     const headers = (matrix[headerIndex] ?? []).map((value) => (value ?? '').trim().replace(/^\\uFEFF/, ''))
     if (headerScore(headers) < 4) throw new Error('Could not identify the participant header row. Include Full Name / Nama Penuh and IC Number / No. Kad Pengenalan columns.')
     // Identify a serial/index column (BIL., No., Number, #, S/N, etc.).
-    // When present, only rows carrying an index from 1 to 999 are guest rows.
-    const indexHeaders = ['bil', 'bilangan', 'no', 'number', 'index', 'serial', 'serialno', 'sno', 'srno', 'sn', '#']
+    // Index length is deliberately unrestricted: large guest lists may exceed 9,999.
+    const indexHeaders = ['bil', 'bilangan', 'no', 'number', 'index', 'serial', 'serialno', 'sno', 'srno', 'sn']
     const indexColumn = headers.findIndex((header) => {
       const key = normalise(header)
-      return indexHeaders.includes(key) || ['bil', 'bilangan', 'serialno', 'sno', 'srno'].some((alias) => key.startsWith(alias))
+      return header.trim() === '#' || indexHeaders.includes(key)
+        || ['bil', 'bilangan', 'serialno', 'sno', 'srno'].some((alias) => key.startsWith(alias))
     })
     const dataRows = matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim()))
     const parseIndex = (value: string) => {
-      const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d{1,3})\s*\.?$/i)
+      const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d+)\s*\.?$/i)
       if (!match) return null
       const number = Number(match[1])
-      return number >= 1 && number <= 999 ? number : null
+      return Number.isSafeInteger(number) && number > 0 ? number : null
     }
-    // Some spreadsheets use an unlabeled first column. Infer it only when
-    // its values clearly form an ascending guest index sequence.
+    // Some spreadsheets use an unlabeled first column. Infer it when at
+    // least two rows contain valid positive numeric indexes in that column.
     const inferredIndexColumn = indexColumn < 0 && dataRows.filter((row) => parseIndex(row[0] ?? '') !== null).length >= 2
       ? 0
       : indexColumn
