@@ -932,6 +932,7 @@ export default function ParticipantManagement({
                     <td>
                       <div className="participant-row-actions">
                         {canManage && (
+                          <>
                           <button
                             type="button"
                             className="participant-action-button"
@@ -948,6 +949,7 @@ export default function ParticipantManagement({
                           >
                             <Trash2 size={15} /> Delete
                           </button>
+                          </>
                         )}
                       </div>
                     </td>
