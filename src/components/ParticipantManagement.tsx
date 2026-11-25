@@ -190,7 +190,7 @@ export default function ParticipantManagement({
       university_name: participant.university_name ?? '',
       gender: participant.gender ?? '',
       race: participant.race ?? '',
-      category: participant.category,
+      category: participant.import_issue_reasons?.includes('Unknown category') ? '' : participant.category,
       organisation: participant.university_name ?? participant.organisation ?? '',
       notes: participant.notes ?? '',
     })
@@ -222,6 +222,12 @@ export default function ParticipantManagement({
     const normalIc = normaliseIc(form.ic_number)
     if ((!editingId || form.ic_number.trim()) && normalIc.length !== 12) {
       setError('Enter a valid 12-digit IC number. IC number is required for every new registration.')
+      setSaving(false)
+      return
+    }
+
+    if (!categories.some((item) => item.id === form.category)) {
+      setError('Choose a valid category before saving this guest.')
       setSaving(false)
       return
     }
@@ -779,6 +785,7 @@ export default function ParticipantManagement({
                 }
                 required
               >
+                {!categories.some((category) => category.id === form.category) && <option value="">Choose a category</option>}
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
             </label>
