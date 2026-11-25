@@ -480,3 +480,15 @@
   color: #b91c1c !important;
   font-weight: 700;
 }
+
+
+.participant-delete-button {
+  color: #b42318;
+  border-color: #f2a6a0;
+}
+
+.participant-delete-button:hover {
+  color: #fff;
+  background: #b42318;
+  border-color: #b42318;
+}
