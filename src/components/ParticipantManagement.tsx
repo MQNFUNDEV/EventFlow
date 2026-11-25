@@ -26,6 +26,8 @@ type Participant = {
   race: string | null
   notes: string | null
   is_active: boolean
+  needs_review: boolean
+  import_issue_reasons: string[]
   created_at: string
 }
 
@@ -57,6 +59,8 @@ type ParticipantInsert = {
   gender: string | null
   race: string | null
   notes: string | null
+  needs_review?: boolean
+  import_issue_reasons?: string[]
 }
 
 const emptyForm: ParticipantForm = {
@@ -245,6 +249,8 @@ export default function ParticipantManagement({
       category: form.category,
       organisation: form.organisation.trim() || null,
       notes: form.notes.trim() || null,
+      needs_review: !form.full_name.trim() || normalIc.length !== 12 || !categories.some((item) => item.id === form.category),
+      import_issue_reasons: [],
       updated_at: new Date().toISOString(),
     }
 
@@ -399,7 +405,8 @@ export default function ParticipantManagement({
     let skipped = 0
     const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0 }
     const rowsToInsert: ParticipantInsert[] = []
-    for (const row of rows) {
+    let issueRows = 0
+    for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
       const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan'])
@@ -419,32 +426,51 @@ export default function ParticipantManagement({
         ? categories.find((item) => item.id === 'student')
         : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
           ? categories.find((item) => item.id === 'staff') : undefined
-      const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? rawCategory
+      const categoryValue = matchedCategory?.id ?? legacyCategory?.id
       const organisation = universityName || getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'institution', 'sekolah'])
       const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota'])
-      // Excel may store a leading-zero Malaysian IC as an 11-digit number.
       const digitsOnly = normaliseIc(icNumber)
       const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
-      if (!fullName || normalIc.length !== 12 || !categories.some((item) => item.id === categoryValue) || knownIcNumbers.has(normalIc)) {
+
+      // A duplicate belongs to an existing guest; never create a second guest record for it.
+      if (normalIc && knownIcNumbers.has(normalIc)) {
         skipped++
-        if (!fullName) skipReasons['Missing name']++
-        else if (normalIc.length !== 12) skipReasons['Invalid IC (must be 12 digits)']++
-        else if (!categories.some((item) => item.id === categoryValue)) skipReasons['Unknown category']++
-        else skipReasons['Duplicate IC']++
+        skipReasons['Duplicate IC']++
         continue
       }
-      knownIcNumbers.add(normalIc)
+
+      const issues: string[] = []
+      if (!fullName) issues.push('Missing guest name')
+      if (normalIc.length !== 12) issues.push('Invalid IC (must be 12 digits)')
+      if (!categoryValue) issues.push('Unknown category')
+      if (issues.length) {
+        issueRows++
+        if (!fullName) skipReasons['Missing name']++
+        if (normalIc.length !== 12) skipReasons['Invalid IC (must be 12 digits)']++
+        if (!categoryValue) skipReasons['Unknown category']++
+      }
+      if (normalIc) knownIcNumbers.add(normalIc)
       rowsToInsert.push({
-        participant_code: generateParticipantCode(), full_name: fullName,
-        email: email || null, phone: phone || null, category: categoryValue as Category,
-        organisation: organisation || null, form_timestamp: formTimestamp || null,
-        ic_number: normalIc, student_id: studentId || null, university_name: universityName || null,
-        gender: gender || null, race: race || null, notes: notes || null,
+        participant_code: generateParticipantCode(),
+        full_name: fullName || `NEEDS REVIEW · Import row ${rowIndex + 1}`,
+        email: email || null,
+        phone: phone || null,
+        category: categoryValue ?? categories[0]?.id ?? 'staff',
+        organisation: organisation || null,
+        form_timestamp: formTimestamp || null,
+        ic_number: normalIc || (icNumber || null),
+        student_id: studentId || null,
+        university_name: universityName || null,
+        gender: gender || null,
+        race: race || null,
+        notes: notes || null,
+        needs_review: issues.length > 0,
+        import_issue_reasons: issues,
       })
     }
     if (!rowsToInsert.length) {
       const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage('No new participants imported. ' + skipped + ' row(s) skipped. ' + (breakdown || 'No valid participant rows found.'))
+      setMessage('No new guests imported. ' + skipped + ' duplicate row(s) skipped. ' + (breakdown || 'No valid participant rows found.'))
       return
     }
     let imported = 0
@@ -468,7 +494,7 @@ export default function ParticipantManagement({
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
     } else {
       const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage(imported + ' participant(s) imported from ' + fileType + '. ' + skipped + ' row(s) skipped.' + (breakdown ? ' ' + breakdown + '.' : '') + ' Existing registrations will be checked again on the next import.')
+      setMessage(imported + ' guest record(s) saved from ' + fileType + ', including ' + issueRows + ' guest(s) flagged for review. ' + skipped + ' duplicate row(s) skipped.' + (breakdown ? ' ' + breakdown + '.' : '') + ' Existing registrations will not be duplicated.')
     }
   }
 
@@ -539,7 +565,8 @@ export default function ParticipantManagement({
 
   function participantIssues(participant: Participant) {
     const issues: string[] = []
-    if (!participant.full_name.trim()) issues.push('Missing guest name')
+    if (participant.needs_review) issues.push(...(participant.import_issue_reasons?.length ? participant.import_issue_reasons : ['Needs admin review']))
+    if (!participant.full_name.trim() || participant.full_name.startsWith('NEEDS REVIEW ·')) issues.push('Missing guest name')
     if (normaliseIc(participant.ic_number).length !== 12) issues.push('Invalid IC (must be 12 digits)')
     if (!categories.some((category) => category.id === participant.category)) issues.push('Unknown category')
     return issues
