@@ -327,6 +327,10 @@
   font-weight: 600;
 }
 
+.participant-table td .participant-name-button{display:inline-flex;align-items:center;flex-wrap:wrap;gap:7px;max-width:100%;padding:0;border:0;background:transparent;color:#263143;font:inherit;font-size:13px;font-weight:700;text-align:left;cursor:pointer}
+.participant-table td .participant-name-button:hover{text-decoration:underline;text-underline-offset:3px}
+.participant-table td .participant-name-button.participant-name--revised{width:fit-content;padding:4px 7px;border-radius:5px;color:#713f12;background:#fef08a;box-shadow:0 0 0 1px #eab308 inset}
+.participant-table tbody tr.participant-row--issues td .participant-name-button{color:#991b1b}
 .participant-table td strong.participant-name--revised {
   display: inline-flex;
   align-items: center;
@@ -517,3 +521,35 @@
   background: #b42318;
   border-color: #b42318;
 }
+
+.participant-history-backdrop{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.58)}
+.participant-history-modal{width:min(760px,100%);max-height:min(88vh,900px);overflow:auto;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgba(15,23,42,.28)}
+.participant-history-header{display:flex;justify-content:space-between;gap:18px;padding:22px 24px;border-bottom:1px solid #edf0f4}
+.participant-history-header>div>span{color:#7b8596;font-size:10px;font-weight:800;letter-spacing:.1em}
+.participant-history-header h2{margin:5px 0;color:#1e293b;font-size:20px}
+.participant-history-header p{margin:0;color:#8490a2;font-size:12px}
+.participant-history-close{display:grid;place-items:center;width:34px;height:34px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;cursor:pointer}
+.participant-history-current,.participant-history-timeline{padding:20px 24px;border-bottom:1px solid #edf0f4}
+.participant-history-current>strong{color:#334155;font-size:13px}
+.participant-history-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+.participant-history-grid>div{min-width:0}
+.participant-history-grid small{display:block;margin-bottom:4px;color:#8993a3;font-size:10px;text-transform:uppercase}
+.participant-history-grid span{display:block;overflow-wrap:anywhere;color:#334155;font-size:12px}
+.participant-history-timeline h3{display:flex;align-items:center;gap:8px;margin:0 0 14px;color:#334155;font-size:14px}
+.participant-history-empty,.participant-history-error{margin:0;color:#7b8596;font-size:12px;line-height:1.6}
+.participant-history-error{color:#b42318}
+.participant-history-entry{padding:14px 0;border-top:1px solid #edf0f4}
+.participant-history-entry:first-of-type{border-top:0}
+.participant-history-entry-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+.participant-history-entry-top strong{color:#334155;font-size:12px}
+.participant-history-entry-top time,.participant-history-actor{color:#8993a3;font-size:10px}
+.participant-history-actor{display:block;margin-top:4px;text-transform:capitalize}
+.participant-history-changes{display:grid;gap:8px;margin-top:10px}
+.participant-history-change{display:grid;grid-template-columns:minmax(100px,.35fr) minmax(0,1fr);gap:12px;padding:8px 10px;border-radius:7px;background:#f8fafc}
+.participant-history-change>strong{color:#64748b;font-size:11px}
+.participant-history-change>span{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;font-size:11px;overflow-wrap:anywhere}
+.participant-history-change del{color:#b42318}
+.participant-history-change ins{color:#15803d;text-decoration:none;font-weight:700}
+.participant-history-change b{color:#94a3b8}
+.participant-history-footer{display:flex;justify-content:flex-end;gap:9px;padding:16px 24px}
+@media(max-width:600px){.participant-history-backdrop{padding:8px}.participant-history-header,.participant-history-current,.participant-history-timeline{padding:16px}.participant-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.participant-history-change{grid-template-columns:1fr;gap:5px}.participant-history-footer{padding:12px 16px}}
