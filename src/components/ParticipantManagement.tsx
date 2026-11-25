@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  Plus, Search, RefreshCw, Pencil, Upload, Users, X, Trash2,
+  Plus, Search, RefreshCw, Pencil, Upload, Users, X, Trash2, History,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -31,6 +31,8 @@ type Participant = {
   created_at: string
   updated_at: string | null
 }
+
+type ParticipantRevision = { id: number; action: string; details: Record<string, unknown>; created_at: string; actor_user_id: string | null }
 
 type ParticipantForm = {
   full_name: string
@@ -113,6 +115,10 @@ export default function ParticipantManagement({
   const [form, setForm] = useState<ParticipantForm>(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formOpen, setFormOpen] = useState(false)
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null)
+  const [revisionHistory, setRevisionHistory] = useState<ParticipantRevision[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
@@ -174,6 +180,32 @@ export default function ParticipantManagement({
       void supabase.removeChannel(channel)
     }
   }, [loadParticipants])
+
+  async function openParticipantDetails(participant: Participant) {
+    setSelectedParticipant(participant)
+    setRevisionHistory([])
+    setHistoryError('')
+    setHistoryLoading(true)
+    const { data, error: historyQueryError } = await supabase.from('audit_logs')
+      .select('id, action, details, created_at, actor_user_id')
+      .eq('entity_type', 'participant').eq('entity_id', participant.id)
+      .order('created_at', { ascending: false }).limit(100)
+    if (historyQueryError) setHistoryError(historyQueryError.message)
+    else setRevisionHistory((data ?? []) as ParticipantRevision[])
+    setHistoryLoading(false)
+  }
+
+  function formatRevisionValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '—'
+    if (Array.isArray(value)) return value.join(', ') || '—'
+    if (typeof value === 'object') return JSON.stringify(value)
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+    return String(value)
+  }
+
+  function formatRevisionLabel(value: string): string {
+    return value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  }
 
   function openAddForm() {
     setEditingId(null)
@@ -1025,10 +1057,13 @@ export default function ParticipantManagement({
                   return (
                   <tr key={participant.id} className={issues.length ? 'participant-row--issues' : undefined}>
                     <td>
-                      <strong className={wasRevised(participant) ? 'participant-name--revised' : undefined}>
-                        {participant.full_name}
-                        {wasRevised(participant) && <span className="participant-revised-label">REVISED</span>}
-                      </strong>
+                      {canManage ? (
+                        <button type="button" className={`participant-name-button ${wasRevised(participant) ? 'participant-name--revised' : ''}`} onClick={() => void openParticipantDetails(participant)} title="View guest details and revision history">
+                          {participant.full_name}
+                          {wasRevised(participant) && <span className="participant-revised-label">REVISED</span>}
+                          <History size={13} aria-hidden="true" />
+                        </button>
+                      ) : <strong>{participant.full_name}</strong>}
                       <small>{participant.participant_code}</small>
                       {participant.organisation && (
                         <small>{participant.organisation}</small>
@@ -1106,6 +1141,47 @@ export default function ParticipantManagement({
           </div>
         )}
       </section>
+      {selectedParticipant && (
+        <div className="participant-history-backdrop" role="presentation" onClick={() => setSelectedParticipant(null)}>
+          <section className="participant-history-modal" role="dialog" aria-modal="true" aria-labelledby="participant-history-title" onClick={(event) => event.stopPropagation()}>
+            <header className="participant-history-header">
+              <div><span>GUEST RECORD</span><h2 id="participant-history-title">{selectedParticipant.full_name}</h2><p>{selectedParticipant.participant_code} · {selectedParticipant.ic_number || 'No IC recorded'}</p></div>
+              <button type="button" className="participant-history-close" onClick={() => setSelectedParticipant(null)} aria-label="Close guest details"><X size={19} /></button>
+            </header>
+            <div className="participant-history-current"><strong>Current details</strong>
+              <div className="participant-history-grid">
+                {[
+                  ['Category', categoryName(categories, selectedParticipant.category)], ['Email', selectedParticipant.email], ['Phone', selectedParticipant.phone],
+                  ['Student ID', selectedParticipant.student_id], ['University', selectedParticipant.university_name], ['Organisation', selectedParticipant.organisation],
+                  ['Gender', selectedParticipant.gender], ['Race', selectedParticipant.race], ['Notes', selectedParticipant.notes],
+                ].map(([label, value]) => <div key={label}><small>{label}</small><span>{value || '—'}</span></div>)}
+              </div>
+            </div>
+            <div className="participant-history-timeline"><h3><History size={16} /> Added &amp; changed history</h3>
+              {historyLoading ? <p className="participant-history-empty">Loading revision history…</p>
+                : historyError ? <p className="participant-history-error">{historyError}</p>
+                : revisionHistory.length === 0 ? <p className="participant-history-empty">No detailed history was recorded before revision tracking was enabled. New registrations and edits will appear here.</p>
+                : revisionHistory.map((revision) => {
+                  const details = revision.details ?? {}
+                  const changedFields = details.changed_fields && typeof details.changed_fields === 'object' ? Object.entries(details.changed_fields as Record<string, { old?: unknown; new?: unknown }>) : []
+                  const newValues = details.new_values && typeof details.new_values === 'object'
+                    ? Object.entries(details.new_values as Record<string, unknown>).filter(([key, value]) => ['full_name','ic_number','email','phone','category','organisation','student_id','university_name','gender','race','notes','needs_review','import_issue_reasons'].includes(key) && value !== null && value !== '' && value !== false && (!Array.isArray(value) || value.length > 0))
+                    : []
+                  return <article className="participant-history-entry" key={revision.id}>
+                    <div className="participant-history-entry-top"><strong>{revision.action === 'participant_created' ? 'Guest registered' : 'Guest details updated'}</strong><time>{new Date(revision.created_at).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}</time></div>
+                    <small className="participant-history-actor">{String(details.actor_email ?? 'Admin')} · {String(details.actor_role ?? 'administrator').replace(/_/g, ' ')}</small>
+                    {changedFields.length ? <div className="participant-history-changes">{changedFields.map(([field, change]) => <div className="participant-history-change" key={field}><strong>{formatRevisionLabel(field)}</strong><span><del>{formatRevisionValue(change.old)}</del><b>→</b><ins>{formatRevisionValue(change.new)}</ins></span></div>)}</div>
+                      : newValues.length ? <div className="participant-history-changes">{newValues.map(([field, value]) => <div className="participant-history-change" key={field}><strong>{formatRevisionLabel(field)}</strong><span><ins>{formatRevisionValue(value)}</ins></span></div>)}</div> : null}
+                  </article>
+                })}
+            </div>
+            <footer className="participant-history-footer">
+              <button type="button" className="participant-secondary-button" onClick={() => { setSelectedParticipant(null); openEditForm(selectedParticipant) }}><Pencil size={15} /> Edit guest</button>
+              <button type="button" className="participant-primary-button" onClick={() => setSelectedParticipant(null)}>Close</button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
