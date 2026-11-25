@@ -515,7 +515,6 @@ export default function ParticipantManagement({
         seenFileIcNumbers.set(normalIc, [...priorRows, rowsToInsert.length])
       }
 
-      if (issues.length) issueRows++
       rowsToInsert.push({
         participant_code: generateParticipantCode(),
         full_name: fullName || `NEEDS REVIEW · Import row ${rowIndex + 1}`,
@@ -534,6 +533,8 @@ export default function ParticipantManagement({
         import_issue_reasons: issues,
       })
     }
+
+    issueRows = rowsToInsert.filter((record) => record.needs_review).length
 
     // Move existing matching registrations out of the normal-IC unique index
     // before inserting their new duplicate copies. Keep all submitted field values.
@@ -555,8 +556,7 @@ export default function ParticipantManagement({
       }
     }
     if (!rowsToInsert.length) {
-      const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage('No guest records were imported. ' + (breakdown || 'No valid participant rows found.'))
+      setMessage('No guest records were imported. No valid participant rows were found.')
       return
     }
     let imported = 0
@@ -581,10 +581,9 @@ export default function ParticipantManagement({
     // including partial failures, so the next retry uses the real database contents.
     await loadParticipants()
     if (insertFailure) {
-      setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
+      setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; previously imported rows remain in the directory for review.')
     } else {
-      const breakdown = Object.entries(skipReasons).filter(([, count]) => count > 0).map(([reason, count]) => reason + ': ' + count).join(' · ')
-      setMessage(imported + ' guest registration record(s) saved from ' + fileType + ', including ' + issueRows + ' record(s) flagged for admin review. Duplicate registrations are preserved; all matching records appear in Guest With Issues.' + (breakdown ? ' ' + breakdown + '.' : ''))
+      setMessage(imported + ' guest registration record(s) saved from ' + fileType + ', including ' + issueRows + ' record(s) flagged for admin review. Duplicate registrations are preserved; all matching records appear in Guest With Issues.')
     }
   }
 
