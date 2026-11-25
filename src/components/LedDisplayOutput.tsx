@@ -54,9 +54,7 @@ function isExactFullHd(image: HTMLImageElement) {
 
 export default function LedDisplayOutput() {
   const displayParams = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
-  const controllerUserId = displayParams.get('controller')
   const requestedView = displayParams.get('view') === 'box' || displayParams.get('view') === 'winners' ? displayParams.get('view') as 'box' | 'winners' : 'full'
-  const [accessDenied, setAccessDenied] = useState(false)
   const [scene, setScene] = useState<DisplayScene>('welcome')
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [participantCategories, setParticipantCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
@@ -78,8 +76,6 @@ export default function LedDisplayOutput() {
     let lastBackgroundSignature = ''
     let transitionTimer = 0
     let visibleTimer = 0
-    let authChecked = false
-    let authenticatedUserId: string | null = null
 
     async function syncWelcomeArtwork(payload: DisplayPayload, nextAssetsVersion: string) {
       const rawPoster = typeof payload.welcome_poster === 'string' ? payload.welcome_poster : ''
@@ -183,26 +179,9 @@ export default function LedDisplayOutput() {
     }
 
     async function refreshScene() {
-      if (!authChecked) {
-        const { data: userData } = await supabase.auth.getUser()
-        authenticatedUserId = userData.user?.id ?? null
-        authChecked = true
-      }
-      const { data, error: queryError } = await supabase.from('display_state')
-        .select('scene, payload, active_controller_user_id')
-        .eq('id', 1)
-        .maybeSingle()
+      const { data, error: queryError } = await supabase.from('display_state').select('scene, payload').eq('id', 1).maybeSingle()
       if (cancelled) return
-      if (queryError) {
-        setError('Cannot connect to the display. Sign in with the linked administrator account and check the connection.')
-        return
-      }
-      if (!controllerUserId || authenticatedUserId !== controllerUserId || data?.active_controller_user_id !== controllerUserId) {
-        setAccessDenied(true)
-        setError('This display link is not assigned to the signed-in admin account or is no longer the active controller.')
-        return
-      }
-      setAccessDenied(false)
+      if (queryError) { setError('Cannot connect to the display. Sign in with an administrator account and check the connection.'); return }
       setError('')
       await applyDisplayRow(data)
     }
@@ -211,13 +190,7 @@ export default function LedDisplayOutput() {
     const channel = supabase
       .channel('led-output-display-state')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'display_state', filter: 'id=eq.1' }, (change) => {
-        const nextRow = change.new as { scene?: unknown; payload?: unknown; active_controller_user_id?: string | null } | null
-        if (!authChecked || !controllerUserId || authenticatedUserId !== controllerUserId || nextRow?.active_controller_user_id !== controllerUserId) {
-          setAccessDenied(true)
-          setError('This display link is not assigned to the signed-in admin account or is no longer the active controller.')
-          return
-        }
-        setAccessDenied(false)
+        const nextRow = change.new as { scene?: unknown; payload?: unknown } | null
         setError('')
         void applyDisplayRow(nextRow)
       })
@@ -231,7 +204,7 @@ export default function LedDisplayOutput() {
       window.clearTimeout(visibleTimer)
       void supabase.removeChannel(channel)
     }
-  }, [controllerUserId])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -263,10 +236,6 @@ export default function LedDisplayOutput() {
     : activeSceneBackground?.mode === 'custom'
       ? signedSceneBackgrounds[scene as BackgroundScene] ?? ''
       : ''
-
-  if (accessDenied) {
-    return <main className="led-output-screen"><div className="led-output-error">This display link is not assigned to the signed-in admin account or its controller session has changed. Copy the current LED link from the active controller account.</div></main>
-  }
 
   return <main className={`led-output-screen ${scene === 'lucky_draw' ? 'is-lucky-scene' : ''} ${scene === 'blackout' ? 'is-blackout-scene' : ''}`} style={themeStyles}>
     {error ? <div className="led-output-error">{error}</div> : <div className={`led-output-scene ${scene === 'attendance' ? 'is-attendance-scene' : ''} ${scene === 'manual_checkin' ? 'is-manual-checkin-scene' : ''} ${scene === 'blackout' ? 'is-blackout-scene' : ''} ${visible ? 'is-visible' : ''}`}>
