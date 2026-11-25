@@ -125,7 +125,7 @@ export default function ParticipantManagement({
   const [message, setMessage] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const loadParticipants = useCallback(async (): Promise<Participant[]> => {
+  const loadParticipants = useCallback(async (): Promise<Participant[] | null> => {
     const [participantResult, attendanceResult] = await Promise.all([
       fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to)),
       fetchAllPages<{ participant_id: string }>((from, to) => supabase.from('attendance').select('participant_id').range(from, to)),
@@ -135,7 +135,7 @@ export default function ParticipantManagement({
     if (attendanceResult.error) setError(attendanceResult.error.message)
     else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
     setLoading(false)
-    return participantResult.error ? [] : participantResult.data
+    return participantResult.error ? null : participantResult.data
   }, [])
 
   useEffect(() => {
@@ -543,6 +543,7 @@ export default function ParticipantManagement({
 
       // Refresh the complete shared directory and attendance before duplicate checks.
       const latestParticipants = await loadParticipants()
+      if (!latestParticipants) throw new Error('Could not refresh the shared participant directory. No rows were imported; refresh and try again.')
       await processImportRows(rows, isExcel ? 'Excel' : 'CSV', latestParticipants)
     } catch (err) {
       setLoading(false)
