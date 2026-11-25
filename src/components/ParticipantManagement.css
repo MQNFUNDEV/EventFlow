@@ -327,6 +327,31 @@
   font-weight: 600;
 }
 
+.participant-table td strong.participant-name--revised {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 7px;
+  border-radius: 5px;
+  color: #713f12;
+  background: #fef08a;
+  box-shadow: 0 0 0 1px #eab308 inset;
+}
+
+.participant-revised-label {
+  display: inline-block;
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: #713f12;
+  background: #fde047;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
 .participant-table td small {
   margin-top: 4px;
   color: #8a94a4;
