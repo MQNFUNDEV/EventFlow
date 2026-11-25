@@ -11,7 +11,9 @@ const DEFAULT_THEME = ['#06152d', '#e31b45', '#1177ff', '#19d4ff', '#ff3e9d']
 
 function related<T>(value: T | T[] | null | undefined) { return Array.isArray(value) ? value[0] : value }
 
-export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '' }: { categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string }) {
+export type LuckyDrawOutputView = 'full' | 'box' | 'winners'
+
+export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CATEGORIES, themeColors = DEFAULT_THEME, backgroundImage = '', view = 'full' }: { categories?: ParticipantCategory[]; themeColors?: string[]; backgroundImage?: string; view?: LuckyDrawOutputView }) {
   const [round, setRound] = useState<DrawRound | null>(null)
   const [winner, setWinner] = useState<DrawEntry | null>(null)
   const [drawLog, setDrawLog] = useState<DrawLogEntry[]>([])
@@ -206,22 +208,22 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   return <div className="led-lucky-output" style={themeStyle} onPointerDown={unlockOutputAudio}>
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
-    <aside className="led-lucky-session-log" aria-label="Current session winner results">
+    {view !== 'box' && <aside className="led-lucky-session-log" aria-label="Current session winner results">
       <header><strong>{boxState.category} Winners!</strong><span>{drawnCount} selected</span></header>
       {drawLog.length ? <ol>{drawLog.map((entry, index) => <li key={entry.id} className={`${entry.status === 'skipped' ? 'is-skipped' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'is-claimed' : 'is-pending'}${index >= 6 ? ` is-fade-${index - 5}` : ''}`}>
         <strong>{entry.name}</strong>
         <span>{entry.status === 'skipped' ? 'SKIPPED' : entry.notes === 'Confirmed by operator' || entry.status === 'collected' ? 'CLAIMED' : 'PENDING'}</span>
       </li>)}</ol> : <p>Winner results will appear here.</p>}
-    </aside>
-    <div className="led-lucky-machine-stage">
+    </aside>}
+    {view !== 'winners' && <div className="led-lucky-machine-stage">
       <LuckyDrawMachine totalNames={boxState.total} remainingNames={Math.max(0, boxState.total - drawnCount)} categoryLabel={boxState.category} phase={boxState.phase} startedAt={boxState.startedAt} animationId={boxState.animationId} cameraView={boxState.cameraView} interactiveCamera={false} />
-    </div>
+    </div>}
 
-    {winner && <div className="led-lucky-winner-backdrop" role="status" aria-live="assertive">
+    {view === 'full' && winner && <div className="led-lucky-winner-backdrop" role="status" aria-live="assertive">
       <div className="led-lucky-fireworks" aria-hidden="true"><i /><i /><i /></div>
       <div className="led-lucky-confetti" aria-hidden="true">{Array.from({ length: 32 }, (_, index) => <i key={index} style={{ '--confetti-left': `${(index * 37) % 100}%`, '--confetti-delay': `${-((index * 13) % 53) / 10}s`, '--confetti-duration': `${3.6 + (index % 5) * 0.45}s`, '--confetti-drift': `${(index % 7 - 3) * 3}vw`, '--confetti-color': confettiColors[index % confettiColors.length] } as CSSProperties} />)}</div>
       <section className="led-lucky-winner"><span>SELECTED GUEST</span><strong>{winner.name}</strong><small>{winnerRecord}</small></section>
     </div>}
-    <div className="led-output-bottom">MAQNA EVENTFLOW</div>
+    {view === 'full' && <div className="led-output-bottom">MAQNA EVENTFLOW</div>}
   </div>
 }
