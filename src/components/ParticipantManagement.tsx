@@ -125,7 +125,7 @@ export default function ParticipantManagement({
   const [message, setMessage] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const loadParticipants = useCallback(async () => {
+  const loadParticipants = useCallback(async (): Promise<Participant[]> => {
     const [participantResult, attendanceResult] = await Promise.all([
       fetchAllPages<Participant>((from, to) => supabase.from('participants').select('*').order('created_at', { ascending: false }).order('id').range(from, to)),
       fetchAllPages<{ participant_id: string }>((from, to) => supabase.from('attendance').select('participant_id').range(from, to)),
@@ -135,6 +135,7 @@ export default function ParticipantManagement({
     if (attendanceResult.error) setError(attendanceResult.error.message)
     else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
     setLoading(false)
+    return participantResult.error ? [] : participantResult.data
   }, [])
 
   useEffect(() => {
@@ -398,7 +399,7 @@ export default function ParticipantManagement({
     return recordsFromMatrix(matrix)
   }
 
-  async function processImportRows(rows: Record<string, string>[], fileType: 'CSV' | 'Excel') {
+  async function processImportRows(rows: Record<string, string>[], fileType: 'CSV' | 'Excel', existingParticipants: Participant[]) {
     const getValue = (row: Record<string, string>, names: string[]) => {
       const normaliseHeader = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
       const aliases = names.map(normaliseHeader)
@@ -409,9 +410,11 @@ export default function ParticipantManagement({
       })
       return (entry?.[1] ?? '').trim()
     }
-    const knownIcNumbers = new Set(participants.map((p) => normaliseIc(p.ic_number)).filter(Boolean))
+    // Snapshot the live database immediately before import; never rely on stale React state.
+    const knownIcNumbers = new Set(existingParticipants.map((p) => normaliseIc(p.ic_number)).filter(Boolean))
+    const seenFileIcNumbers = new Set<string>()
     let skipped = 0
-    const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0 }
+    const skipReasons: Record<string, number> = { 'Missing name': 0, 'Invalid IC (must be 12 digits)': 0, 'Unknown category': 0, 'Duplicate IC': 0, 'Duplicate IC in uploaded file': 0 }
     const rowsToInsert: ParticipantInsert[] = []
     let issueRows = 0
     for (const [rowIndex, row] of rows.entries()) {
@@ -440,7 +443,8 @@ export default function ParticipantManagement({
       const digitsOnly = normaliseIc(icNumber)
       const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
 
-      // A duplicate belongs to an existing guest; never create a second guest record for it.
+      // Existing database registrations are skipped, but repeated rows inside this
+      // uploaded file are retained and visibly flagged instead of being discarded.
       if (normalIc && knownIcNumbers.has(normalIc)) {
         skipped++
         skipReasons['Duplicate IC']++
@@ -451,13 +455,17 @@ export default function ParticipantManagement({
       if (!fullName) issues.push('Missing guest name')
       if (normalIc.length !== 12) issues.push('Invalid IC (must be 12 digits)')
       if (!categoryValue) issues.push('Unknown category')
+      if (normalIc && seenFileIcNumbers.has(normalIc)) {
+        issues.push('Duplicate IC in uploaded file')
+        skipReasons['Duplicate IC in uploaded file']++
+      }
       if (issues.length) {
         issueRows++
         if (!fullName) skipReasons['Missing name']++
         if (normalIc.length !== 12) skipReasons['Invalid IC (must be 12 digits)']++
         if (!categoryValue) skipReasons['Unknown category']++
       }
-      if (normalIc) knownIcNumbers.add(normalIc)
+      if (normalIc) seenFileIcNumbers.add(normalIc)
       rowsToInsert.push({
         participant_code: generateParticipantCode(),
         full_name: fullName || `NEEDS REVIEW · Import row ${rowIndex + 1}`,
@@ -497,7 +505,9 @@ export default function ParticipantManagement({
       } else if (insertError) { insertFailure = insertError.message; break }
       else imported += batch.length
     }
-    if (imported > 0) await loadParticipants()
+    // Always reconcile the visible directory with the server after an import attempt,
+    // including partial failures, so the next retry uses the real database contents.
+    await loadParticipants()
     if (insertFailure) {
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; already imported records will be skipped by the duplicate checks.')
     } else {
@@ -514,18 +524,28 @@ export default function ParticipantManagement({
     setImporting(true)
     setError('')
     setMessage('')
+    setLoading(true)
     try {
-      if (isExcel) {
-        const rows = await parseXlsxFile(file)
-        if (!rows.length) throw new Error('No participant rows were found in the first worksheet.')
-        await processImportRows(rows, 'Excel')
-      } else {
-        const result = await new Promise<Papa.ParseResult<string[]>>((resolve, reject) => {
-          Papa.parse<string[]>(file, { header: false, skipEmptyLines: true, complete: resolve, error: reject })
-        })
-        await processImportRows(recordsFromMatrix(result.data), 'CSV')
-      }
+      const rows = isExcel
+        ? await parseXlsxFile(file)
+        : await new Promise<Record<string, string>[]>((resolve, reject) => {
+            Papa.parse<string[]>(file, {
+              header: false,
+              skipEmptyLines: true,
+              complete: (result) => {
+                try { resolve(recordsFromMatrix(result.data)) }
+                catch (parseError) { reject(parseError) }
+              },
+              error: reject,
+            })
+          })
+      if (!rows.length) throw new Error('No participant rows were found in the selected file.')
+
+      // Refresh the complete shared directory and attendance before duplicate checks.
+      const latestParticipants = await loadParticipants()
+      await processImportRows(rows, isExcel ? 'Excel' : 'CSV', latestParticipants)
     } catch (err) {
+      setLoading(false)
       setError(err instanceof Error ? err.message : (isExcel ? 'Excel' : 'CSV') + ' import failed.')
     } finally {
       setImporting(false)
@@ -575,9 +595,14 @@ export default function ParticipantManagement({
     }
 
     const result = data as { participants_deleted?: number } | null
+    setParticipants([])
     setCheckedInIds(new Set())
-    setMessage(`Directory cleared. ${result?.participants_deleted ?? participants.length} guest record(s) permanently deleted. You can now import the new list.`)
+    setSearch('')
+    setCategoryFilter('all')
+    setStatusFilter('not_checked_in')
+    setCurrentPage(1)
     await loadParticipants()
+    setMessage(`Directory cleared. ${result?.participants_deleted ?? participants.length} guest record(s) permanently deleted from the shared database. The directory has been refreshed and is ready for a new upload.`)
   }
 
   function participantIssues(participant: Participant) {
