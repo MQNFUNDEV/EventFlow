@@ -445,3 +445,38 @@
   padding: 0 6px;
   white-space: nowrap;
 }
+
+
+/* Participant validation issues are intentionally high-visibility for desk operators. */
+.participant-table tbody tr.participant-row--issues td {
+  background: #fff0f0;
+  border-top: 1px solid #ffb4b4;
+  border-bottom: 1px solid #ffb4b4;
+  color: #991b1b;
+}
+
+.participant-table tbody tr.participant-row--issues td strong {
+  color: #991b1b;
+}
+
+.participant-table tbody tr.participant-row--issues td small {
+  color: #b42318;
+}
+
+.participant-status.issue {
+  color: #fff;
+  background: #dc2626;
+  box-shadow: 0 0 0 1px #b91c1c inset;
+}
+
+.participant-status.pending {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.participant-issue-text {
+  display: block;
+  margin-top: 5px;
+  color: #b91c1c !important;
+  font-weight: 700;
+}
