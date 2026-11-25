@@ -602,7 +602,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      clear_participant_directory: { Args: Record<PropertyKey, never>; Returns: Json }
+      delete_participant_permanently: { Args: { p_participant_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
