@@ -602,7 +602,9 @@ export default function ParticipantManagement({
 
       const issues: string[] = []
       if (!fullName) issues.push('Missing guest name')
-      if (normalIc.length !== 12) issues.push('Invalid IC (must be 12 digits)')
+      if (normalIc.length !== 12) issues.push(normalIc.length === 11
+        ? 'Invalid IC (11 digits) — possible missing leading zero; verify against the source document'
+        : 'Invalid IC (must be 12 digits)')
       if (!categoryValue) issues.push('Unknown category')
 
       const priorRows = normalIc ? (seenFileIcNumbers.get(normalIc) ?? []) : []
