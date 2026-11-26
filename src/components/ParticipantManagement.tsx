@@ -562,7 +562,7 @@ export default function ParticipantManagement({
         matches.forEach((participant) => existingIdsToFlag.add(participant.id))
         issues.push('Duplicate IC registration in uploaded file — verify guest details')
       }
-      if (normalIc) seenFileIcNumbers.set(normalIc, [...priorRows, rowIndex])
+      if (normalIc) seenFileIcNumbers.set(normalIc, [...priorRows, rowsToInsert.length])
 
       const existingMatches = normalIc ? (existingByIc.get(normalIc) ?? []) : []
       if (existingMatches.length > 1) {
