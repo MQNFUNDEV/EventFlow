@@ -34,7 +34,6 @@ type Participant = {
 }
 
 type ParticipantRevision = { id: number; action: string; details: Record<string, unknown>; created_at: string; actor_user_id: string | null }
-type ImportBatch = { id: string; file_name: string; file_type: 'CSV' | 'Excel'; source_row_count: number; linked_participant_count: number; issue_row_count: number; created_at: string }
 type ImportSourceRow = { id: string; batch_id: string; participant_id: string | null; source_row_number: number; source_data: Record<string, string>; source_name: string | null; source_ic: string | null; issue_types: string[] }
 
 type ParticipantForm = {
@@ -117,7 +116,6 @@ export default function ParticipantManagement({
   const isSuperAdmin = currentRole === 'super_admin'
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
-  const [importBatches, setImportBatches] = useState<ImportBatch[]>([])
   const [importRows, setImportRows] = useState<ImportSourceRow[]>([])
   const [sourceFilter, setSourceFilter] = useState('all')
   const [issueFilter, setIssueFilter] = useState('all')
@@ -144,14 +142,11 @@ export default function ParticipantManagement({
   const [message, setMessage] = useState('')
 
   const loadImportHistory = useCallback(async () => {
-    const [batchResult, rowResult] = await Promise.all([
-      fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
-      fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
-    ])
-    if (batchResult.error) setError(batchResult.error.message)
-    else setImportBatches(batchResult.data)
-    if (rowResult.error) setError(rowResult.error.message)
-    else setImportRows(rowResult.data)
+    const { data, error: rowsError } = await fetchAllPages<ImportSourceRow>((from, to) =>
+      supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to),
+    )
+    if (rowsError) setError(rowsError.message)
+    else setImportRows(data)
   }, [])
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -182,13 +177,10 @@ export default function ParticipantManagement({
       else setParticipants(result.data)
       if (attendanceResult.error) setError(attendanceResult.error.message)
       else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
-      const [batchResult, rowResult] = await Promise.all([
-        fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
-        fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
-      ])
+      const rowResult = await fetchAllPages<ImportSourceRow>((from, to) =>
+        supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to),
+      )
       if (!cancelled) {
-        if (batchResult.error) setError(batchResult.error.message)
-        else setImportBatches(batchResult.data)
         if (rowResult.error) setError(rowResult.error.message)
         else setImportRows(rowResult.data)
       }
@@ -941,10 +933,9 @@ export default function ParticipantManagement({
     return issues
   }
 
-  const selectedSourceRows = sourceFilter === 'all' ? null : importRows.filter(row =>
-    sourceFilter === 'issues' ? row.issue_types.length > 0 && (issueFilter === 'all' || row.issue_types.includes(issueFilter))
-      : row.batch_id === sourceFilter
-  )
+  const selectedSourceRows = sourceFilter === 'issues'
+    ? importRows.filter(row => row.issue_types.length > 0 && (issueFilter === 'all' || row.issue_types.includes(issueFilter)))
+    : null
   const selectedParticipantIds = selectedSourceRows ? new Set(selectedSourceRows.map(row => row.participant_id).filter((id): id is string => Boolean(id))) : null
   const unlinkedSourceRows = (selectedSourceRows ?? []).filter(row => !row.participant_id)
   const filteredParticipants = participants.filter((participant) => {
@@ -1246,10 +1237,9 @@ export default function ParticipantManagement({
           <select
             value={sourceFilter}
             onChange={(e) => { setSourceFilter(e.target.value); setIssueFilter('all'); setCurrentPage(1) }}
-            aria-label="Filter by uploaded file or issues"
+            aria-label="Filter participants or import issues"
           >
             <option value="all">All Participants</option>
-            {importBatches.map(batch => <option key={batch.id} value={batch.id}>{batch.file_name} · {batch.source_row_count} rows</option>)}
             <option value="issues">Issues · {issueCount}</option>
           </select>
           {sourceFilter === 'issues' && (
