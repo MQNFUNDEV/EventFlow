@@ -202,12 +202,18 @@ export default function ParticipantManagement({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => {
         void loadParticipants()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participant_import_batches' }, () => {
+        void loadImportHistory()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participant_import_rows' }, () => {
+        void loadImportHistory()
+      })
       .subscribe()
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [loadParticipants])
+  }, [loadParticipants, loadImportHistory])
 
   async function openParticipantDetails(participant: Participant) {
     setSelectedParticipant(participant)
@@ -464,9 +470,10 @@ export default function ParticipantManagement({
     const dataRows = matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim()))
     // Keep every non-empty source row. A missing or malformed serial value
     // must not cause a guest row to disappear from the import.
-    return dataRows.map((row) => {
+    return dataRows.map((row, rowIndex) => {
       const record: Record<string, string> = {}
       headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
+      record.__eventflow_source_row = String(headerIndex + rowIndex + 2)
       return record
     })
   }
@@ -753,10 +760,6 @@ export default function ParticipantManagement({
       const issues = new Set<string>()
       if (!name.trim()) issues.add('missing_name')
       if ((ic.match(/\d/g) ?? []).length !== 12) issues.add('invalid_ic')
-      const appearedInEarlierFile = importRows.some(sourceRow => sourceRow.batch_id !== batch.id && (
-        (normIc && icKey(sourceRow.source_ic ?? '') === normIc) ||
-        (normName && nameKey(sourceRow.source_name ?? '') === normName)
-      ))
       const priorIcMatch = normIc && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && icKey(sourceRow.source_ic ?? '') === normIc)
       const priorNameMatch = normName && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && nameKey(sourceRow.source_name ?? '') === normName)
       if (normIc && ((icCounts.get(normIc) ?? 0) > 1 || priorIcMatch)) issues.add('duplicate_ic')
@@ -772,8 +775,10 @@ export default function ParticipantManagement({
         else if (reason) issues.add('other')
       }
       return {
-        batch_id: batch.id, participant_id: participant?.id ?? null, source_row_number: index + 2,
-        source_data: row, source_name: name || null, source_ic: ic || null, issue_types: [...issues],
+        batch_id: batch.id, participant_id: participant?.id ?? null,
+        source_row_number: Number(row.__eventflow_source_row) || index + 2,
+        source_data: Object.fromEntries(Object.entries(row).filter(([key]) => key !== '__eventflow_source_row')),
+        source_name: name || null, source_ic: ic || null, issue_types: [...issues],
       }
     })
     for (let offset = 0; offset < sourceRecords.length; offset += 500) {
@@ -903,6 +908,7 @@ export default function ParticipantManagement({
       : row.batch_id === sourceFilter
   )
   const selectedParticipantIds = selectedSourceRows ? new Set(selectedSourceRows.map(row => row.participant_id).filter((id): id is string => Boolean(id))) : null
+  const unlinkedSourceRows = (selectedSourceRows ?? []).filter(row => !row.participant_id)
   const filteredParticipants = participants.filter((participant) => {
     const matchesSource = !selectedParticipantIds || selectedParticipantIds.has(participant.id)
     const term = search.trim().toLowerCase()
@@ -1231,6 +1237,25 @@ export default function ParticipantManagement({
             <option value="completed">Complete Check In</option>
           </select>
         </div>
+
+        {unlinkedSourceRows.length > 0 && (
+          <div className="participant-unlinked-rows">
+            <strong>{unlinkedSourceRows.length} source row(s) need manual matching</strong>
+            <div className="participant-table-wrap">
+              <table className="participant-table">
+                <thead><tr><th>Source row</th><th>Guest name</th><th>IC number</th><th>Issues</th></tr></thead>
+                <tbody>{unlinkedSourceRows.map(row => (
+                  <tr key={row.id} className="participant-row--issues">
+                    <td>#{row.source_row_number}</td>
+                    <td>{row.source_name || 'Missing name'}</td>
+                    <td>{row.source_ic || '—'}</td>
+                    <td>{row.issue_types.map(type => type.replace(/_/g, ' ')).join(', ') || 'Could not link to a unique participant'}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="participant-empty">Loading participants...</div>
