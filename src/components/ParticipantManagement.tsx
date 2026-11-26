@@ -30,6 +30,7 @@ type Participant = {
   import_issue_reasons: string[]
   created_at: string
   updated_at: string | null
+  manual_revised_at: string | null
 }
 
 type ParticipantRevision = { id: number; action: string; details: Record<string, unknown>; created_at: string; actor_user_id: string | null }
@@ -334,6 +335,7 @@ export default function ParticipantManagement({
     // when a real participant field has changed and the update is saved.
     const updateValues = {
       ...values,
+      manual_revised_at: hasActualChanges ? values.updated_at : existingParticipant?.manual_revised_at ?? null,
       updated_at: hasActualChanges ? values.updated_at : existingParticipant?.updated_at,
     }
 
@@ -812,9 +814,7 @@ export default function ParticipantManagement({
   )
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
-  const wasRevised = (participant: Participant) =>
-    Boolean(participant.updated_at && participant.created_at &&
-      new Date(participant.updated_at).getTime() > new Date(participant.created_at).getTime())
+  const wasRevised = (participant: Participant) => Boolean(participant.manual_revised_at)
   const issueCount = participants.filter((p) => participantIssues(p).length > 0).length
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
