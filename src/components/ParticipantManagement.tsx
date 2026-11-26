@@ -227,7 +227,7 @@ export default function ParticipantManagement({
       gender: participant.gender ?? '',
       race: participant.race ?? '',
       category: participant.import_issue_reasons?.includes('Unknown category') ? '' : participant.category,
-      organisation: participant.university_name ?? participant.organisation ?? '',
+      organisation: participant.organisation ?? '',
       notes: participant.notes ?? '',
     })
     setFormOpen(true)
@@ -300,7 +300,7 @@ export default function ParticipantManagement({
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       student_id: form.student_id.trim() || null,
-      university_name: form.university_name.trim() || form.organisation.trim() || null,
+      university_name: form.university_name.trim() || null,
       gender: form.gender.trim() || null,
       race: form.race.trim() || null,
       form_timestamp: editingId ? undefined : new Date().toISOString(),
