@@ -503,15 +503,17 @@ export default function ParticipantManagement({
   }
 
   async function processImportRows(rows: Record<string, string>[], fileType: 'CSV' | 'Excel', existingParticipants: Participant[]) {
+    // Match source columns by their complete, normalised header only.
+    // Never use partial-header matching: IC Number, Phone Number and Student ID
+    // are separate fields and values must never be moved between them.
     const getValue = (row: Record<string, string>, names: string[]) => {
       const normaliseHeader = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
-      const aliases = names.map(normaliseHeader)
-      const entries = Object.entries(row)
-      const entry = entries.find(([key]) => aliases.includes(normaliseHeader(key))) ?? entries.find(([key]) => {
-        const header = normaliseHeader(key)
-        return aliases.some((alias) => alias.length >= 5 && header.includes(alias))
-      })
-      return (entry?.[1] ?? '').trim()
+      const aliases = new Set(names.map(normaliseHeader))
+      const matches = Object.entries(row).filter(([key]) => aliases.has(normaliseHeader(key)))
+      if (matches.length > 1) {
+        throw new Error(`The uploaded file has multiple columns matching "${names[0]}". Please confirm which column should be used before importing.`)
+      }
+      return (matches[0]?.[1] ?? '').trim()
     }
     // Preserve every indexed registration. Any repeated IC is a review issue,
     // not a reason to discard either the existing or newly submitted record.
@@ -530,7 +532,9 @@ export default function ParticipantManagement({
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
       const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'ic', 'noic', 'no kad pengenalan', 'no kp'])
-      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik', 'matrik', 'no matrik', 'no pelajar', 'student no', 'studentnumber', 'registrationnumber'])
+      // Student ID is populated only from an explicit student/matric header.
+      // It is never extracted from an email address or inferred from IC/phone data.
+      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik', 'matrik', 'no matrik', 'no pelajar', 'student no', 'studentnumber'])
       const universityName = getValue(row, ['ipt', 'namaipt', 'namauniversiti', 'universityname', 'university', 'institution', 'institusi', 'kolej', 'universiti', 'nama institusi'])
       const gender = getValue(row, ['jantina', 'gender', 'sex', 'lelaki/perempuan'])
       const race = getValue(row, ['bangsa', 'race', 'ethnicity', 'kaum'])
@@ -606,7 +610,9 @@ export default function ParticipantManagement({
         category: categoryValue ?? categories[0]?.id ?? 'staff',
         organisation: organisation || null,
         form_timestamp: formTimestamp || null,
-        ic_number: normalIc || (icNumber || null),
+        // Normalise only a valid 12-digit IC. Keep malformed source text intact
+        // for review; never pad digits or borrow values from another column.
+        ic_number: normalIc.length === 12 ? normalIc : (icNumber || null),
         student_id: studentId || null,
         university_name: universityName || null,
         gender: gender || null,
@@ -898,7 +904,7 @@ export default function ParticipantManagement({
       {canImport && (
         <div className="participant-import-help">
           <strong>Import Google Form responses</strong>
-          <span>Download the current Google Form responses from Google Sheets as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically. EventFlow recognises English and Bahasa Malaysia column headings, including Full Name / Nama Penuh, IC Number / No. Kad Pengenalan, Phone Number / No. Telefon and Category / Kategori. It maps name, IC, student ID, university, gender, race, email, phone, category, timestamp and notes; serial-number and total-pax columns are ignored. You can repeat this whenever another group finishes registering: upload the latest export again, and EventFlow will skip records already in the directory and add new ones. Large imports are sent to the database in batches of up to 500. Ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, student ID, university, gender, race, contact details and notes in this directory.</span>
+          <span>Download the registration list from Google Sheets or Excel as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically. EventFlow matches complete column headers (not partial header text). IC Number is read only from an IC / Kad Pengenalan column; Phone Number is read only from a Phone / Telefon column; Student ID is read only from an explicit Student ID / Matric / No. Pelajar column. These three fields are never substituted for one another, and Student ID is never extracted from an email address. If the workbook has no Student ID column, Student ID remains blank. IPT is read as the university/institution field, EMEL as Email, and Category as the participant category. Source values are kept as supplied except valid 12-digit IC values, which are stored as digits without separators. Invalid IC values are preserved for review; EventFlow will not add missing digits or guess a leading zero. Serial-number and total-pax columns are ignored. You can upload a revised list again: existing records are matched by IC, supplied non-empty fields can be updated, and blank cells do not erase saved details. Large imports are sent to the database in batches of up to 500. Ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, Student ID, university, gender, race, contact details and notes in this directory.</span>
         </div>
       )}
 
