@@ -504,6 +504,35 @@ export default function ParticipantManagement({
       }
     } catch { /* Inline-string workbooks do not need sharedStrings.xml. */ }
 
+    // Read explicit Excel zero-padding formats so numeric IC cells retain leading
+    // zeroes exactly as Excel displays them. Never infer padding without a format.
+    const customNumberFormats = new Map<number, string>()
+    const cellNumberFormats: number[] = []
+    try {
+      const stylesXml = new DOMParser().parseFromString(await readZipText(view, 'xl/styles.xml'), 'application/xml')
+      for (const item of Array.from(stylesXml.getElementsByTagName('numFmt'))) {
+        customNumberFormats.set(Number(item.getAttribute('numFmtId')), item.getAttribute('formatCode') ?? '')
+      }
+      const cellXfs = stylesXml.getElementsByTagName('cellXfs')[0]
+      for (const item of Array.from(cellXfs?.children ?? [])) {
+        cellNumberFormats.push(Number(item.getAttribute('numFmtId') ?? 0))
+      }
+    } catch { /* Workbooks without styles use their stored cell values. */ }
+    const applyExcelZeroFormat = (raw: string, format: string) => {
+      const firstSection = format.split(';')[0].replace(/\\\\/g, '').trim()
+      const groups = firstSection.match(/^(0{1,12})(?:-(0{2}))?(?:-(0{4}))?$/)
+      if (!groups || !/^\\d+$/.test(raw)) return raw
+      const widths = groups.slice(1).filter(Boolean).map((part) => part!.length)
+      if (raw.length > widths.reduce((sum, width) => sum + width, 0)) return raw
+      const padded = raw.padStart(widths.reduce((sum, width) => sum + width, 0), '0')
+      let offset = 0
+      return widths.map((width) => {
+        const part = padded.slice(offset, offset + width)
+        offset += width
+        return part
+      }).join('-')
+    }
+
     const sheetXml = new DOMParser().parseFromString(await readZipText(view, sheetPath), 'application/xml')
     if (sheetXml.querySelector('parsererror')) throw new Error('The first Excel worksheet contains invalid XML.')
     const worksheetRows = Array.from(sheetXml.getElementsByTagName('row'))
@@ -526,6 +555,12 @@ export default function ParticipantManagement({
         if (type === 's') display = sharedStrings[Number(value)] ?? ''
         else if (type === 'inlineStr') display = Array.from(cell.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
         else if (type === 'b') display = value === '1' ? 'TRUE' : 'FALSE'
+        else if (!type || type === 'n') {
+          const styleIndex = Number(cell.getAttribute('s') ?? 0)
+          const numFmtId = cellNumberFormats[styleIndex] ?? 0
+          const format = customNumberFormats.get(numFmtId) ?? ''
+          display = applyExcelZeroFormat(value, format)
+        }
         values[index] = display
       }
       return values
