@@ -60,7 +60,7 @@ The source includes records from many institutions and campus labels, including 
 - EventFlow's current default student category is labelled `MEC STUDENT` with ID `student`; the source label therefore needs a safe legacy mapping.
 - Future events may use additional categories.
 
-**Rule:** match configured category IDs/names first. Map known student synonyms such as `Mahasiswa`, `Pelajar`, `Murid`, and `Student` to the configured `student` category when it exists. Map known staff synonyms to `staff` only when that configured category exists. Preserve exact matches for all custom categories. Unknown categories remain review-needed; never invent a new category during import. All authorised admins continue to see all categories.
+**Rule:** match configured category IDs/names first. Prefer exact matches against configured category IDs/names. The live EventFlow categories were verified as `mahasiswa` / `Mahasiswa` and `felda` / `Felda`; the supplied `Mahasiswa` value matches directly. For future files, map known student synonyms such as `Pelajar`, `Murid`, and `Student` to the configured student category only when it exists. Map known staff synonyms only when a matching configured category exists. Preserve exact matches for all custom categories. Unknown categories remain review-needed; never invent a new category during import. All authorised admins continue to see all categories.
 
 ### Incomplete and free-text details
 - Some fields are blank while the rest of the guest row is useful.
