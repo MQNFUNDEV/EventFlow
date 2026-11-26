@@ -332,9 +332,10 @@ export default function ParticipantManagement({
     // Do not touch updated_at for a no-op edit. The yellow REVISED marker is
     // based on updated_at being later than created_at, so it must only advance
     // when a real participant field has changed and the update is saved.
-    const updateValues = hasActualChanges
-      ? values
-      : (({ updated_at: _updatedAt, ...unchangedValues }) => unchangedValues)(values)
+    const updateValues = {
+      ...values,
+      updated_at: hasActualChanges ? values.updated_at : existingParticipant?.updated_at,
+    }
 
     const result = editingId
       ? hasActualChanges
