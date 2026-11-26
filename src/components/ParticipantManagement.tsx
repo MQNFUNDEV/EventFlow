@@ -650,7 +650,8 @@ export default function ParticipantManagement({
       }
     }
     if (!rowsToInsert.length) {
-      setMessage('No guest records were imported. No valid participant rows were found.')
+      setMessage(updatedCount + ' existing guest(s) updated. No new guests found.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' repeated row(s) in the file were flagged for review.' : ''))
+      await loadParticipants()
       return
     }
     let imported = 0
