@@ -546,7 +546,7 @@ export default function ParticipantManagement({
           ? categories.find((item) => item.id === 'staff') : undefined
       const categoryValue = matchedCategory?.id ?? legacyCategory?.id
       const organisation = getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'sekolah', 'majikan', 'jabatan', 'department'])
-      const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota'])
+      const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota', 'keterangan', 'description', 'comment', 'comments', 'maklumat tambahan', 'butiran', 'info'])
       const digitsOnly = normaliseIc(icNumber)
       const normalIc = digitsOnly // Never invent a missing leading digit; 11-digit values remain review-needed.
 
@@ -641,7 +641,7 @@ export default function ParticipantManagement({
       ]))
       const { error: flagError } = await supabase
         .from('participants')
-        .update({ needs_review: true, import_issue_reasons: reasons, updated_at: new Date().toISOString() })
+        .update({ needs_review: true, import_issue_reasons: reasons })
         .eq('id', participantId)
       if (flagError) {
         setError('Could not mark existing duplicate registrations for review. No new rows were imported. ' + flagError.message)
