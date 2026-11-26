@@ -531,7 +531,7 @@ export default function ParticipantManagement({
         const type = cell.getAttribute('t')
         const value = cell.getElementsByTagName('v')[0]?.textContent ?? ''
         let display = value
-        if (type !== 's' && type !== 'inlineStr' && /^\\d+$/.test(value)) {
+        if (type !== 's' && type !== 'inlineStr' && /^\d+$/.test(value)) {
           const styleIndex = Number(cell.getAttribute('s') ?? '0')
           const zeroPadWidth = zeroPadWidthByStyle.get(styleIndex)
           if (zeroPadWidth) display = value.padStart(zeroPadWidth, '0')
