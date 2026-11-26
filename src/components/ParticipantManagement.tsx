@@ -312,11 +312,37 @@ export default function ParticipantManagement({
       updated_at: new Date().toISOString(),
     }
 
+    const existingParticipant = editingId
+      ? participants.find((participant) => participant.id === editingId)
+      : null
+    const revisionFields: (keyof typeof values)[] = [
+      'full_name', 'ic_number', 'email', 'phone', 'student_id',
+      'university_name', 'gender', 'race', 'category', 'organisation',
+      'notes', 'needs_review', 'import_issue_reasons',
+    ]
+    const hasActualChanges = !editingId || !existingParticipant || revisionFields.some((field) => {
+      const previous = existingParticipant[field as keyof Participant]
+      const nextValue = values[field]
+      if (Array.isArray(previous) || Array.isArray(nextValue)) {
+        return JSON.stringify(previous ?? []) !== JSON.stringify(nextValue ?? [])
+      }
+      return (previous ?? null) !== (nextValue ?? null)
+    })
+
+    // Do not touch updated_at for a no-op edit. The yellow REVISED marker is
+    // based on updated_at being later than created_at, so it must only advance
+    // when a real participant field has changed and the update is saved.
+    const updateValues = hasActualChanges
+      ? values
+      : (({ updated_at: _updatedAt, ...unchangedValues }) => unchangedValues)(values)
+
     const result = editingId
-      ? await supabase
-          .from('participants')
-          .update(values)
-          .eq('id', editingId)
+      ? hasActualChanges
+        ? await supabase
+            .from('participants')
+            .update(updateValues)
+            .eq('id', editingId)
+        : { error: null }
       : await supabase
           .from('participants')
           .insert({
