@@ -486,6 +486,34 @@ export default function ParticipantManagement({
         sharedStrings.push(Array.from(item.getElementsByTagName('t')).map((node) => node.textContent ?? '').join(''))
       }
     } catch { /* Inline-string workbooks do not need sharedStrings.xml. */ }
+
+    // Excel can store an IC as a number while using a custom zero mask
+    // (for example 000000000000) to display its leading zero. Read that
+    // number format so the importer uses the displayed 12-digit IC.
+    // Do not pad numeric cells with General format: their missing digit
+    // cannot be proven from the stored value alone.
+    const zeroPadWidthByStyle = new Map<number, number>()
+    try {
+      const stylesXml = new DOMParser().parseFromString(await readZipText(view, 'xl/styles.xml'), 'application/xml')
+      const customFormats = new Map<number, string>()
+      for (const format of Array.from(stylesXml.getElementsByTagName('numFmt'))) {
+        const id = Number(format.getAttribute('numFmtId'))
+        const code = format.getAttribute('formatCode') ?? ''
+        if (Number.isFinite(id)) customFormats.set(id, code)
+      }
+      const cellFormats = stylesXml.getElementsByTagName('cellXfs')[0]
+      if (cellFormats) {
+        Array.from(cellFormats.getElementsByTagName('xf')).forEach((format, styleIndex) => {
+          const formatId = Number(format.getAttribute('numFmtId') ?? '0')
+          const code = customFormats.get(formatId) ?? ''
+          const firstSection = code.split(';')[0]
+          // Only accept an explicit all-zero mask; avoid interpreting dates,
+          // decimals, phone formats, or other custom numeric formats as ICs.
+          if (/^0{12}$/.test(firstSection)) zeroPadWidthByStyle.set(styleIndex, 12)
+        })
+      }
+    } catch { /* Workbooks without styles.xml use their stored cell values. */ }
+
     const sheetXml = new DOMParser().parseFromString(await readZipText(view, sheetPath), 'application/xml')
     if (sheetXml.querySelector('parsererror')) throw new Error('The first Excel worksheet contains invalid XML.')
     const worksheetRows = Array.from(sheetXml.getElementsByTagName('row'))
@@ -503,6 +531,11 @@ export default function ParticipantManagement({
         const type = cell.getAttribute('t')
         const value = cell.getElementsByTagName('v')[0]?.textContent ?? ''
         let display = value
+        if (type !== 's' && type !== 'inlineStr' && /^\\d+$/.test(value)) {
+          const styleIndex = Number(cell.getAttribute('s') ?? '0')
+          const zeroPadWidth = zeroPadWidthByStyle.get(styleIndex)
+          if (zeroPadWidth) display = value.padStart(zeroPadWidth, '0')
+        }
         if (type === 's') display = sharedStrings[Number(value)] ?? ''
         else if (type === 'inlineStr') display = Array.from(cell.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
         else if (type === 'b') display = value === '1' ? 'TRUE' : 'FALSE'
