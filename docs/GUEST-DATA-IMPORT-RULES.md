@@ -84,3 +84,17 @@ The source includes records from many institutions and campus labels, including 
 ## Current implementation note
 
 The 2026-11-26 parser update adds Malay student-category recognition, additional header aliases for IC/student ID/phone/email/notes, separates IPT from organisation, and stops inventing a missing leading IC digit. A dedicated nullable `manual_revised_at` column now records only real manual edits; spreadsheet imports and automatic review flags do not set it. The generic `updated_at` column may still change because of the database trigger and must not drive the REVISED label. Existing historical revised labels are not backfilled because the old timestamp cannot reliably distinguish manual edits from imports. The importer still needs a real-workbook acceptance test, including quoted multiline CSV, missing values, short forms, multiple emails, invalid ICs, and duplicate ICs.
+
+## Aggregate review of the supplied roster (PII-free)
+
+The text export contains 2,972 physical lines: one header, 2,968 six-column data lines, and three irregular physical lines. All 2,968 complete six-column rows use the category label `Mahasiswa`. There are 21 distinct institution/campus labels in the export.
+
+Observed field-quality counts across the complete six-column rows:
+- Name casing: 2,887 uppercase, 72 mixed-case, 9 lowercase.
+- IC digit counts after removing separators: 2,885 values have 12 digits; 55 have 11; the remainder have 3, 6, 7, 8, 9, 10, 13 or 14 digits. Do not auto-correct these lengths.
+- Phone digit counts vary from 2 to 12; 1,672 have 10 digits and 1,204 have 11 digits. Keep them as text.
+- Seven rows contain multiple email addresses separated by a slash. A simple email-shape check flags 45 values; this is a review hint, not proof that the address is unusable.
+- 52 occurrences are repeated 12-digit IC values after their first occurrence. Treat these as potential duplicate registrations requiring comparison, not as permission to merge automatically.
+- Name particles/short forms occur frequently: BINTI, BIN, MOHD, MUHAMMAD, MOHAMAD, MD, BT, A/P, A/L and MUHD.
+
+The counts are diagnostic only. They contain no participant values and should not be used as hard validation thresholds for future event lists, whose formats may differ.
