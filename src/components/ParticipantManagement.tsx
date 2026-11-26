@@ -87,6 +87,13 @@ function normaliseIc(value: string | null | undefined) {
   return (value ?? '').replace(/\D/g, '')
 }
 
+function isValidIc(value: string | null | undefined) {
+  const raw = (value ?? '').trim()
+  return /^\d{12}$/.test(raw) || /^\d{6}-\d{2}-\d{4}$/.test(raw)
+}
+  return (value ?? '').replace(/\D/g, '')
+}
+
 function generateParticipantCode() {
   return `JMX-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
 }
@@ -304,7 +311,7 @@ export default function ParticipantManagement({
     setMessage('')
 
     const normalIc = normaliseIc(form.ic_number)
-    if ((!editingId || form.ic_number.trim()) && normalIc.length !== 12) {
+    if ((!editingId || form.ic_number.trim()) && !isValidIc(form.ic_number)) {
       setError('Enter a valid 12-digit IC number. IC number is required for every new registration.')
       setSaving(false)
       return
@@ -580,13 +587,11 @@ export default function ParticipantManagement({
       const organisation = getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'sekolah', 'majikan', 'jabatan', 'department'])
       const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota', 'keterangan', 'description', 'comment', 'comments', 'maklumat tambahan', 'butiran', 'info'])
       const icDigitCount = (icNumber.match(/\d/g) ?? []).length
-      // Validation inspects the digit count only. The imported IC value itself remains unchanged.
+      // Accept only the two Malaysian IC layouts. Keep the source value unchanged.
 
       const issues: string[] = []
       if (!fullName.trim()) issues.push('Missing guest name')
-      if (icDigitCount !== 12) issues.push(icDigitCount === 11
-        ? 'Invalid IC (11 digits) — verify against the source document'
-        : `Invalid IC (must be 12 digits; found ${icDigitCount})`)
+      if (!isValidIc(icNumber)) issues.push(`Invalid IC format (expected XXXXXX-XX-XXXX or XXXXXXXXXXXX; found ${icDigitCount} digits)`)
       if (!categoryValue) issues.push('Unknown category')
 
       const matchIc = normaliseIc(icNumber)
@@ -727,7 +732,7 @@ export default function ParticipantManagement({
       return entry?.[1] ?? ''
     }
     const names = rows.map(row => sourceValue(row, ['fullname','participantname','name','namapenuh','nama']))
-    const ics = rows.map(row => sourceValue(row, ['icnumber','identitycardnumber','mykad','nokp','kadpengenalan','nomboric','ic','noic']))
+    const ics = rows.map(row => sourceValue(row, ['icnumber','identitycardnumber','mykad','nokp','nokadpengenalan','nomborkadpengenalan','kadpengenalan','nomboric','ic','noic','no kad pengenalan','no kp']))
     const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone']))
     const studentIds = rows.map(row => sourceValue(row, ['studentid','matricnumber','matricno','idpelajar','nomatrik','nombormatrik']))
     const categories = rows.map(row => sourceValue(row, ['category','kategori','participantcategory','jenispenyertaan','jenispeserta','statuspeserta']))
@@ -759,7 +764,7 @@ export default function ParticipantManagement({
         ?? (icMatches.length === 0 && nameMatches.length === 1 ? nameMatches[0] : null)
       const issues = new Set<string>()
       if (!name.trim()) issues.add('missing_name')
-      if ((ic.match(/\d/g) ?? []).length !== 12) issues.add('invalid_ic')
+      if (!isValidIc(ic)) issues.add('invalid_ic')
       const priorIcMatch = normIc && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && icKey(sourceRow.source_ic ?? '') === normIc)
       const priorNameMatch = normName && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && nameKey(sourceRow.source_name ?? '') === normName)
       if (normIc && ((icCounts.get(normIc) ?? 0) > 1 || priorIcMatch)) issues.add('duplicate_ic')
@@ -898,7 +903,7 @@ export default function ParticipantManagement({
     }
     if (participant.needs_review) issues.push(...(participant.import_issue_reasons?.length ? participant.import_issue_reasons : ['Needs admin review']))
     if (!participant.full_name.trim() || participant.full_name.startsWith('NEEDS REVIEW ·')) issues.push('Missing guest name')
-    if (normaliseIc(participant.ic_number).length !== 12) issues.push('Invalid IC (must be 12 digits)')
+    if (!isValidIc(participant.ic_number)) issues.push('Invalid IC format (expected XXXXXX-XX-XXXX or XXXXXXXXXXXX)')
     if (!categories.some((category) => category.id === participant.category)) issues.push('Unknown category')
     return issues
   }
