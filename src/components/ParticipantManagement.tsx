@@ -91,8 +91,6 @@ function isValidIc(value: string | null | undefined) {
   const raw = (value ?? '').trim()
   return /^\d{12}$/.test(raw) || /^\d{6}-\d{2}-\d{4}$/.test(raw)
 }
-  return (value ?? '').replace(/\D/g, '')
-}
 
 function generateParticipantCode() {
   return `JMX-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
