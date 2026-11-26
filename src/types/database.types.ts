@@ -468,6 +468,7 @@ export type Database = {
           ic_number: string | null
           id: string
           is_active: boolean
+          manual_revised_at: string | null
           notes: string | null
           organisation: string | null
           participant_code: string
@@ -488,6 +489,7 @@ export type Database = {
           ic_number?: string | null
           id?: string
           is_active?: boolean
+          manual_revised_at?: string | null
           notes?: string | null
           organisation?: string | null
           participant_code: string
@@ -508,6 +510,7 @@ export type Database = {
           ic_number?: string | null
           id?: string
           is_active?: boolean
+          manual_revised_at?: string | null
           notes?: string | null
           organisation?: string | null
           participant_code?: string
