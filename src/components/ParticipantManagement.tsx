@@ -753,8 +753,14 @@ export default function ParticipantManagement({
       const issues = new Set<string>()
       if (!name.trim()) issues.add('missing_name')
       if ((ic.match(/\d/g) ?? []).length !== 12) issues.add('invalid_ic')
-      if (normIc && (icCounts.get(normIc) ?? 0) > 1) issues.add('duplicate_ic')
-      if (normName && ((nameCounts.get(normName) ?? 0) > 1 || nameMatches.length > 1)) issues.add('duplicate_name')
+      const appearedInEarlierFile = importRows.some(sourceRow => sourceRow.batch_id !== batch.id && (
+        (normIc && icKey(sourceRow.source_ic ?? '') === normIc) ||
+        (normName && nameKey(sourceRow.source_name ?? '') === normName)
+      ))
+      const priorIcMatch = normIc && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && icKey(sourceRow.source_ic ?? '') === normIc)
+      const priorNameMatch = normName && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && nameKey(sourceRow.source_name ?? '') === normName)
+      if (normIc && ((icCounts.get(normIc) ?? 0) > 1 || priorIcMatch)) issues.add('duplicate_ic')
+      if (normName && ((nameCounts.get(normName) ?? 0) > 1 || nameMatches.length > 1 || priorNameMatch)) issues.add('duplicate_name')
       if (hasPhoneColumn && !phone.trim()) issues.add('missing_phone')
       if (hasStudentIdColumn && !studentId.trim()) issues.add('missing_student_id')
       if (!category.trim() || (participant?.import_issue_reasons ?? []).includes('Unknown category')) issues.add('unknown_category')
