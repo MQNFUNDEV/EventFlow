@@ -257,7 +257,7 @@ export default function ParticipantManagement({
       ]))
       const { error: updateError } = await supabase
         .from('participants')
-        .update({ needs_review: true, import_issue_reasons: reasons, updated_at: new Date().toISOString() })
+        .update({ needs_review: true, import_issue_reasons: reasons })
         .eq('id', duplicate.id)
       if (updateError) throw updateError
     }
@@ -408,9 +408,9 @@ export default function ParticipantManagement({
 
   function recordsFromMatrix(matrix: string[][]): Record<string, string>[] {
     const normalise = (value: string) => (value ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
-    const nameHeaders = ['fullname', 'participantname', 'yourname', 'name', 'namapenuh', 'namapeserta', 'nama']
-    const icHeaders = ['icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'nomboric']
-    const categoryHeaders = ['category', 'kategori', 'participantcategory', 'kategoripeserta']
+    const nameHeaders = ['fullname', 'participantname', 'yourname', 'name', 'namapenuh', 'namapeserta', 'nama', 'namapeserta', 'namaahli', 'namaindividu', 'namapemohon']
+    const icHeaders = ['icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'nomboric', 'ic', 'noic', 'nokadpengenalan diri']
+    const categoryHeaders = ['category', 'kategori', 'participantcategory', 'kategoripeserta', 'jenispenyertaan', 'jenispeserta', 'statuspeserta']
     const headerScore = (row: string[]) => {
       const values = row.map(normalise)
       return Number(values.some((value) => nameHeaders.includes(value) || nameHeaders.some((alias) => alias.length > 4 && value.includes(alias)))) * 4
@@ -527,28 +527,28 @@ export default function ParticipantManagement({
     for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
-      const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan'])
-      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik'])
-      const universityName = getValue(row, ['ipt', 'namaipt', 'namauniversiti', 'universityname', 'university', 'institution', 'institusi'])
-      const gender = getValue(row, ['jantina', 'gender', 'sex'])
-      const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
-      const email = getValue(row, ['alamateemail', 'alamatemel', 'emailaddress', 'email', 'emel'])
-      const phone = getValue(row, ['nombortelefon', 'not telefon', 'notel', 'telefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone'])
-      const rawCategory = getValue(row, ['category', 'kategori', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus']).toLowerCase()
+      const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'ic', 'noic', 'no kad pengenalan', 'no kp'])
+      const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik', 'matrik', 'no matrik', 'no pelajar', 'student no', 'studentnumber', 'registrationnumber'])
+      const universityName = getValue(row, ['ipt', 'namaipt', 'namauniversiti', 'universityname', 'university', 'institution', 'institusi', 'kolej', 'universiti', 'nama institusi'])
+      const gender = getValue(row, ['jantina', 'gender', 'sex', 'lelaki/perempuan'])
+      const race = getValue(row, ['bangsa', 'race', 'ethnicity', 'kaum'])
+      const email = getValue(row, ['alamateemail', 'alamatemel', 'emailaddress', 'email', 'emel', 'e-mail', 'mail', 'emel peribadi', 'email peribadi'])
+      const phone = getValue(row, ['nombortelefon', 'not telefon', 'notel', 'telefon', 'phonenumber', 'mobilenumber', 'mobile', 'phone', 'no hp', 'no handphone', 'handphone', 'hp', 'telefon bimbit', 'tel bimbit', 'contactnumber', 'contactno', 'no telefon'])
+      const rawCategory = getValue(row, ['category', 'kategori', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus', 'jenis penyertaan', 'jenis peserta', 'status peserta']).toLowerCase()
       const normaliseCategory = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
       const normalCategory = normaliseCategory(rawCategory)
       const matchedCategory = categories.find((item) =>
         normaliseCategory(item.id) === normalCategory || normaliseCategory(item.name) === normalCategory,
       )
-      const legacyCategory = rawCategory.includes('student') || rawCategory.includes('pupil')
+      const legacyCategory = /student|pupil|mahasiswa|pelajar|murid/.test(rawCategory)
         ? categories.find((item) => item.id === 'student')
-        : rawCategory.includes('staff') || rawCategory.includes('employee') || rawCategory.includes('lecturer')
+        : /staff|employee|lecturer|kakitangan|pekerja|staf/.test(rawCategory)
           ? categories.find((item) => item.id === 'staff') : undefined
       const categoryValue = matchedCategory?.id ?? legacyCategory?.id
-      const organisation = universityName || getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'institution', 'sekolah'])
+      const organisation = getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'sekolah', 'majikan', 'jabatan', 'department'])
       const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota'])
       const digitsOnly = normaliseIc(icNumber)
-      const normalIc = digitsOnly.length === 11 ? digitsOnly.padStart(12, '0') : digitsOnly
+      const normalIc = digitsOnly // Never invent a missing leading digit; 11-digit values remain review-needed.
 
       const issues: string[] = []
       if (!fullName) issues.push('Missing guest name')
@@ -620,7 +620,7 @@ export default function ParticipantManagement({
     let updatedCount = 0
     for (const [participantId, changes] of rowsToUpdate) {
       const { error: updateError } = await supabase.from('participants')
-        .update({ ...changes, updated_at: new Date().toISOString() })
+        .update(changes)
         .eq('id', participantId)
       if (updateError) {
         setError('Could not update an existing guest during import. ' + updateError.message)
