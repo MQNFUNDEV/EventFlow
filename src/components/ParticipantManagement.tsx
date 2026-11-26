@@ -435,20 +435,6 @@ export default function ParticipantManagement({
       throw new Error(`The uploaded file contains duplicate column headers: ${Array.from(new Set(duplicateHeaders)).join(', ')}. Please correct the headers before importing.`)
     }
     const dataRows = matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim()))
-    const parseIndex = (value: string) => {
-      const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d+)\s*\.?$/i)
-      if (!match) return null
-      // Keep the index as digits instead of converting to Number, so there
-      // is no artificial upper bound from JavaScript's numeric precision.
-      const digits = match[1].replace(/^0+/, '')
-      return digits.length ? digits : null
-    }
-    // Some spreadsheets use an unlabeled first column. Infer it when at
-    // least two rows contain valid positive numeric indexes in that column.
-    const inferredIndexColumn = indexColumn < 0 && dataRows.filter((row) => parseIndex(row[0] ?? '') !== null).length >= 2
-      ? 0
-      : indexColumn
-    const hasIndexColumn = inferredIndexColumn >= 0
     // Keep every non-empty source row. A missing or malformed serial value
     // must not cause a guest row to disappear from the import.
     return dataRows.map((row) => {
