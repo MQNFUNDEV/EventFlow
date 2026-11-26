@@ -434,14 +434,6 @@ export default function ParticipantManagement({
     if (duplicateHeaders.length) {
       throw new Error(`The uploaded file contains duplicate column headers: ${Array.from(new Set(duplicateHeaders)).join(', ')}. Please correct the headers before importing.`)
     }
-    // Identify a serial/index column (BIL., No., Number, #, S/N, etc.).
-    // Index length is deliberately unrestricted: large guest lists may exceed 9,999.
-    const indexHeaders = ['bil', 'bilangan', 'no', 'number', 'index', 'serial', 'serialno', 'sno', 'srno', 'sn']
-    const indexColumn = headers.findIndex((header) => {
-      const key = normalise(header)
-      return header.trim() === '#' || indexHeaders.includes(key)
-        || ['bil', 'bilangan', 'serialno', 'sno', 'srno'].some((alias) => key.startsWith(alias))
-    })
     const dataRows = matrix.slice(headerIndex + 1).filter((row) => row.some((value) => (value ?? '').trim()))
     const parseIndex = (value: string) => {
       const match = (value ?? '').trim().match(/^(?:(?:bil(?:angan)?|no\.?|number|#|s\/?n)\s*)?0*(\d+)\s*\.?$/i)
