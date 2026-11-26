@@ -423,6 +423,17 @@ export default function ParticipantManagement({
     const headerIndex = candidates.reduce((best, row, index) => headerScore(row) > headerScore(candidates[best] ?? []) ? index : best, 0)
     const headers = (matrix[headerIndex] ?? []).map((value) => (value ?? '').trim().replace(/^\\uFEFF/, ''))
     if (headerScore(headers) < 4) throw new Error('Could not identify the participant header row. Include Full Name / Nama Penuh and IC Number / No. Kad Pengenalan columns.')
+    const seenHeaderKeys = new Set<string>()
+    const duplicateHeaders = headers.filter((header) => {
+      const key = normalise(header)
+      if (!key) return false
+      if (seenHeaderKeys.has(key)) return true
+      seenHeaderKeys.add(key)
+      return false
+    })
+    if (duplicateHeaders.length) {
+      throw new Error(`The uploaded file contains duplicate column headers: ${Array.from(new Set(duplicateHeaders)).join(', ')}. Please correct the headers before importing.`)
+    }
     // Identify a serial/index column (BIL., No., Number, #, S/N, etc.).
     // Index length is deliberately unrestricted: large guest lists may exceed 9,999.
     const indexHeaders = ['bil', 'bilangan', 'no', 'number', 'index', 'serial', 'serialno', 'sno', 'srno', 'sn']
