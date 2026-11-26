@@ -34,6 +34,8 @@ type Participant = {
 }
 
 type ParticipantRevision = { id: number; action: string; details: Record<string, unknown>; created_at: string; actor_user_id: string | null }
+type ImportBatch = { id: string; file_name: string; file_type: 'CSV' | 'Excel'; source_row_count: number; linked_participant_count: number; issue_row_count: number; created_at: string }
+type ImportSourceRow = { id: string; batch_id: string; participant_id: string | null; source_row_number: number; source_data: Record<string, string>; source_name: string | null; source_ic: string | null; issue_types: string[] }
 
 type ParticipantForm = {
   full_name: string
@@ -110,6 +112,10 @@ export default function ParticipantManagement({
   const isSuperAdmin = currentRole === 'super_admin'
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
+  const [importBatches, setImportBatches] = useState<ImportBatch[]>([])
+  const [importRows, setImportRows] = useState<ImportSourceRow[]>([])
+  const [sourceFilter, setSourceFilter] = useState('all')
+  const [issueFilter, setIssueFilter] = useState('all')
   const [participants, setParticipants] = useState<Participant[]>([])
   const [checkedInIds, setCheckedInIds] = useState<Set<string>>(new Set())
   const [categories, setCategories] = useState<ParticipantCategory[]>(DEFAULT_PARTICIPANT_CATEGORIES)
@@ -131,6 +137,17 @@ export default function ParticipantManagement({
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  const loadImportHistory = useCallback(async () => {
+    const [batchResult, rowResult] = await Promise.all([
+      fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
+      fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
+    ])
+    if (batchResult.error) setError(batchResult.error.message)
+    else setImportBatches(batchResult.data)
+    if (rowResult.error) setError(rowResult.error.message)
+    else setImportRows(rowResult.data)
+  }, [])
   const fileInput = useRef<HTMLInputElement>(null)
 
   const loadParticipants = useCallback(async (): Promise<Participant[] | null> => {
@@ -160,6 +177,16 @@ export default function ParticipantManagement({
       else setParticipants(result.data)
       if (attendanceResult.error) setError(attendanceResult.error.message)
       else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
+      const [batchResult, rowResult] = await Promise.all([
+        fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
+        fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
+      ])
+      if (!cancelled) {
+        if (batchResult.error) setError(batchResult.error.message)
+        else setImportBatches(batchResult.data)
+        if (rowResult.error) setError(rowResult.error.message)
+        else setImportRows(rowResult.data)
+      }
       setLoading(false)
     }
     void initialLoad()
@@ -684,6 +711,77 @@ export default function ParticipantManagement({
     }
   }
 
+  async function recordImportBatch(file: File, rows: Record<string, string>[], initialParticipants: Participant[]) {
+    const refreshedParticipants = await loadParticipants() ?? initialParticipants
+    const normaliseHeader = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    const sourceValue = (row: Record<string, string>, aliases: string[]) => {
+      const keys = new Set(aliases.map(normaliseHeader))
+      const entry = Object.entries(row).find(([key]) => keys.has(normaliseHeader(key)))
+      return entry?.[1] ?? ''
+    }
+    const names = rows.map(row => sourceValue(row, ['fullname','participantname','name','namapenuh','nama']))
+    const ics = rows.map(row => sourceValue(row, ['icnumber','identitycardnumber','mykad','nokp','kadpengenalan','nomboric','ic','noic']))
+    const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone']))
+    const studentIds = rows.map(row => sourceValue(row, ['studentid','matricnumber','matricno','idpelajar','nomatrik','nombormatrik']))
+    const categories = rows.map(row => sourceValue(row, ['category','kategori','participantcategory','jenispenyertaan','jenispeserta','statuspeserta']))
+    const hasPhoneColumn = rows.some(row => Object.keys(row).some(key => ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone'].includes(normaliseHeader(key))))
+    const hasStudentIdColumn = rows.some(row => Object.keys(row).some(key => ['studentid','matricnumber','matricno','idpelajar','nomatrik','nombormatrik'].includes(normaliseHeader(key))))
+    const nameKey = (value: string) => value.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+    const icKey = (value: string) => normaliseIc(value)
+    const nameCounts = new Map<string, number>()
+    const icCounts = new Map<string, number>()
+    names.forEach(value => { const key = nameKey(value); if (key) nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1) })
+    ics.forEach(value => { const key = icKey(value); if (key) icCounts.set(key, (icCounts.get(key) ?? 0) + 1) })
+    const userResult = await supabase.auth.getUser()
+    const { data: batch, error: batchError } = await supabase.from('participant_import_batches').insert({
+      file_name: file.name, file_type: /\.xlsx$/i.test(file.name) ? 'Excel' : 'CSV',
+      uploaded_by: userResult.data.user?.id ?? null, source_row_count: rows.length,
+    }).select('id').single()
+    if (batchError || !batch) throw new Error('Guests were imported, but the source-file history could not be saved: ' + (batchError?.message ?? 'Unknown database error'))
+    const sourceRecords = rows.map((row, index) => {
+      const name = names[index] ?? ''
+      const ic = ics[index] ?? ''
+      const phone = phones[index] ?? ''
+      const studentId = studentIds[index] ?? ''
+      const category = categories[index] ?? ''
+      const normIc = icKey(ic)
+      const normName = nameKey(name)
+      const icMatches = normIc ? refreshedParticipants.filter(p => icKey(p.ic_number ?? '') === normIc) : []
+      const nameMatches = normName ? refreshedParticipants.filter(p => nameKey(p.full_name) === normName) : []
+      const participant = (icMatches.length === 1 ? icMatches[0] : icMatches.find(p => nameKey(p.full_name) === normName))
+        ?? (icMatches.length === 0 && nameMatches.length === 1 ? nameMatches[0] : null)
+      const issues = new Set<string>()
+      if (!name.trim()) issues.add('missing_name')
+      if ((ic.match(/\d/g) ?? []).length !== 12) issues.add('invalid_ic')
+      if (normIc && (icCounts.get(normIc) ?? 0) > 1) issues.add('duplicate_ic')
+      if (normName && ((nameCounts.get(normName) ?? 0) > 1 || nameMatches.length > 1)) issues.add('duplicate_name')
+      if (hasPhoneColumn && !phone.trim()) issues.add('missing_phone')
+      if (hasStudentIdColumn && !studentId.trim()) issues.add('missing_student_id')
+      if (!category.trim() || (participant?.import_issue_reasons ?? []).includes('Unknown category')) issues.add('unknown_category')
+      for (const reason of participant?.import_issue_reasons ?? []) {
+        if (/duplicate.*ic/i.test(reason)) issues.add('duplicate_ic')
+        else if (/invalid ic/i.test(reason)) issues.add('invalid_ic')
+        else if (/missing.*name/i.test(reason)) issues.add('missing_name')
+        else if (/unknown category/i.test(reason)) issues.add('unknown_category')
+        else if (reason) issues.add('other')
+      }
+      return {
+        batch_id: batch.id, participant_id: participant?.id ?? null, source_row_number: index + 2,
+        source_data: row, source_name: name || null, source_ic: ic || null, issue_types: [...issues],
+      }
+    })
+    for (let offset = 0; offset < sourceRecords.length; offset += 500) {
+      const { error: rowsError } = await supabase.from('participant_import_rows').insert(sourceRecords.slice(offset, offset + 500))
+      if (rowsError) throw new Error('The guests were imported, but some file-source history could not be saved: ' + rowsError.message)
+    }
+    const linkedCount = sourceRecords.filter(row => row.participant_id).length
+    const issueCount = sourceRecords.filter(row => row.issue_types.length).length
+    const { error: updateError } = await supabase.from('participant_import_batches')
+      .update({ linked_participant_count: linkedCount, issue_row_count: issueCount }).eq('id', batch.id)
+    if (updateError) throw new Error('Source rows were saved, but the import summary could not be updated: ' + updateError.message)
+    await loadImportHistory()
+  }
+
   async function handleFileImport(file?: File) {
     if (!file || !canImport) return
     const isExcel = /\.xlsx$/i.test(file.name)
@@ -713,6 +811,7 @@ export default function ParticipantManagement({
       const latestParticipants = await loadParticipants()
       if (!latestParticipants) throw new Error('Could not refresh the shared participant directory. No rows were imported; refresh and try again.')
       await processImportRows(rows, isExcel ? 'Excel' : 'CSV', latestParticipants)
+      await recordImportBatch(file, rows, latestParticipants)
     } catch (err) {
       setLoading(false)
       setError(err instanceof Error ? err.message : (isExcel ? 'Excel' : 'CSV') + ' import failed.')
@@ -776,6 +875,16 @@ export default function ParticipantManagement({
 
   function participantIssues(participant: Participant) {
     const issues: string[] = []
+    const sourceIssueTypes = Array.from(new Set(importRows.filter(row => row.participant_id === participant.id).flatMap(row => row.issue_types)))
+    const sourceIssueLabels: Record<string, string> = {
+      missing_name: 'Missing guest name', invalid_ic: 'Invalid IC', duplicate_ic: 'Duplicate IC',
+      duplicate_name: 'Duplicate name', missing_phone: 'Missing phone number',
+      missing_student_id: 'Missing Student ID', unknown_category: 'Unknown category', other: 'Other import issue',
+    }
+    for (const type of sourceIssueTypes) {
+      const label = sourceIssueLabels[type] ?? type
+      if (!issues.includes(label)) issues.push(label)
+    }
     if (participant.needs_review) issues.push(...(participant.import_issue_reasons?.length ? participant.import_issue_reasons : ['Needs admin review']))
     if (!participant.full_name.trim() || participant.full_name.startsWith('NEEDS REVIEW ·')) issues.push('Missing guest name')
     if (normaliseIc(participant.ic_number).length !== 12) issues.push('Invalid IC (must be 12 digits)')
@@ -783,7 +892,13 @@ export default function ParticipantManagement({
     return issues
   }
 
+  const selectedSourceRows = sourceFilter === 'all' ? null : importRows.filter(row =>
+    sourceFilter === 'issues' ? row.issue_types.length > 0 && (issueFilter === 'all' || row.issue_types.includes(issueFilter))
+      : row.batch_id === sourceFilter
+  )
+  const selectedParticipantIds = selectedSourceRows ? new Set(selectedSourceRows.map(row => row.participant_id).filter((id): id is string => Boolean(id))) : null
   const filteredParticipants = participants.filter((participant) => {
+    const matchesSource = !selectedParticipantIds || selectedParticipantIds.has(participant.id)
     const term = search.trim().toLowerCase()
 
     const matchesSearch =
@@ -807,7 +922,7 @@ export default function ParticipantManagement({
       (statusFilter === 'not_checked_in' && !checkedIn && issues.length === 0) ||
       (statusFilter === 'completed' && checkedIn && issues.length === 0)
 
-    return matchesSearch && matchesCategory && matchesStatus
+    return matchesSource && matchesSearch && matchesCategory && matchesStatus
   }).sort((a, b) =>
     a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base', numeric: true }) ||
     a.id.localeCompare(b.id),
@@ -815,7 +930,7 @@ export default function ParticipantManagement({
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
   const wasRevised = (participant: Participant) => Boolean(participant.manual_revised_at)
-  const issueCount = participants.filter((p) => participantIssues(p).length > 0).length
+  const issueCount = importRows.filter(row => row.issue_types.length > 0).length
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
   const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
@@ -1079,10 +1194,32 @@ export default function ParticipantManagement({
           </select>
 
           <select
+            value={sourceFilter}
+            onChange={(e) => { setSourceFilter(e.target.value); setIssueFilter('all'); setCurrentPage(1) }}
+            aria-label="Filter by uploaded file or issues"
+          >
+            <option value="all">All Participants</option>
+            {importBatches.map(batch => <option key={batch.id} value={batch.id}>{batch.file_name} · {batch.source_row_count} rows</option>)}
+            <option value="issues">Issues · {issueCount}</option>
+          </select>
+          {sourceFilter === 'issues' && (
+            <select value={issueFilter} onChange={(e) => { setIssueFilter(e.target.value); setCurrentPage(1) }} aria-label="Filter issue type">
+              <option value="all">All issue types</option>
+              <option value="invalid_ic">IC issues</option>
+              <option value="duplicate_ic">Duplicate IC</option>
+              <option value="duplicate_name">Duplicate names</option>
+              <option value="missing_name">Missing names</option>
+              <option value="missing_phone">Missing phone</option>
+              <option value="missing_student_id">Missing Student ID</option>
+              <option value="unknown_category">Unknown category</option>
+              <option value="other">Other import issues</option>
+            </select>
+          )}
+          <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
           >
-            <option value="all">All Participants</option>
+            <option value="all">All statuses</option>
             <option value="with_issues">Need attention</option>
             <option value="not_checked_in">Haven't Check in</option>
             <option value="completed">Complete Check In</option>
