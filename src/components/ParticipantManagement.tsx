@@ -521,7 +521,9 @@ export default function ParticipantManagement({
     }
     const seenFileIcNumbers = new Map<string, number[]>()
     const rowsToInsert: ParticipantInsert[] = []
+    const rowsToUpdate = new Map<string, Partial<ParticipantInsert>>()
     const existingIdsToFlag = new Set<string>()
+    let duplicateFileRows = 0
     for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
@@ -553,26 +555,46 @@ export default function ParticipantManagement({
       if (normalIc.length !== 12) issues.push('Invalid IC (must be 12 digits)')
       if (!categoryValue) issues.push('Unknown category')
 
-      if (normalIc) {
-        const existingMatches = existingByIc.get(normalIc) ?? []
-        if (existingMatches.length) {
-          issues.push('Duplicate IC registration — verify guest details')
-          existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
-        }
-        const priorRows = seenFileIcNumbers.get(normalIc) ?? []
-        if (priorRows.length) {
-          issues.push('Duplicate IC registration in uploaded file — verify guest details')
-          for (const priorIndex of priorRows) {
-            const prior = rowsToInsert[priorIndex]
-            prior.needs_review = true
-            prior.import_issue_reasons = Array.from(new Set([
-              ...(prior.import_issue_reasons ?? []),
-              'Duplicate IC registration in uploaded file — verify guest details',
-            ]))
-          }
-        }
-        seenFileIcNumbers.set(normalIc, [...priorRows, rowsToInsert.length])
+      const priorRows = normalIc ? (seenFileIcNumbers.get(normalIc) ?? []) : []
+      if (priorRows.length) {
+        duplicateFileRows++
+        const matches = existingByIc.get(normalIc) ?? []
+        matches.forEach((participant) => existingIdsToFlag.add(participant.id))
+        issues.push('Duplicate IC registration in uploaded file — verify guest details')
       }
+      if (normalIc) seenFileIcNumbers.set(normalIc, [...priorRows, rowIndex])
+
+      const existingMatches = normalIc ? (existingByIc.get(normalIc) ?? []) : []
+      if (existingMatches.length > 1) {
+        existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
+        issues.push('Multiple existing records share this IC — verify guest details')
+      }
+
+      // Re-imports are reconciled by IC: update only supplied, non-empty values.
+      // Blank spreadsheet cells never erase data already stored in EventFlow.
+      if (existingMatches.length === 1 && !priorRows.length) {
+        const existing = existingMatches[0]
+        const proposed: Partial<ParticipantInsert> = {}
+        if (fullName) proposed.full_name = fullName
+        if (email) proposed.email = email
+        if (phone) proposed.phone = phone
+        if (studentId) proposed.student_id = studentId
+        if (universityName) proposed.university_name = universityName
+        if (gender) proposed.gender = gender
+        if (race) proposed.race = race
+        if (categoryValue) proposed.category = categoryValue
+        if (organisation) proposed.organisation = organisation
+        if (notes) proposed.notes = notes
+        const changed = Object.entries(proposed).some(([key, value]) =>
+          (existing as unknown as Record<string, unknown>)[key] !== value
+        )
+        if (changed) rowsToUpdate.set(existing.id, proposed)
+        continue
+      }
+
+      // A row matching multiple existing guests is ambiguous; do not create
+      // another copy. The existing records are flagged for admin review.
+      if (existingMatches.length > 1) continue
 
       rowsToInsert.push({
         participant_code: generateParticipantCode(),
@@ -594,6 +616,19 @@ export default function ParticipantManagement({
     }
 
     const issueRows = rowsToInsert.filter((record) => record.needs_review).length
+
+    let updatedCount = 0
+    for (const [participantId, changes] of rowsToUpdate) {
+      const { error: updateError } = await supabase.from('participants')
+        .update({ ...changes, updated_at: new Date().toISOString() })
+        .eq('id', participantId)
+      if (updateError) {
+        setError('Could not update an existing guest during import. ' + updateError.message)
+        await loadParticipants()
+        return
+      }
+      updatedCount++
+    }
 
     // Move existing matching registrations out of the normal-IC unique index
     // before inserting their new duplicate copies. Keep all submitted field values.
@@ -642,7 +677,7 @@ export default function ParticipantManagement({
     if (insertFailure) {
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; previously imported rows remain in the directory for review.')
     } else {
-      setMessage(imported + ' guest registration record(s) saved from ' + fileType + ', including ' + issueRows + ' record(s) flagged for admin review. Duplicate registrations are preserved; all matching records appear in Guest With Issues.')
+      setMessage(imported + ' new guest(s) added and ' + updatedCount + ' existing guest(s) updated from ' + fileType + '. ' + issueRows + ' new record(s) flagged for admin review.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' repeated row(s) in the file were flagged for review.' : ''))
     }
   }
 
