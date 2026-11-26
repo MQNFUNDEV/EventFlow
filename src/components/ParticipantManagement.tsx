@@ -527,7 +527,7 @@ export default function ParticipantManagement({
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
       const icNumber = getValue(row, ['nomboric', 'icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan'])
       const studentId = getValue(row, ['idpelajar', 'studentid', 'matricnumber', 'matricno', 'nomatrik', 'nombormatrik'])
-      const universityName = getValue(row, ['namauniversiti', 'universityname', 'university', 'institution', 'institusi'])
+      const universityName = getValue(row, ['ipt', 'namaipt', 'namauniversiti', 'universityname', 'university', 'institution', 'institusi'])
       const gender = getValue(row, ['jantina', 'gender', 'sex'])
       const race = getValue(row, ['bangsa', 'race', 'ethnicity'])
       const email = getValue(row, ['alamateemail', 'alamatemel', 'emailaddress', 'email', 'emel'])
