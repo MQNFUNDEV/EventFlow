@@ -487,33 +487,6 @@ export default function ParticipantManagement({
       }
     } catch { /* Inline-string workbooks do not need sharedStrings.xml. */ }
 
-    // Excel can store an IC as a number while using a custom zero mask
-    // (for example 000000000000) to display its leading zero. Read that
-    // number format so the importer uses the displayed 12-digit IC.
-    // Do not pad numeric cells with General format: their missing digit
-    // cannot be proven from the stored value alone.
-    const zeroPadWidthByStyle = new Map<number, number>()
-    try {
-      const stylesXml = new DOMParser().parseFromString(await readZipText(view, 'xl/styles.xml'), 'application/xml')
-      const customFormats = new Map<number, string>()
-      for (const format of Array.from(stylesXml.getElementsByTagName('numFmt'))) {
-        const id = Number(format.getAttribute('numFmtId'))
-        const code = format.getAttribute('formatCode') ?? ''
-        if (Number.isFinite(id)) customFormats.set(id, code)
-      }
-      const cellFormats = stylesXml.getElementsByTagName('cellXfs')[0]
-      if (cellFormats) {
-        Array.from(cellFormats.getElementsByTagName('xf')).forEach((format, styleIndex) => {
-          const formatId = Number(format.getAttribute('numFmtId') ?? '0')
-          const code = customFormats.get(formatId) ?? ''
-          const firstSection = code.split(';')[0]
-          // Only accept an explicit all-zero mask; avoid interpreting dates,
-          // decimals, phone formats, or other custom numeric formats as ICs.
-          if (/^0{12}$/.test(firstSection)) zeroPadWidthByStyle.set(styleIndex, 12)
-        })
-      }
-    } catch { /* Workbooks without styles.xml use their stored cell values. */ }
-
     const sheetXml = new DOMParser().parseFromString(await readZipText(view, sheetPath), 'application/xml')
     if (sheetXml.querySelector('parsererror')) throw new Error('The first Excel worksheet contains invalid XML.')
     const worksheetRows = Array.from(sheetXml.getElementsByTagName('row'))
@@ -528,18 +501,15 @@ export default function ParticipantManagement({
       const values: string[] = []
       for (const cell of Array.from(row.getElementsByTagName('c'))) {
         const index = columnIndex(cell.getAttribute('r') ?? '')
+        // Formula cells are intentionally not evaluated and their cached results are not imported.
+        if (cell.getElementsByTagName('f').length) continue
         const type = cell.getAttribute('t')
         const value = cell.getElementsByTagName('v')[0]?.textContent ?? ''
         let display = value
-        if ((!type || type === 'n') && /^\d+$/.test(value)) {
-          const styleIndex = Number(cell.getAttribute('s') ?? '0')
-          const zeroPadWidth = zeroPadWidthByStyle.get(styleIndex)
-          if (zeroPadWidth) display = value.padStart(zeroPadWidth, '0')
-        }
         if (type === 's') display = sharedStrings[Number(value)] ?? ''
         else if (type === 'inlineStr') display = Array.from(cell.getElementsByTagName('t')).map((node) => node.textContent ?? '').join('')
         else if (type === 'b') display = value === '1' ? 'TRUE' : 'FALSE'
-        values[index] = display.trim()
+        values[index] = display
       }
       return values
     })
@@ -557,7 +527,7 @@ export default function ParticipantManagement({
       if (matches.length > 1) {
         throw new Error(`The uploaded file has multiple columns matching "${names[0]}". Please confirm which column should be used before importing.`)
       }
-      return (matches[0]?.[1] ?? '').trim()
+      return matches[0]?.[1] ?? ''
     }
     // Preserve every indexed registration. Any repeated IC is a review issue,
     // not a reason to discard either the existing or newly submitted record.
@@ -597,26 +567,27 @@ export default function ParticipantManagement({
       const categoryValue = matchedCategory?.id ?? legacyCategory?.id
       const organisation = getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'sekolah', 'majikan', 'jabatan', 'department'])
       const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota', 'keterangan', 'description', 'comment', 'comments', 'maklumat tambahan', 'butiran', 'info'])
-      const digitsOnly = normaliseIc(icNumber)
-      const normalIc = digitsOnly // Never invent a missing leading digit; 11-digit values remain review-needed.
+      const icDigitCount = (icNumber.match(/\d/g) ?? []).length
+      // Validation inspects the digit count only. The imported IC value itself remains unchanged.
 
       const issues: string[] = []
       if (!fullName) issues.push('Missing guest name')
-      if (normalIc.length !== 12) issues.push(normalIc.length === 11
-        ? 'Invalid IC (11 digits) — possible missing leading zero; verify against the source document'
-        : 'Invalid IC (must be 12 digits)')
+      if (icDigitCount !== 12) issues.push(icDigitCount === 11
+        ? 'Invalid IC (11 digits) — verify against the source document'
+        : `Invalid IC (must be 12 digits; found ${icDigitCount})`)
       if (!categoryValue) issues.push('Unknown category')
 
-      const priorRows = normalIc ? (seenFileIcNumbers.get(normalIc) ?? []) : []
+      const matchIc = normaliseIc(icNumber)
+      const priorRows = matchIc ? (seenFileIcNumbers.get(matchIc) ?? []) : []
       if (priorRows.length) {
         duplicateFileRows++
-        const matches = existingByIc.get(normalIc) ?? []
+        const matches = existingByIc.get(matchIc) ?? []
         matches.forEach((participant) => existingIdsToFlag.add(participant.id))
         issues.push('Duplicate IC registration in uploaded file — verify guest details')
       }
-      if (normalIc) seenFileIcNumbers.set(normalIc, [...priorRows, rowsToInsert.length])
+      if (matchIc) seenFileIcNumbers.set(matchIc, [...priorRows, rowsToInsert.length])
 
-      const existingMatches = normalIc ? (existingByIc.get(normalIc) ?? []) : []
+      const existingMatches = matchIc ? (existingByIc.get(matchIc) ?? []) : []
       if (existingMatches.length > 1) {
         existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
         issues.push('Multiple existing records share this IC — verify guest details')
@@ -658,7 +629,7 @@ export default function ParticipantManagement({
         form_timestamp: formTimestamp || null,
         // Normalise only a valid 12-digit IC. Keep malformed source text intact
         // for review; never pad digits or borrow values from another column.
-        ic_number: normalIc.length === 12 ? normalIc : (icNumber || null),
+        ic_number: icNumber || null,
         student_id: studentId || null,
         university_name: universityName || null,
         gender: gender || null,
