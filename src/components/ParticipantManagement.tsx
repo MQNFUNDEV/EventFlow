@@ -457,13 +457,13 @@ export default function ParticipantManagement({
       ? 0
       : indexColumn
     const hasIndexColumn = inferredIndexColumn >= 0
-    return dataRows
-      .filter((row) => !hasIndexColumn || parseIndex(row[inferredIndexColumn] ?? '') !== null)
-      .map((row) => {
-        const record: Record<string, string> = {}
-        headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
-        return record
-      })
+    // Keep every non-empty source row. A missing or malformed serial value
+    // must not cause a guest row to disappear from the import.
+    return dataRows.map((row) => {
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => { if (header) record[header] = row[index] ?? '' })
+      return record
+    })
   }
 
   async function parseXlsxFile(file: File): Promise<Record<string, string>[]> {
@@ -571,7 +571,7 @@ export default function ParticipantManagement({
       // Validation inspects the digit count only. The imported IC value itself remains unchanged.
 
       const issues: string[] = []
-      if (!fullName) issues.push('Missing guest name')
+      if (!fullName.trim()) issues.push('Missing guest name')
       if (icDigitCount !== 12) issues.push(icDigitCount === 11
         ? 'Invalid IC (11 digits) — verify against the source document'
         : `Invalid IC (must be 12 digits; found ${icDigitCount})`)
@@ -627,8 +627,7 @@ export default function ParticipantManagement({
         category: categoryValue ?? categories[0]?.id ?? 'staff',
         organisation: organisation || null,
         form_timestamp: formTimestamp || null,
-        // Normalise only a valid 12-digit IC. Keep malformed source text intact
-        // for review; never pad digits or borrow values from another column.
+        // Store the source IC text exactly as read; validation only adds review flags.
         ic_number: icNumber || null,
         student_id: studentId || null,
         university_name: universityName || null,
