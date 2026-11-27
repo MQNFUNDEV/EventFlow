@@ -882,8 +882,10 @@ export default function ParticipantManagement({
       updated.delete(participant.id)
       return updated
     })
-    setMessage(`${participant.full_name} and their related records were permanently deleted from the shared database.`)
-    await loadParticipants()
+    setImportRows((current) => current.filter((row) => row.participant_id !== participant.id))
+    if (selectedParticipant?.id === participant.id) setSelectedParticipant(null)
+    setMessage(`${participant.full_name} and all linked guest, attendance, draw, invitation, notification, import-source and guest-history records were permanently deleted.`)
+    await Promise.all([loadParticipants(), loadImportHistory()])
   }
 
   async function clearParticipantDirectory() {
@@ -906,6 +908,9 @@ export default function ParticipantManagement({
     const result = data as { participants_deleted?: number } | null
     setParticipants([])
     setCheckedInIds(new Set())
+    setImportRows([])
+    setSelectedParticipant(null)
+    setRevisionHistory([])
     setSearch('')
     setCategoryFilter('all')
     setStatusFilter('all')
