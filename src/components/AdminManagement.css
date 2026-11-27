@@ -331,3 +331,16 @@
     text-align: left;
   }
 }
+
+.admin-permission-panel { padding: 22px; border: 1px solid var(--border-color, #e6e8ec); border-radius: 14px; background: var(--panel-background, #fff); }
+.admin-permission-toggle { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; }
+.admin-permission-copy { display: flex; flex-direction: column; gap: 6px; }
+.admin-permission-copy strong { color: var(--text-primary, #252a34); font-size: 14px; }
+.admin-permission-copy small { max-width: 680px; color: var(--text-muted, #777); font-size: 12px; line-height: 1.6; }
+.admin-permission-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.admin-permission-switch { position: relative; flex: 0 0 48px; width: 48px; height: 27px; border-radius: 20px; background: #aeb4bf; transition: background .18s ease; }
+.admin-permission-switch::after { position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%; background: #fff; content: ''; transition: transform .18s ease; }
+.admin-permission-toggle input:checked + .admin-permission-switch { background: #287c4a; }
+.admin-permission-toggle input:checked + .admin-permission-switch::after { transform: translateX(21px); }
+.admin-permission-toggle input:focus-visible + .admin-permission-switch { outline: 3px solid #a8b8ff; outline-offset: 3px; }
+@media (max-width: 600px) { .admin-permission-panel { padding: 16px; } .admin-permission-toggle { align-items: flex-start; } }
