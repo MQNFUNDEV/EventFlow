@@ -35,6 +35,7 @@ type Participant = {
 
 type ParticipantRevision = { id: number; action: string; details: Record<string, unknown>; created_at: string; actor_user_id: string | null }
 type ImportSourceRow = { id: string; batch_id: string; participant_id: string | null; source_row_number: number; source_data: Record<string, string>; source_name: string | null; source_ic: string | null; issue_types: string[] }
+type ImportBatch = { id: string; file_name: string; file_type: string; source_row_count: number; linked_participant_count: number; issue_row_count: number; created_at: string }
 
 type ParticipantForm = {
   full_name: string
@@ -121,6 +122,8 @@ export default function ParticipantManagement({
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
   const [importRows, setImportRows] = useState<ImportSourceRow[]>([])
+  const [importBatches, setImportBatches] = useState<ImportBatch[]>([])
+  const [deleteCategoryId, setDeleteCategoryId] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [issueFilter, setIssueFilter] = useState('all')
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -146,11 +149,14 @@ export default function ParticipantManagement({
   const [message, setMessage] = useState('')
 
   const loadImportHistory = useCallback(async () => {
-    const { data, error: rowsError } = await fetchAllPages<ImportSourceRow>((from, to) =>
-      supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to),
-    )
-    if (rowsError) setError(rowsError.message)
-    else setImportRows(data)
+    const [rowsResult, batchesResult] = await Promise.all([
+      fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
+      fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
+    ])
+    if (rowsResult.error) setError(rowsResult.error.message)
+    else setImportRows(rowsResult.data)
+    if (batchesResult.error) setError(batchesResult.error.message)
+    else setImportBatches(batchesResult.data)
   }, [])
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -181,12 +187,15 @@ export default function ParticipantManagement({
       else setParticipants(result.data)
       if (attendanceResult.error) setError(attendanceResult.error.message)
       else setCheckedInIds(new Set(attendanceResult.data.map((item) => item.participant_id)))
-      const rowResult = await fetchAllPages<ImportSourceRow>((from, to) =>
-        supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to),
-      )
+      const [rowResult, batchResult] = await Promise.all([
+        fetchAllPages<ImportSourceRow>((from, to) => supabase.from('participant_import_rows').select('*').order('source_row_number').range(from, to)),
+        fetchAllPages<ImportBatch>((from, to) => supabase.from('participant_import_batches').select('*').order('created_at', { ascending: false }).range(from, to)),
+      ])
       if (!cancelled) {
         if (rowResult.error) setError(rowResult.error.message)
         else setImportRows(rowResult.data)
+        if (batchResult.error) setError(batchResult.error.message)
+        else setImportBatches(batchResult.data)
       }
       setLoading(false)
     }
