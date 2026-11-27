@@ -1004,7 +1004,16 @@ export default function ParticipantManagement({
   const selectedSourceRows = sourceFilter === 'issues'
     ? importRows.filter(row => row.issue_types.length > 0 && (issueFilter === 'all' || row.issue_types.includes(issueFilter)))
     : null
-  const selectedParticipantIds = selectedSourceRows ? new Set(selectedSourceRows.map(row => row.participant_id).filter((id): id is string => Boolean(id))) : null
+  const selectedParticipantIds = selectedSourceRows ? new Set([
+    ...selectedSourceRows.map(row => row.participant_id).filter((id): id is string => Boolean(id)),
+    ...participants.filter((participant) => {
+      const reasons = participant.import_issue_reasons ?? []
+      if (issueFilter === 'all') return participant.needs_review
+      if (issueFilter === 'duplicate_registration') return reasons.some((reason) => /repeated registration/i.test(reason))
+      if (issueFilter === 'duplicate_ic') return reasons.some((reason) => /duplicate.*ic/i.test(reason))
+      return false
+    }).map((participant) => participant.id),
+  ]) : null
   const unlinkedSourceRows = (selectedSourceRows ?? []).filter(row => !row.participant_id)
   const filteredParticipants = participants.filter((participant) => {
     const matchesSource = !selectedParticipantIds || selectedParticipantIds.has(participant.id)
