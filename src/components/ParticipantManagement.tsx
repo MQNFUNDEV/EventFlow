@@ -119,6 +119,8 @@ export default function ParticipantManagement({
 }) {
   const canManage = currentRole === 'super_admin' || currentRole === 'event_admin'
   const isSuperAdmin = currentRole === 'super_admin'
+  const [allowEventAdminGuestDeletion, setAllowEventAdminGuestDeletion] = useState(false)
+  const canDeleteGuest = isSuperAdmin || (currentRole === 'event_admin' && allowEventAdminGuestDeletion)
   const canImport = ['super_admin', 'event_admin', 'front_desk'].includes(currentRole)
 
   const [importRows, setImportRows] = useState<ImportSourceRow[]>([])
@@ -145,6 +147,17 @@ export default function ParticipantManagement({
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
   const [clearing, setClearing] = useState(false)
+
+  useEffect(() => {
+    if (currentRole !== 'event_admin') return
+    let cancelled = false
+    async function loadGuestDeletionPermission() {
+      const { data, error } = await supabase.functions.invoke('admin-management', { body: { action: 'get-guest-deletion-permission' } })
+      if (!cancelled && !error && !data?.error) setAllowEventAdminGuestDeletion(data?.allow_event_admin_guest_deletion === true)
+    }
+    void loadGuestDeletionPermission()
+    return () => { cancelled = true }
+  }, [currentRole])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -784,7 +797,7 @@ export default function ParticipantManagement({
   }
 
   async function deleteParticipant(participant: Participant) {
-    if (!isSuperAdmin) return
+    if (!canDeleteGuest) return
     const confirmed = window.confirm(
       `Permanently delete ${participant.full_name} (${participant.participant_code}) from the shared EventFlow database? This also permanently removes their attendance and Lucky Draw records. This cannot be undone.`,
     )
@@ -1397,7 +1410,7 @@ export default function ParticipantManagement({
                           >
                             <Pencil size={15} /> Edit
                           </button>
-                          {isSuperAdmin && (
+                          {canDeleteGuest && (
                             <button
                               type="button"
                               className="participant-action-button participant-delete-button"
