@@ -56,6 +56,9 @@ export default function AdminManagement({ currentRole }: { currentRole: AdminRol
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [allowEventAdminGuestDeletion, setAllowEventAdminGuestDeletion] = useState(false)
+  const [permissionLoading, setPermissionLoading] = useState(true)
+  const [permissionSaving, setPermissionSaving] = useState(false)
   const sortedAdmins = [...admins].sort((left, right) =>
     left.email.localeCompare(right.email, undefined, { sensitivity: 'base', numeric: true }) ||
     left.user_id.localeCompare(right.user_id),
@@ -76,6 +79,32 @@ export default function AdminManagement({ currentRole }: { currentRole: AdminRol
     }
 
     return data
+  }
+
+  const loadGuestDeletionPermission = useCallback(async () => {
+    try {
+      const data = await callAdminFunction({ action: 'get-guest-deletion-permission' })
+      setAllowEventAdminGuestDeletion(data.allow_event_admin_guest_deletion === true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load guest deletion permission.')
+    } finally {
+      setPermissionLoading(false)
+    }
+  }, [])
+
+  async function handleGuestDeletionPermissionChange(enabled: boolean) {
+    setPermissionSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      const data = await callAdminFunction({ action: 'set-guest-deletion-permission', enabled })
+      setAllowEventAdminGuestDeletion(data.allow_event_admin_guest_deletion === true)
+      setMessage(enabled ? 'Event Admins can now delete individual guest records.' : 'Event Admin guest deletion has been disabled.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update guest deletion permission.')
+    } finally {
+      setPermissionSaving(false)
+    }
   }
 
   const loadAdmins = useCallback(async () => {
@@ -103,11 +132,12 @@ useEffect(() => {
   }
 
   void Promise.resolve().then(initialise)
+  void loadGuestDeletionPermission()
 
   return () => {
     cancelled = true
   }
-}, [loadAdmins])
+}, [loadAdmins, loadGuestDeletionPermission])
 
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -281,6 +311,24 @@ useEffect(() => {
             This password is displayed only in this response. The recipient must change it
             after their first login. It expires after 72 hours.
           </p>
+        </section>
+      )}
+
+      {currentRole === 'super_admin' && (
+        <section className="admin-permission-panel">
+          <div className="admin-section-title">
+            <ShieldCheck size={19} />
+            <h3>Guest deletion permission</h3>
+          </div>
+          <label className="admin-permission-toggle">
+            <span className="admin-permission-copy">
+              <strong>Allow Admins to Delete Guests</strong>
+              <small>When enabled, Event Admins can permanently delete individual guest records, including linked attendance and Lucky Draw records. Front Desk access is unchanged.</small>
+            </span>
+            <input type="checkbox" checked={allowEventAdminGuestDeletion} disabled={permissionLoading || permissionSaving} onChange={(event) => void handleGuestDeletionPermissionChange(event.target.checked)} aria-label="Allow Admins to Delete Guests" />
+            <span className="admin-permission-switch" aria-hidden="true" />
+          </label>
+          <p className="admin-form-note">Default: OFF. Super Admins can always delete guests. Bulk deletion and clearing the directory remain Super Admin-only.</p>
         </section>
       )}
 
