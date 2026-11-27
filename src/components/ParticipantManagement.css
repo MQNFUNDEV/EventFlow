@@ -572,3 +572,11 @@
   color: #991b1b;
   background: #fff;
 }
+
+
+/* A resolved guest stays yellow REVISED even if another issue remains on the row. */
+.participant-table tbody tr.participant-row--issues td .participant-name-button.participant-name--revised {
+  color: #713f12;
+  background: #fef08a;
+  box-shadow: 0 0 0 1px #eab308 inset;
+}
