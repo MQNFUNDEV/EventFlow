@@ -288,7 +288,7 @@ export default function ParticipantManagement({
     for (const duplicate of duplicates) {
       const reasons = Array.from(new Set([
         ...(duplicate.import_issue_reasons ?? []),
-        'Duplicate IC registration — verify guest details',
+        'Duplicate IC — different guest names share this IC; verify details',
       ]))
       const { error: updateError } = await supabase
         .from('participants')
@@ -318,9 +318,17 @@ export default function ParticipantManagement({
     }
 
     const duplicates = findDuplicates(form.ic_number, editingId ?? undefined)
-    if (duplicates.length) {
+    const submittedNameKey = normaliseParticipantName(form.full_name)
+    const samePersonDuplicates = duplicates.filter((participant) => normaliseParticipantName(participant.full_name) === submittedNameKey)
+    const differentNameDuplicates = duplicates.filter((participant) => normaliseParticipantName(participant.full_name) !== submittedNameKey)
+    if (duplicates.length && samePersonDuplicates.length && !differentNameDuplicates.length) {
+      setError('This guest already exists with the same IC number and name. No additional guest record was created.')
+      setSaving(false)
+      return
+    }
+    if (differentNameDuplicates.length) {
       try {
-        await flagDuplicateRegistrations(duplicates)
+        await flagDuplicateRegistrations(differentNameDuplicates)
       } catch (duplicateError) {
         setError(duplicateError instanceof Error ? duplicateError.message : 'Could not flag the existing duplicate registrations for review.')
         setSaving(false)
@@ -328,7 +336,7 @@ export default function ParticipantManagement({
       }
     }
 
-    const duplicateIssue = duplicates.length > 0 ? ['Duplicate IC registration — verify guest details'] : []
+    const duplicateIssue = differentNameDuplicates.length > 0 ? ['Duplicate IC — different guest names share this IC; verify details'] : []
     const values = {
       full_name: form.full_name.trim(),
       ic_number: normalIc || null,
@@ -393,8 +401,8 @@ export default function ParticipantManagement({
         : result.error.message)
     } else {
       setMessage(
-        duplicates.length
-          ? `Duplicate registration detected. This record and ${duplicates.length} existing matching record(s) have been saved/marked red in Guest With Issues for admin verification.`
+        differentNameDuplicates.length
+          ? `Duplicate IC conflict detected. This record and ${differentNameDuplicates.length} existing matching record(s) have been flagged for admin verification.`
           : editingId ? 'Participant updated.' : 'Participant added successfully.',
       )
       closeForm()
@@ -636,14 +644,18 @@ export default function ParticipantManagement({
         const existingName = normaliseParticipantName(participant.full_name)
         return Boolean(nameKey && existingName && existingName !== nameKey)
       })
-      const duplicateExistingRecords = existingMatches.length > 1
-      const duplicateIcConflict = duplicateExistingRecords || differentNamesInFile || existingDifferentNameMatches.length > 0
+      const existingDistinctNames = new Set(existingMatches.map((participant) => normaliseParticipantName(participant.full_name)).filter(Boolean))
+      const duplicateExistingSamePerson = existingMatches.length > 1 && existingDistinctNames.size === 1
+      const duplicateIcConflict = existingDistinctNames.size > 1 || differentNamesInFile || existingDifferentNameMatches.length > 0
 
       if (duplicateIcConflict) {
         duplicateFileRows++
         existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
-        const reason = 'Duplicate IC — different guest records or names share this IC; verify details'
+        const reason = 'Duplicate IC — different guest names share this IC; verify details'
         issues.push(reason)
+      } else if (duplicateExistingSamePerson) {
+        existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
+        issues.push('Repeated registration — same IC and guest name exists more than once')
 
         // If an earlier row from this same file was already queued, flag it too.
         // The source row itself remains untouched in import history.
@@ -797,10 +809,12 @@ export default function ParticipantManagement({
     const icKey = (value: string) => normaliseIc(value)
     const namesByIc = new Map<string, Set<string>>()
     const icsByName = new Map<string, Set<string>>()
+    const rowsByIc = new Map<string, number>()
     names.forEach((value, index) => {
       const name = nameKey(value)
       const ic = icKey(ics[index] ?? '')
       if (name && ic) {
+        rowsByIc.set(ic, (rowsByIc.get(ic) ?? 0) + 1)
         if (!namesByIc.has(ic)) namesByIc.set(ic, new Set())
         namesByIc.get(ic)!.add(name)
         if (!icsByName.has(name)) icsByName.set(name, new Set())
@@ -833,12 +847,17 @@ export default function ParticipantManagement({
       const existingDistinctNamesForIc = new Set(icMatches.map(person => nameKey(person.full_name)).filter(Boolean))
       const existingDistinctIcsForName = new Set(nameMatches.map(person => icKey(person.ic_number ?? '')).filter(Boolean))
       if (normIc && (distinctNamesForIc > 1 || existingDistinctNamesForIc.size > 1)) issues.add('duplicate_ic')
+      if (normIc && (
+        ((rowsByIc.get(normIc) ?? 0) > 1 && distinctNamesForIc === 1) ||
+        (icMatches.length > 1 && existingDistinctNamesForIc.size === 1)
+      )) issues.add('duplicate_registration')
       if (normName && (distinctIcsForName > 1 || existingDistinctIcsForName.size > 1)) issues.add('duplicate_name')
       if (hasPhoneColumn && !phone.trim()) issues.add('missing_phone')
       if (hasStudentIdColumn && !studentId.trim()) issues.add('missing_student_id')
       if (!category.trim() || (participant?.import_issue_reasons ?? []).includes('Unknown category')) issues.add('unknown_category')
       for (const reason of participant?.import_issue_reasons ?? []) {
-        if (/duplicate.*ic/i.test(reason)) issues.add('duplicate_ic')
+        if (/repeated registration/i.test(reason)) issues.add('duplicate_registration')
+        else if (/duplicate.*ic/i.test(reason)) issues.add('duplicate_ic')
         else if (/invalid ic/i.test(reason)) issues.add('invalid_ic')
         else if (/missing.*name/i.test(reason)) issues.add('missing_name')
         else if (/unknown category/i.test(reason)) issues.add('unknown_category')
