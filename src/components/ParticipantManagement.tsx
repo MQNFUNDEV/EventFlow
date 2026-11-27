@@ -831,7 +831,7 @@ export default function ParticipantManagement({
     if (!isSuperAdmin || !deleteCategoryId) return
     const category = categories.find(item => item.id === deleteCategoryId)
     if (!category) return
-    const categoryCount = participants.filter(item => item.category === category.id).length
+    const categoryCount = participants.filter(item => item.category === category.id || item.category === category.name).length
     const confirmed = window.confirm(
       `PERMANENTLY DELETE ALL ${categoryCount} GUEST RECORD(S) IN "${category.name}"? Their linked attendance, Lucky Draw records, import-source rows and guest history will also be deleted. The category setting itself will remain. This cannot be undone.`,
     )
@@ -1062,7 +1062,7 @@ export default function ParticipantManagement({
           <div className="participant-filters">
             <select value={deleteCategoryId} onChange={(event) => setDeleteCategoryId(event.target.value)} aria-label="Choose category to delete">
               <option value="">Choose a category to delete…</option>
-              {categories.map(category => <option key={category.id} value={category.id}>{category.name} ({participants.filter(item => item.category === category.id).length} guests)</option>)}
+              {categories.map(category => <option key={category.id} value={category.id}>{category.name} ({participants.filter(item => item.category === category.id || item.category === category.name).length} guests)</option>)}
             </select>
             <button type="button" className="participant-secondary-button participant-delete-button" disabled={!deleteCategoryId} onClick={() => void deleteCategoryGuests()}>
               <Trash2 size={15} /> Delete category guests
