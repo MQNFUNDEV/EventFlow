@@ -630,11 +630,9 @@ export default function ParticipantManagement({
       const rawCategory = getValue(row, ['category', 'kategori', 'participantcategory', 'studentstaff', 'staffstudent', 'employmentstatus', 'jenis penyertaan', 'jenis peserta', 'status peserta'])
       const normalCategory = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]/g, '')
       const matchedCategory = categoriesById.find(item => normalCategory(item.id) === normalCategory(rawCategory) || normalCategory(item.name) === normalCategory(rawCategory))
-      const legacyCategory = /student|pupil|mahasiswa|pelajar|murid/i.test(rawCategory)
-        ? categoriesById.find(item => item.id === 'student')
-        : /staff|employee|lecturer|kakitangan|pekerja|staf/i.test(rawCategory)
-          ? categoriesById.find(item => item.id === 'staff') : undefined
-      const categoryValue = matchedCategory?.id ?? legacyCategory?.id ?? categoriesById[0]?.id ?? 'staff'
+      // Map only an exact configured category ID/name. Unknown or blank submitted
+      // values stay as received and are flagged; never guess a category.
+      const categoryValue = matchedCategory?.id ?? rawCategory
       const organisation = getValue(row, ['organisation', 'organization', 'organisasi', 'syarikat', 'company', 'school', 'sekolah', 'majikan', 'jabatan', 'department'])
       const notes = getValue(row, ['notes', 'remarks', 'catatan', 'nota', 'keterangan', 'description', 'comment', 'comments', 'maklumat tambahan', 'butiran', 'info'])
       const issues = issuesByRow[index]
