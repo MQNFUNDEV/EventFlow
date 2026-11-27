@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  Plus, Search, RefreshCw, Pencil, Upload, Users, X, Trash2, History,
+  Plus, Search, RefreshCw, Pencil, Upload, Users, X, Trash2, History, Download,
 } from 'lucide-react'
 import Papa from 'papaparse'
 import { supabase } from '../lib/supabase'
@@ -969,6 +969,48 @@ export default function ParticipantManagement({
   const safePage = Math.min(currentPage, totalPages)
   const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
 
+  function exportParticipantsCsv() {
+    const rows = [
+      [
+        'Participant code', 'Full name', 'Category', 'Category ID', 'Email', 'Phone',
+        'IC number', 'Student ID', 'University / institution', 'Gender', 'Race',
+        'Organisation', 'Form submission timestamp', 'Attendance status',
+        'Needs admin review', 'Review reasons', 'Notes', 'Active',
+        'Created at', 'Updated at', 'Manually revised at',
+      ],
+      ...participants.map((participant) => [
+        participant.participant_code,
+        participant.full_name,
+        categoryName(categories, participant.category),
+        participant.category,
+        participant.email ?? '',
+        participant.phone ?? '',
+        participant.ic_number ?? '',
+        participant.student_id ?? '',
+        participant.university_name ?? '',
+        participant.gender ?? '',
+        participant.race ?? '',
+        participant.organisation ?? '',
+        participant.form_timestamp ?? '',
+        checkedInIds.has(participant.id) ? 'Checked in' : 'Not checked in',
+        participant.needs_review ? 'Yes' : 'No',
+        (participant.import_issue_reasons ?? []).join('; '),
+        participant.notes ?? '',
+        participant.is_active ? 'Yes' : 'No',
+        participant.created_at,
+        participant.updated_at ?? '',
+        participant.manual_revised_at ?? '',
+      ]),
+    ]
+    const csv = `\\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\\r\\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `eventflow-participants-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="participant-management">
       <div className="participant-toolbar">
@@ -1006,6 +1048,16 @@ export default function ParticipantManagement({
               </button>
             </>
           )}
+
+          <button
+            className="participant-secondary-button"
+            type="button"
+            onClick={exportParticipantsCsv}
+            disabled={loading || participants.length === 0}
+            title="Export the complete participant directory, including attendance status and guest details"
+          >
+            <Download size={16} /> Export Participants CSV
+          </button>
 
           {isSuperAdmin && (
             <button
