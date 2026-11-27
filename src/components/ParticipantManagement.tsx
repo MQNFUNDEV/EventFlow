@@ -650,7 +650,9 @@ export default function ParticipantManagement({
       ])
       const totalSameIc = (countsByIc.get(ic) ?? 0) + existingMatches.length
       if (ic && totalSameIc > 1) {
-        if (allNames.size > 1) issues.push('duplicate_ic')
+        const hasUnknownName = rows.some((_, rowPosition) => icKeys[rowPosition] === ic && !nameKeys[rowPosition])
+          || existingMatches.some(person => !normaliseParticipantName(person.full_name))
+        if (allNames.size > 1 || hasUnknownName) issues.push('duplicate_ic')
         else issues.push('duplicate_registration')
       }
       if (name && (rowsByName.get(name)?.size ?? 0) > 1) issues.push('duplicate_name')
@@ -802,6 +804,50 @@ export default function ParticipantManagement({
     if (selectedParticipant?.id === participant.id) setSelectedParticipant(null)
     setMessage(`${participant.full_name} and all linked guest, attendance, draw, invitation, notification, import-source and guest-history records were permanently deleted.`)
     await Promise.all([loadParticipants(), loadImportHistory()])
+  }
+
+  async function deleteUploadedList(batch: ImportBatch) {
+    if (!isSuperAdmin) return
+    const confirmed = window.confirm(
+      `PERMANENTLY DELETE UPLOADED LIST "${batch.file_name}"? This deletes its source rows and guest records that belong only to this upload, including their attendance and Lucky Draw records. A guest still linked to another uploaded list will be kept. This cannot be undone.`,
+    )
+    if (!confirmed) return
+    setError('')
+    setMessage('')
+    const { data, error: deleteError } = await supabase.rpc('delete_import_batch', { p_batch_id: batch.id })
+    if (deleteError) {
+      setError('Could not delete uploaded list: ' + deleteError.message)
+      return
+    }
+    const result = data as { participants_deleted?: number; source_rows_deleted?: number } | null
+    await Promise.all([loadParticipants(), loadImportHistory()])
+    setMessage(`Uploaded list "${batch.file_name}" permanently deleted. ${result?.participants_deleted ?? 0} guest record(s) and ${result?.source_rows_deleted ?? 0} source row(s) deleted.`)
+  }
+
+  async function deleteCategoryGuests() {
+    if (!isSuperAdmin || !deleteCategoryId) return
+    const category = categories.find(item => item.id === deleteCategoryId)
+    if (!category) return
+    const categoryCount = participants.filter(item => item.category === category.id).length
+    const confirmed = window.confirm(
+      `PERMANENTLY DELETE ALL ${categoryCount} GUEST RECORD(S) IN "${category.name}"? Their linked attendance, Lucky Draw records, import-source rows and guest history will also be deleted. The category setting itself will remain. This cannot be undone.`,
+    )
+    if (!confirmed) return
+    setError('')
+    setMessage('')
+    const { data, error: deleteError } = await supabase.rpc('delete_participant_category', {
+      p_category_id: category.id,
+      p_category_name: category.name,
+    })
+    if (deleteError) {
+      setError('Could not delete category guests: ' + deleteError.message)
+      return
+    }
+    const result = data as { participants_deleted?: number; unlinked_source_rows_deleted?: number } | null
+    setDeleteCategoryId('')
+    if (categoryFilter === category.id) setCategoryFilter('all')
+    await Promise.all([loadParticipants(), loadImportHistory()])
+    setMessage(`Category "${category.name}" cleared. ${result?.participants_deleted ?? 0} guest record(s) permanently deleted. The category setting remains available.`)
   }
 
   async function clearParticipantDirectory() {
@@ -999,6 +1045,43 @@ export default function ParticipantManagement({
           <strong>Import Google Form responses</strong>
           <span>Download the registration list from Google Sheets or Excel as CSV or Microsoft Excel (.xlsx), then choose Import CSV / Excel. The first worksheet is read automatically. EventFlow matches complete column headers (not partial header text). IC Number is read only from an IC / Kad Pengenalan column; Phone Number is read only from a Phone / Telefon column; Student ID is read only from an explicit Student ID / Matric / No. Pelajar column. These three fields are never substituted for one another, and Student ID is never extracted from an email address. If the workbook has no Student ID column, Student ID remains blank. IPT is read as the university/institution field, EMEL as Email, and Category as the participant category. Imported cell values are preserved as provided by the workbook; EventFlow does not add leading zeros, strip separators, trim or otherwise correct imported values. For numeric Excel cells, the underlying stored value is used, not a display-only number format, so a leading zero that exists only in Excel formatting will not be reconstructed and the IC will be flagged for admin review. Formula cells are skipped and formula results are never calculated or imported. Non-empty guest rows are retained even when an index/serial value is missing or malformed; blank rows are skipped. Import validation highlights issues for admins to review and correct manually. Large imports are sent to the database in batches of up to 500. Ensure the category matches Settings → Pool Settings. Admins can review the submitted timestamp, IC, Student ID, university, gender, race, contact details and notes in this directory.</span>
         </div>
+      )}
+
+      {isSuperAdmin && (
+        <section className="participant-list-panel">
+          <div className="participant-list-heading">
+            <div>
+              <h3>Delete selected data</h3>
+              <p>Permanent deletion only. These actions do not remove category settings or other uploaded lists.</p>
+            </div>
+          </div>
+          <div className="participant-filters">
+            <select value={deleteCategoryId} onChange={(event) => setDeleteCategoryId(event.target.value)} aria-label="Choose category to delete">
+              <option value="">Choose a category to delete…</option>
+              {categories.map(category => <option key={category.id} value={category.id}>{category.name} ({participants.filter(item => item.category === category.id).length} guests)</option>)}
+            </select>
+            <button type="button" className="participant-secondary-button participant-delete-button" disabled={!deleteCategoryId} onClick={() => void deleteCategoryGuests()}>
+              <Trash2 size={15} /> Delete category guests
+            </button>
+          </div>
+          <div className="participant-table-wrap">
+            <table className="participant-table">
+              <thead><tr><th>Uploaded list</th><th>Rows</th><th>Issues</th><th>Uploaded</th><th>Action</th></tr></thead>
+              <tbody>
+                {importBatches.map(batch => (
+                  <tr key={batch.id}>
+                    <td><strong>{batch.file_name}</strong><small>{batch.file_type}</small></td>
+                    <td>{batch.source_row_count}</td>
+                    <td>{batch.issue_row_count}</td>
+                    <td>{new Date(batch.created_at).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}</td>
+                    <td><button type="button" className="participant-action-button participant-delete-button" onClick={() => void deleteUploadedList(batch)}><Trash2 size={14} /> Delete list</button></td>
+                  </tr>
+                ))}
+                {importBatches.length === 0 && <tr><td colSpan={5}>No uploaded lists recorded.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {formOpen && (
