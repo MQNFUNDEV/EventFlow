@@ -596,7 +596,7 @@ export default function ParticipantManagement({
     const seenFileIcNumbers = new Map<string, { nameKey: string; rowIndex: number }[]>()
     const rowsToInsert: ParticipantInsert[] = []
     const rowsToUpdate = new Map<string, Partial<ParticipantInsert>>()
-    const existingIdsToFlag = new Set<string>()
+    const existingIdsToFlag = new Map<string, string>()
     let duplicateFileRows = 0
     let repeatedRegistrationRows = 0
     for (const [rowIndex, row] of rows.entries()) {
@@ -650,12 +650,9 @@ export default function ParticipantManagement({
 
       if (duplicateIcConflict) {
         duplicateFileRows++
-        existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
         const reason = 'Duplicate IC — different guest names share this IC; verify details'
+        existingMatches.forEach((participant) => existingIdsToFlag.set(participant.id, reason))
         issues.push(reason)
-      } else if (duplicateExistingSamePerson) {
-        existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
-        issues.push('Repeated registration — same IC and guest name exists more than once')
 
         // If an earlier row from this same file was already queued, flag it too.
         // The source row itself remains untouched in import history.
@@ -669,10 +666,15 @@ export default function ParticipantManagement({
             previousInsert.import_issue_reasons = Array.from(new Set([...(previousInsert.import_issue_reasons ?? []), reason]))
           }
         }
-      } else if (repeatedSamePersonInFile) {
-        // Repeated source rows for the same IC + same name are not separate
-        // guest identities. Keep all source rows in import history, but do not
-        // create another participant record for the same person.
+      } else if (duplicateExistingSamePerson) {
+        const reason = 'Repeated registration — same IC and guest name exists more than once'
+        existingMatches.forEach((participant) => existingIdsToFlag.set(participant.id, reason))
+        issues.push(reason)
+      }
+
+      if (repeatedSamePersonInFile) {
+        // Keep every submitted source row in import history, but do not create
+        // a second participant record for the same IC + same guest name.
         repeatedRegistrationRows++
         continue
       }
@@ -740,12 +742,12 @@ export default function ParticipantManagement({
 
     // Move existing matching registrations out of the normal-IC unique index
     // before inserting their new duplicate copies. Keep all submitted field values.
-    for (const participantId of existingIdsToFlag) {
+    for (const [participantId, issueReason] of existingIdsToFlag) {
       const existing = existingParticipants.find((participant) => participant.id === participantId)
       if (!existing) continue
       const reasons = Array.from(new Set([
         ...(existing.import_issue_reasons ?? []),
-        'Duplicate IC registration — verify guest details',
+        issueReason,
       ]))
       const { error: flagError } = await supabase
         .from('participants')
@@ -800,11 +802,11 @@ export default function ParticipantManagement({
     }
     const names = rows.map(row => sourceValue(row, ['fullname','participantname','name','namapenuh','nama']))
     const ics = rows.map(row => sourceValue(row, ['icnumber','identitycardnumber','mykad','nokp','nokadpengenalan','nomborkadpengenalan','kadpengenalan','nomboric','ic','noic','no kad pengenalan','no kp']))
-    const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','no telefon','no handphone','telefon bimbit','tel bimbit','contactnumber','contactno']))
+    const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','not telefon','no telefon','no handphone','telefon bimbit','tel bimbit','contactnumber','contactno']))
     const studentIds = rows.map(row => sourceValue(row, ['studentid','studentnumber','matricnumber','matricno','idpelajar','nomatrik','nombormatrik','no matrik','no pelajar','student no']))
-    const categories = rows.map(row => sourceValue(row, ['category','kategori','participantcategory','jenispenyertaan','jenispeserta','statuspeserta']))
-    const hasPhoneColumn = rows.some(row => Object.keys(row).some(key => ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','notelefon','nohandphone','telefonbimbit','telbimbit','contactnumber','contactno'].includes(normaliseHeader(key))))
-    const hasStudentIdColumn = rows.some(row => Object.keys(row).some(key => ['studentid','studentnumber','matricnumber','matricno','idpelajar','nomatrik','nombormatrik','nomatrik','nombormatrik','studentno','nomborpelajar','nomborpelajar'].includes(normaliseHeader(key))))
+    const categories = rows.map(row => sourceValue(row, ['category','kategori','participantcategory','studentstaff','staffstudent','employmentstatus','jenispenyertaan','jenispeserta','statuspeserta']))
+    const hasPhoneColumn = rows.some(row => Object.keys(row).some(key => ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','nottelefon','notelefon','nohandphone','telefonbimbit','telbimbit','contactnumber','contactno'].includes(normaliseHeader(key))))
+    const hasStudentIdColumn = rows.some(row => Object.keys(row).some(key => ['studentid','studentnumber','matricnumber','matricno','idpelajar','nomatrik','nombormatrik','studentno','nospelajar'].includes(normaliseHeader(key))))
     const nameKey = (value: string) => normaliseParticipantName(value)
     const icKey = (value: string) => normaliseIc(value)
     const namesByIc = new Map<string, Set<string>>()
