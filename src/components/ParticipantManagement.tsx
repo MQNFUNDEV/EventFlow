@@ -86,6 +86,10 @@ function normaliseIc(value: string | null | undefined) {
   return (value ?? '').replace(/\D/g, '')
 }
 
+function normaliseParticipantName(value: string | null | undefined) {
+  return (value ?? '').trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+}
+
 function isValidIc(value: string | null | undefined) {
   const raw = (value ?? '').trim()
   return /^\d{12}$/.test(raw) || /^\d{6}-\d{2}-\d{4}$/.test(raw)
@@ -581,11 +585,12 @@ export default function ParticipantManagement({
       if (!ic) continue
       existingByIc.set(ic, [...(existingByIc.get(ic) ?? []), participant])
     }
-    const seenFileIcNumbers = new Map<string, number[]>()
+    const seenFileIcNumbers = new Map<string, { nameKey: string; rowIndex: number }[]>()
     const rowsToInsert: ParticipantInsert[] = []
     const rowsToUpdate = new Map<string, Partial<ParticipantInsert>>()
     const existingIdsToFlag = new Set<string>()
     let duplicateFileRows = 0
+    let repeatedRegistrationRows = 0
     for (const [rowIndex, row] of rows.entries()) {
       const fullName = getValue(row, ['fullname', 'participantname', 'yourname', 'whatisyourfullname', 'name', 'namapenuh', 'namapeserta', 'nama'])
       const formTimestamp = getValue(row, ['timestamp', 'submissiontimestamp', 'submittedat'])
@@ -620,24 +625,49 @@ export default function ParticipantManagement({
       if (!categoryValue) issues.push('Unknown category')
 
       const matchIc = normaliseIc(icNumber)
+      const nameKey = normaliseParticipantName(fullName)
       const priorRows = matchIc ? (seenFileIcNumbers.get(matchIc) ?? []) : []
-      if (priorRows.length) {
-        duplicateFileRows++
-        const matches = existingByIc.get(matchIc) ?? []
-        matches.forEach((participant) => existingIdsToFlag.add(participant.id))
-        issues.push('Duplicate IC registration in uploaded file — verify guest details')
-      }
-      if (matchIc) seenFileIcNumbers.set(matchIc, [...priorRows, rowsToInsert.length])
+      const repeatedSamePersonInFile = Boolean(nameKey) && priorRows.some((item) => item.nameKey === nameKey)
+      const differentNamesInFile = Boolean(nameKey) && priorRows.some((item) => item.nameKey && item.nameKey !== nameKey)
+      if (matchIc) seenFileIcNumbers.set(matchIc, [...priorRows, { nameKey, rowIndex }])
 
       const existingMatches = matchIc ? (existingByIc.get(matchIc) ?? []) : []
-      if (existingMatches.length > 1) {
+      const existingDifferentNameMatches = existingMatches.filter((participant) => {
+        const existingName = normaliseParticipantName(participant.full_name)
+        return Boolean(nameKey && existingName && existingName !== nameKey)
+      })
+      const duplicateExistingRecords = existingMatches.length > 1
+      const duplicateIcConflict = duplicateExistingRecords || differentNamesInFile || existingDifferentNameMatches.length > 0
+
+      if (duplicateIcConflict) {
+        duplicateFileRows++
         existingMatches.forEach((participant) => existingIdsToFlag.add(participant.id))
-        issues.push('Multiple existing records share this IC — verify guest details')
+        const reason = 'Duplicate IC — different guest records or names share this IC; verify details'
+        issues.push(reason)
+
+        // If an earlier row from this same file was already queued, flag it too.
+        // The source row itself remains untouched in import history.
+        for (const prior of priorRows) {
+          const previousInsert = rowsToInsert.find((record) =>
+            normaliseIc(record.ic_number) === matchIc &&
+            normaliseParticipantName(record.full_name) === prior.nameKey
+          )
+          if (previousInsert) {
+            previousInsert.needs_review = true
+            previousInsert.import_issue_reasons = Array.from(new Set([...(previousInsert.import_issue_reasons ?? []), reason]))
+          }
+        }
+      } else if (repeatedSamePersonInFile) {
+        // Repeated source rows for the same IC + same name are not separate
+        // guest identities. Keep all source rows in import history, but do not
+        // create another participant record for the same person.
+        repeatedRegistrationRows++
+        continue
       }
 
       // Re-imports are reconciled by IC: update only supplied, non-empty values.
       // Blank spreadsheet cells never erase data already stored in EventFlow.
-      if (existingMatches.length === 1 && !priorRows.length) {
+      if (existingMatches.length === 1 && !duplicateIcConflict) {
         const existing = existingMatches[0]
         const proposed: Partial<ParticipantInsert> = {}
         if (fullName) proposed.full_name = fullName
@@ -716,7 +746,7 @@ export default function ParticipantManagement({
       }
     }
     if (!rowsToInsert.length) {
-      setMessage(updatedCount + ' existing guest(s) updated. No new guests found.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' repeated row(s) in the file were flagged for review.' : ''))
+      setMessage(updatedCount + ' existing guest(s) updated. No new guests found.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' genuine IC conflict row(s) were flagged for review.' : '') + (repeatedRegistrationRows ? ' ' + repeatedRegistrationRows + ' repeated source row(s) with the same IC and name were not added as extra guests.' : ''))
       await loadParticipants()
       return
     }
@@ -744,7 +774,7 @@ export default function ParticipantManagement({
     if (insertFailure) {
       setError(imported + ' participant(s) imported before the next batch failed. ' + insertFailure + ' Refresh the directory before retrying; previously imported rows remain in the directory for review.')
     } else {
-      setMessage(imported + ' new guest(s) added and ' + updatedCount + ' existing guest(s) updated from ' + fileType + '. ' + issueRows + ' new record(s) flagged for admin review.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' repeated row(s) in the file were flagged for review.' : ''))
+      setMessage(imported + ' new guest(s) added and ' + updatedCount + ' existing guest(s) updated from ' + fileType + '. ' + issueRows + ' new record(s) flagged for admin review.' + (duplicateFileRows ? ' ' + duplicateFileRows + ' genuine IC conflict row(s) were flagged for review.' : '') + (repeatedRegistrationRows ? ' ' + repeatedRegistrationRows + ' repeated source row(s) with the same IC and name were not added as extra guests.' : ''))
     }
   }
 
@@ -758,17 +788,25 @@ export default function ParticipantManagement({
     }
     const names = rows.map(row => sourceValue(row, ['fullname','participantname','name','namapenuh','nama']))
     const ics = rows.map(row => sourceValue(row, ['icnumber','identitycardnumber','mykad','nokp','nokadpengenalan','nomborkadpengenalan','kadpengenalan','nomboric','ic','noic','no kad pengenalan','no kp']))
-    const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone']))
-    const studentIds = rows.map(row => sourceValue(row, ['studentid','matricnumber','matricno','idpelajar','nomatrik','nombormatrik']))
+    const phones = rows.map(row => sourceValue(row, ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','no telefon','no handphone','telefon bimbit','tel bimbit','contactnumber','contactno']))
+    const studentIds = rows.map(row => sourceValue(row, ['studentid','studentnumber','matricnumber','matricno','idpelajar','nomatrik','nombormatrik','no matrik','no pelajar','student no']))
     const categories = rows.map(row => sourceValue(row, ['category','kategori','participantcategory','jenispenyertaan','jenispeserta','statuspeserta']))
-    const hasPhoneColumn = rows.some(row => Object.keys(row).some(key => ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone'].includes(normaliseHeader(key))))
-    const hasStudentIdColumn = rows.some(row => Object.keys(row).some(key => ['studentid','matricnumber','matricno','idpelajar','nomatrik','nombormatrik'].includes(normaliseHeader(key))))
-    const nameKey = (value: string) => value.trim().toLocaleLowerCase().replace(/\s+/g, ' ')
+    const hasPhoneColumn = rows.some(row => Object.keys(row).some(key => ['phonenumber','mobilenumber','phone','telefon','nombortelefon','nohp','handphone','notel','notelefon','nohandphone','telefonbimbit','telbimbit','contactnumber','contactno'].includes(normaliseHeader(key))))
+    const hasStudentIdColumn = rows.some(row => Object.keys(row).some(key => ['studentid','studentnumber','matricnumber','matricno','idpelajar','nomatrik','nombormatrik','nomatrik','nombormatrik','studentno','nomborpelajar','nomborpelajar'].includes(normaliseHeader(key))))
+    const nameKey = (value: string) => normaliseParticipantName(value)
     const icKey = (value: string) => normaliseIc(value)
-    const nameCounts = new Map<string, number>()
-    const icCounts = new Map<string, number>()
-    names.forEach(value => { const key = nameKey(value); if (key) nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1) })
-    ics.forEach(value => { const key = icKey(value); if (key) icCounts.set(key, (icCounts.get(key) ?? 0) + 1) })
+    const namesByIc = new Map<string, Set<string>>()
+    const icsByName = new Map<string, Set<string>>()
+    names.forEach((value, index) => {
+      const name = nameKey(value)
+      const ic = icKey(ics[index] ?? '')
+      if (name && ic) {
+        if (!namesByIc.has(ic)) namesByIc.set(ic, new Set())
+        namesByIc.get(ic)!.add(name)
+        if (!icsByName.has(name)) icsByName.set(name, new Set())
+        icsByName.get(name)!.add(ic)
+      }
+    })
     const userResult = await supabase.auth.getUser()
     const { data: batch, error: batchError } = await supabase.from('participant_import_batches').insert({
       file_name: file.name, file_type: /\.xlsx$/i.test(file.name) ? 'Excel' : 'CSV',
@@ -790,10 +828,12 @@ export default function ParticipantManagement({
       const issues = new Set<string>()
       if (!name.trim()) issues.add('missing_name')
       if (!isValidIc(ic)) issues.add('invalid_ic')
-      const priorIcMatch = normIc && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && icKey(sourceRow.source_ic ?? '') === normIc)
-      const priorNameMatch = normName && importRows.some(sourceRow => sourceRow.batch_id !== batch.id && nameKey(sourceRow.source_name ?? '') === normName)
-      if (normIc && ((icCounts.get(normIc) ?? 0) > 1 || priorIcMatch)) issues.add('duplicate_ic')
-      if (normName && ((nameCounts.get(normName) ?? 0) > 1 || nameMatches.length > 1 || priorNameMatch)) issues.add('duplicate_name')
+      const distinctNamesForIc = normIc ? (namesByIc.get(normIc)?.size ?? 0) : 0
+      const distinctIcsForName = normName ? (icsByName.get(normName)?.size ?? 0) : 0
+      const existingDistinctNamesForIc = new Set(icMatches.map(person => nameKey(person.full_name)).filter(Boolean))
+      const existingDistinctIcsForName = new Set(nameMatches.map(person => icKey(person.ic_number ?? '')).filter(Boolean))
+      if (normIc && (distinctNamesForIc > 1 || existingDistinctNamesForIc.size > 1)) issues.add('duplicate_ic')
+      if (normName && (distinctIcsForName > 1 || existingDistinctIcsForName.size > 1)) issues.add('duplicate_name')
       if (hasPhoneColumn && !phone.trim()) issues.add('missing_phone')
       if (hasStudentIdColumn && !studentId.trim()) issues.add('missing_student_id')
       if (!category.trim() || (participant?.import_issue_reasons ?? []).includes('Unknown category')) issues.add('unknown_category')
@@ -923,8 +963,9 @@ export default function ParticipantManagement({
     const issues: string[] = []
     const sourceIssueTypes = Array.from(new Set(importRows.filter(row => row.participant_id === participant.id).flatMap(row => row.issue_types)))
     const sourceIssueLabels: Record<string, string> = {
-      missing_name: 'Missing guest name', invalid_ic: 'Invalid IC', duplicate_ic: 'Duplicate IC',
-      duplicate_name: 'Duplicate name', missing_phone: 'Missing phone number',
+      missing_name: 'Missing guest name', invalid_ic: 'Invalid IC', duplicate_ic: 'Duplicate IC conflict',
+      duplicate_registration: 'Repeated registration (same IC and name)', duplicate_name: 'Duplicate name',
+      missing_phone: 'Missing phone number',
       missing_student_id: 'Missing Student ID', unknown_category: 'Unknown category', other: 'Other import issue',
     }
     for (const type of sourceIssueTypes) {
@@ -976,7 +1017,8 @@ export default function ParticipantManagement({
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
   const wasRevised = (participant: Participant) => Boolean(participant.manual_revised_at)
-  const issueCount = importRows.filter(row => row.issue_types.length > 0).length
+  const issueCount = new Set(importRows.filter(row => row.issue_types.length > 0).map(row => row.participant_id).filter((id): id is string => Boolean(id))).size
+    + importRows.filter(row => row.issue_types.length > 0 && !row.participant_id).length
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
   const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
@@ -1251,7 +1293,8 @@ export default function ParticipantManagement({
             <select value={issueFilter} onChange={(e) => { setIssueFilter(e.target.value); setCurrentPage(1) }} aria-label="Filter issue type">
               <option value="all">All issue types</option>
               <option value="invalid_ic">IC issues</option>
-              <option value="duplicate_ic">Duplicate IC</option>
+              <option value="duplicate_ic">Duplicate IC conflict</option>
+              <option value="duplicate_registration">Repeated registration</option>
               <option value="duplicate_name">Duplicate names</option>
               <option value="missing_name">Missing names</option>
               <option value="missing_phone">Missing phone</option>
