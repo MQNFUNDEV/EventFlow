@@ -129,10 +129,10 @@ useEffect(() => {
   async function initialise() {
     if (cancelled) return
     await loadAdmins()
+    await loadGuestDeletionPermission()
   }
 
   void Promise.resolve().then(initialise)
-  void loadGuestDeletionPermission()
 
   return () => {
     cancelled = true
