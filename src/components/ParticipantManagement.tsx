@@ -1048,8 +1048,19 @@ export default function ParticipantManagement({
 
   const completedCount = participants.filter((p) => checkedInIds.has(p.id) && participantIssues(p).length === 0).length
   const wasRevised = (participant: Participant) => Boolean(participant.manual_revised_at)
-  const issueCount = new Set(importRows.filter(row => row.issue_types.length > 0).map(row => row.participant_id).filter((id): id is string => Boolean(id))).size
-    + importRows.filter(row => row.issue_types.length > 0 && !row.participant_id).length
+  const issueCount = (() => {
+    const affectedIds = new Set(importRows.filter(row => row.issue_types.length > 0).map(row => row.participant_id).filter((id): id is string => Boolean(id)))
+    participants.forEach((participant) => {
+      if (
+        participant.needs_review ||
+        !participant.full_name.trim() ||
+        participant.full_name.startsWith('NEEDS REVIEW ·') ||
+        !isValidIc(participant.ic_number) ||
+        !categories.some((category) => category.id === participant.category)
+      ) affectedIds.add(participant.id)
+    })
+    return affectedIds.size + importRows.filter(row => row.issue_types.length > 0 && !row.participant_id).length
+  })()
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / pageSize))
   const safePage = Math.min(currentPage, totalPages)
   const paginatedParticipants = filteredParticipants.slice((safePage - 1) * pageSize, safePage * pageSize)
