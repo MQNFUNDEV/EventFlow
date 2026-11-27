@@ -661,8 +661,10 @@ export default function ParticipantManagement({
       if (hasPhoneColumn && !phone.trim()) issues.push('missing_phone')
       if (hasStudentIdColumn && !studentId.trim()) issues.push('missing_student_id')
       if (ic && totalSameIc > 1) {
-        const reason = allNames.size > 1
-          ? 'Duplicate IC — different guest names share this IC; verify details'
+        const hasUnknownName = rows.some((_, rowPosition) => icKeys[rowPosition] === ic && !nameKeys[rowPosition])
+          || existingMatches.some(person => !normaliseParticipantName(person.full_name))
+        const reason = allNames.size > 1 || hasUnknownName
+          ? 'Duplicate IC — different or missing guest names share this IC; verify details'
           : 'Repeated registration — same IC and guest name exists more than once'
         existingMatches.forEach(person => existingFlags.set(person.id, reason))
       }
@@ -682,16 +684,19 @@ export default function ParticipantManagement({
         race: race || null,
         notes: notes || null,
         needs_review: issues.length > 0,
-        import_issue_reasons: Array.from(new Set(issues.map(type => ({
-          duplicate_ic: 'Duplicate IC — different guest names share this IC; verify details',
-          duplicate_registration: 'Repeated registration — same IC and guest name exists more than once',
-          duplicate_name: 'Possible same-name match — verify guest identity',
-          invalid_ic: 'Invalid IC format',
-          missing_name: 'Missing guest name',
-          unknown_category: 'Unknown category',
-          missing_phone: 'Missing phone number',
-          missing_student_id: 'Missing Student ID',
-        }[type] ?? type))),
+        import_issue_reasons: Array.from(new Set(issues.map(type => {
+          const reasonLabels: Record<string, string> = {
+            duplicate_ic: 'Duplicate IC — different or missing guest names share this IC; verify details',
+            duplicate_registration: 'Repeated registration — same IC and guest name exists more than once',
+            duplicate_name: 'Possible same-name match — verify guest identity',
+            invalid_ic: 'Invalid IC format',
+            missing_name: 'Missing guest name',
+            unknown_category: 'Unknown category',
+            missing_phone: 'Missing phone number',
+            missing_student_id: 'Missing Student ID',
+          }
+          return reasonLabels[type] ?? type
+        }))),
       })
     }
 
@@ -713,7 +718,7 @@ export default function ParticipantManagement({
   async function recordImportBatch(file: File, rows: Record<string, string>[], participantIds: string[], issuesByRow: string[][]) {
     const userResult = await supabase.auth.getUser()
     const { data: batch, error: batchError } = await supabase.from('participant_import_batches').insert({
-      file_name: file.name, file_type: /\\.xlsx$/i.test(file.name) ? 'Excel' : 'CSV',
+      file_name: file.name, file_type: /\.xlsx$/i.test(file.name) ? 'Excel' : 'CSV',
       uploaded_by: userResult.data.user?.id ?? null, source_row_count: rows.length,
     }).select('id').single()
     if (batchError || !batch) throw new Error('Guests were imported, but the source-file history could not be saved: ' + (batchError?.message ?? 'Unknown database error'))
