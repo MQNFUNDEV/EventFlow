@@ -460,7 +460,7 @@ export default function ParticipantManagement({
   }
 
   function recordsFromMatrix(matrix: string[][]): Record<string, string>[] {
-    const normalise = (value: string) => (value ?? '').replace(/^\\uFEFF/, '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    const normalise = (value: string) => (value ?? '').replace(/^\uFEFF/, '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
     const nameHeaders = ['fullname', 'participantname', 'yourname', 'name', 'namapenuh', 'namapeserta', 'nama', 'namapeserta', 'namaahli', 'namaindividu', 'namapemohon']
     const icHeaders = ['icnumber', 'identitycardnumber', 'mykad', 'nokadpengenalan', 'nomborkadpengenalan', 'nokp', 'nokad', 'kadpengenalan', 'nomboric', 'ic', 'noic', 'nokadpengenalan diri']
     const categoryHeaders = ['category', 'kategori', 'participantcategory', 'kategoripeserta', 'jenispenyertaan', 'jenispeserta', 'statuspeserta']
@@ -1002,7 +1002,7 @@ export default function ParticipantManagement({
         participant.manual_revised_at ?? '',
       ]),
     ]
-    const csv = `\\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\\r\\n')}`
+    const csv = `\\uFEFF${rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n')}`
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
     link.href = url
