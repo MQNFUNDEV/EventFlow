@@ -595,7 +595,7 @@ export default function ParticipantManagement({
     const namesByIc = new Map<string, Set<string>>()
     const countsByIc = new Map<string, number>()
     const rowsByName = new Map<string, Set<string>>()
-    rows.forEach((row, index) => {
+    rows.forEach((_, index) => {
       const ic = icKeys[index]
       const name = nameKeys[index]
       if (ic) {
@@ -638,7 +638,7 @@ export default function ParticipantManagement({
       const issues = issuesByRow[index]
       if (!fullName.trim()) issues.push('missing_name')
       if (!isValidIc(icNumber)) issues.push('invalid_ic')
-      if (!matchedCategory && !legacyCategory) issues.push('unknown_category')
+      if (!matchedCategory) issues.push('unknown_category')
       const ic = icKeys[index]
       const name = nameKeys[index]
       const existingMatches = ic ? (existingByIc.get(ic) ?? []) : []
