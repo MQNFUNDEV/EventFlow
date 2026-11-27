@@ -585,8 +585,9 @@ export default function ParticipantManagement({
       }
       return matches[0]?.[1] ?? ''
     }
-    // Preserve every indexed registration. Any repeated IC is a review issue,
-    // not a reason to discard either the existing or newly submitted record.
+    // Preserve every submitted row in source history. A repeated IC + same
+    // normalized name is one guest identity; a repeated IC with different
+    // names is a genuine identity conflict that needs admin review.
     const existingByIc = new Map<string, Participant[]>()
     for (const participant of existingParticipants) {
       const ic = normaliseIc(participant.ic_number)
@@ -740,8 +741,8 @@ export default function ParticipantManagement({
       updatedCount++
     }
 
-    // Move existing matching registrations out of the normal-IC unique index
-    // before inserting their new duplicate copies. Keep all submitted field values.
+    // Save review flags before inserting a distinct-name IC conflict, so the
+    // database's reviewed-record uniqueness rule can accept the conflict safely.
     for (const [participantId, issueReason] of existingIdsToFlag) {
       const existing = existingParticipants.find((participant) => participant.id === participantId)
       if (!existing) continue
@@ -985,7 +986,7 @@ export default function ParticipantManagement({
     const sourceIssueTypes = Array.from(new Set(importRows.filter(row => row.participant_id === participant.id).flatMap(row => row.issue_types)))
     const sourceIssueLabels: Record<string, string> = {
       missing_name: 'Missing guest name', invalid_ic: 'Invalid IC', duplicate_ic: 'Duplicate IC conflict',
-      duplicate_registration: 'Repeated registration (same IC and name)', duplicate_name: 'Duplicate name',
+      duplicate_registration: 'Repeated registration (same IC and name)', duplicate_name: 'Possible same-name match',
       missing_phone: 'Missing phone number',
       missing_student_id: 'Missing Student ID', unknown_category: 'Unknown category', other: 'Other import issue',
     }
@@ -1316,7 +1317,7 @@ export default function ParticipantManagement({
               <option value="invalid_ic">IC issues</option>
               <option value="duplicate_ic">Duplicate IC conflict</option>
               <option value="duplicate_registration">Repeated registration</option>
-              <option value="duplicate_name">Duplicate names</option>
+              <option value="duplicate_name">Possible same-name matches</option>
               <option value="missing_name">Missing names</option>
               <option value="missing_phone">Missing phone</option>
               <option value="missing_student_id">Missing Student ID</option>
