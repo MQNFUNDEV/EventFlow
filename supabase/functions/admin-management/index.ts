@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Server configuration is incomplete." }, 500);
     }
 
-    const eventflowSecretKey = secretKeys["eventflowbackend"];
+    const eventflowSecretKey = secretKeys["eventflowbackendv2"];
     if (!supabaseUrl || !eventflowSecretKey) {
       console.error("Missing Supabase URL or EventFlow backend secret key.");
       return json({ error: "Server configuration is incomplete." }, 500);
@@ -143,6 +143,25 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Only an active Super Admin or Event Admin can manage administrator accounts." }, 403);
     }
     const isSuperAdmin = callerRole.role === "super_admin";
+
+    if (action === "get-guest-deletion-permission") {
+      const { data, error } = await admin.from("admin_permissions").select("allow_event_admin_guest_deletion").eq("id", true).maybeSingle();
+      if (error) return json({ error: "Unable to load guest deletion permission." }, 500);
+      return json({ allow_event_admin_guest_deletion: data?.allow_event_admin_guest_deletion === true });
+    }
+
+    if (action === "set-guest-deletion-permission") {
+      if (!isSuperAdmin) return json({ error: "Only a Super Admin can change guest deletion permission." }, 403);
+      if (typeof body?.enabled !== "boolean") return json({ error: "A valid ON/OFF value is required." }, 400);
+      const { error } = await admin.from("admin_permissions").upsert({
+        id: true,
+        allow_event_admin_guest_deletion: body.enabled,
+        updated_at: new Date().toISOString(),
+        updated_by: caller.id,
+      }, { onConflict: "id" });
+      if (error) return json({ error: "Unable to update guest deletion permission." }, 500);
+      return json({ success: true, allow_event_admin_guest_deletion: body.enabled });
+    }
 
     if (action === "list-admins") {
       let roleQuery = admin
