@@ -724,8 +724,8 @@ export default function ParticipantManagement({
     if (batchError || !batch) throw new Error('Guests were imported, but the source-file history could not be saved: ' + (batchError?.message ?? 'Unknown database error'))
     const sourceRecords = rows.map((row, index) => {
       const sourceData = Object.fromEntries(Object.entries(row).filter(([key]) => key !== '__eventflow_source_row'))
-      const sourceName = Object.entries(row).find(([key]) => ['fullname','participantname','yourname','name','namapenuh','namapeserta','nama'].includes(key.trim().toLowerCase().replace(/[^a-z0-9]/g,'')))?.[1] ?? ''
-      const sourceIc = Object.entries(row).find(([key]) => ['icnumber','identitycardnumber','mykad','nokp','nokadpengenalan','nomborkadpengenalan','kadpengenalan','nomboric','ic','noic'].includes(key.trim().toLowerCase().replace(/[^a-z0-9]/g,'')))?.[1] ?? ''
+      const sourceName = Object.entries(row).find(([key]) => ['fullname','participantname','yourname','whatisyourfullname','name','namapenuh','namapeserta','nama'].includes(key.trim().toLowerCase().replace(/[^a-z0-9]/g,'')))?.[1] ?? ''
+      const sourceIc = Object.entries(row).find(([key]) => ['icnumber','identitycardnumber','mykad','nokp','nokadpengenalan','nomborkadpengenalan','kadpengenalan','nomboric','ic','noic','nokad','nokadpengenal diri','nokadpengenalan diri','no kad pengenalan','no kp'].includes(key.trim().toLowerCase().replace(/[^a-z0-9]/g,'')))?.[1] ?? ''
       return {
         batch_id: batch.id, participant_id: participantIds[index] ?? null,
         source_row_number: Number(row.__eventflow_source_row) || index + 2,
@@ -876,13 +876,14 @@ export default function ParticipantManagement({
     setParticipants([])
     setCheckedInIds(new Set())
     setImportRows([])
+    setImportBatches([])
     setSelectedParticipant(null)
     setRevisionHistory([])
     setSearch('')
     setCategoryFilter('all')
     setStatusFilter('all')
     setCurrentPage(1)
-    await loadParticipants()
+    await Promise.all([loadParticipants(), loadImportHistory()])
     setMessage(`Directory cleared. ${result?.participants_deleted ?? participants.length} guest record(s) permanently deleted from the shared database. The directory has been refreshed and is ready for a new upload.`)
   }
 
