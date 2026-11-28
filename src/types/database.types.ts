@@ -605,6 +605,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_display_controller: {
+        Args: { p_lease_seconds?: number }
+        Returns: { acquired: boolean; controller_user_id: string | null; lease_expires_at: string | null }[]
+      }
+      release_display_controller: { Args: Record<PropertyKey, never>; Returns: boolean }
       clear_participant_directory: { Args: Record<PropertyKey, never>; Returns: Json }
       delete_participant_permanently: { Args: { p_participant_id: string }; Returns: boolean }
     }
