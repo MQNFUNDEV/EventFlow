@@ -30,7 +30,9 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
     try {
       audioContextRef.current ??= new window.AudioContext()
       const context = audioContextRef.current
-      void context.resume().then(() => setAudioReady(context.state === 'running')).catch(() => setAudioReady(false))
+      // Call resume directly from the click/pointer gesture so Chromium/OBS can grant audio playback.
+      const resume = context.resume()
+      void resume.then(() => setAudioReady(context.state === 'running')).catch(() => setAudioReady(false))
     } catch { setAudioReady(false) }
   }
 
@@ -208,6 +210,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   useEffect(() => () => { void audioContextRef.current?.close() }, [])
 
   return <div className={`led-lucky-output ${view === 'box' ? 'is-box-only' : view === 'winners' ? 'is-winners-only' : ''}`} style={themeStyle} onPointerDown={unlockOutputAudio}>
+    {!audioReady && <button type="button" onClick={(event) => { event.stopPropagation(); unlockOutputAudio() }} aria-label="Enable Lucky Box sound in this browser source" style={{ position: 'fixed', zIndex: 1000, top: 18, right: 18, padding: '12px 18px', border: '1px solid rgba(255,255,255,.55)', borderRadius: 10, background: 'rgba(6,21,45,.92)', color: '#fff', font: '600 14px/1.2 system-ui,sans-serif', letterSpacing: '.04em', cursor: 'pointer', boxShadow: '0 4px 22px rgba(0,0,0,.35)' }}>CLICK TO ENABLE SOUND</button>}
     {backgroundImage && <div className="led-lucky-scene-background" style={{ backgroundImage: `linear-gradient(rgba(3, 10, 25, .62), rgba(3, 10, 25, .72)), url("${backgroundImage}")` }} aria-hidden="true" />}
     
     {view !== 'box' && <aside className="led-lucky-session-log" aria-label="Current session winner results">
