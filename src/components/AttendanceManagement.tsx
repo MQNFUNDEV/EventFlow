@@ -115,10 +115,29 @@ export default function AttendanceManagement() {
           setCategories(readParticipantCategories(data?.payload))
         })
       })
-      .subscribe()
+      .subscribe((status) => {
+        // Always reload from the same Postgres tables after subscribing or reconnecting.
+        if (status === 'SUBSCRIBED') void loadData()
+      })
 
     return () => {
       void supabase.removeChannel(channel)
+    }
+  }, [loadData])
+
+  // Reconcile attendance and participant records when the Front Desk/Admin
+  // tab regains focus, resumes from sleep, or misses a Realtime notification.
+  useEffect(() => {
+    const refreshSharedData = () => {
+      if (document.visibilityState === 'visible') void loadData()
+    }
+    window.addEventListener('focus', refreshSharedData)
+    document.addEventListener('visibilitychange', refreshSharedData)
+    const intervalId = window.setInterval(refreshSharedData, 30000)
+    return () => {
+      window.removeEventListener('focus', refreshSharedData)
+      document.removeEventListener('visibilitychange', refreshSharedData)
+      window.clearInterval(intervalId)
     }
   }, [loadData])
 
