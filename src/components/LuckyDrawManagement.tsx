@@ -77,6 +77,25 @@ export default function LuckyDrawManagement() {
   const winnerActionLockRef = useRef(false)
   const leverActionLockRef = useRef(false)
   const leverTimersRef = useRef<number[]>([])
+  const controllerReadyRef = useRef(false)
+
+  const ensureDisplayController = useCallback(async () => {
+    const { data, error: leaseError } = await supabase.rpc('acquire_display_controller', { p_lease_seconds: 90 })
+    if (leaseError) {
+      controllerReadyRef.current = false
+      setError(`Could not acquire LED/Lucky Draw control: ${leaseError.message}`)
+      return false
+    }
+    const lease = Array.isArray(data) ? data[0] : data
+    if (!lease?.acquired) {
+      controllerReadyRef.current = false
+      setError('The LED display is currently controlled by another administrator. Ask them to release control, then refresh.')
+      return false
+    }
+    controllerReadyRef.current = true
+    return true
+  }, [])
+
   async function toggleWinnerSound() {
     const nextEnabled = !winnerSoundEnabled
     const saved = await publishBoxState({ sound_enabled: nextEnabled })
@@ -84,6 +103,7 @@ export default function LuckyDrawManagement() {
   }
 
   async function publishBoxState(patch: Record<string, unknown>) {
+    if (!await ensureDisplayController()) return false
     const { data, error: readError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
     if (readError) { setError(readError.message); return false }
     const current = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}
@@ -332,9 +352,27 @@ export default function LuckyDrawManagement() {
   }, [])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void restoreActiveRound() }, 0)
-    return () => window.clearTimeout(timer)
-  }, [restoreActiveRound])
+    let cancelled = false
+    let heartbeat: number | null = null
+    const start = async () => {
+      const acquired = await ensureDisplayController()
+      if (cancelled) return
+      if (!acquired) {
+        setLoading(false)
+        return
+      }
+      await restoreActiveRound()
+      if (cancelled) return
+      heartbeat = window.setInterval(() => {
+        void ensureDisplayController()
+      }, 30000)
+    }
+    void start()
+    return () => {
+      cancelled = true
+      if (heartbeat !== null) window.clearInterval(heartbeat)
+    }
+  }, [ensureDisplayController, restoreActiveRound])
 
   useEffect(() => {
     let cancelled = false
@@ -452,6 +490,10 @@ export default function LuckyDrawManagement() {
     setLoading(true)
     setError('')
     setMessage('')
+    if (!await ensureDisplayController()) {
+      setLoading(false)
+      return
+    }
     const { data: existingRound, error: existingRoundError } = await supabase.from('draw_rounds')
       .select('id')
       .in('status', ['ready', 'drawing'])
@@ -558,7 +600,7 @@ export default function LuckyDrawManagement() {
     setBoxPhase('idle'); setBoxStartedAt(0); setBoxAnimationId((value) => value + 1); setBoxLoadingComplete(false)
     await refreshWinnerHistory()
     setLoading(false)
-  }, [poolType, roundName, categories, boxAnimationId, refreshWinnerHistory, restoreActiveRound, icRegionRule])
+  }, [poolType, roundName, categories, boxAnimationId, refreshWinnerHistory, restoreActiveRound, icRegionRule, ensureDisplayController])
 
   const spinCandidates = useCallback(async (chosen: Participant, queueEntryId: string) => {
     const activeRoundId = roundRef.current
@@ -701,10 +743,23 @@ export default function LuckyDrawManagement() {
 
   async function resetBox() {
     if (boxTimerRef.current !== null) window.clearTimeout(boxTimerRef.current)
-    setBoxPhase('idle'); setBoxStartedAt(0); setBoxLoadingComplete(false)
     const nextId = boxAnimationId + 1
+    const saved = await publishBoxState({
+      box_category: poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType),
+      box_total: 0,
+      box_phase: 'idle',
+      box_started_at: 0,
+      box_animation_id: nextId,
+    })
+    if (!saved) {
+      setError((current) => current || 'Reset was not applied. The live Lucky Draw output has not changed.')
+      return
+    }
+    setBoxPhase('idle')
+    setBoxStartedAt(0)
     setBoxAnimationId(nextId)
-    await publishBoxState({ box_category: poolType === 'everyone' ? 'Everyone' : categoryName(categories, poolType), box_total: 0, box_phase: 'idle', box_started_at: 0, box_animation_id: nextId })
+    setBoxLoadingComplete(false)
+    setMessage('Lucky Draw box reset. The live output now shows 0 names.')
   }
 
   async function startPaperFeed() {
