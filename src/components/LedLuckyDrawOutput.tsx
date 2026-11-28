@@ -18,7 +18,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   const [winner, setWinner] = useState<DrawEntry | null>(null)
   const [drawLog, setDrawLog] = useState<DrawLogEntry[]>([])
   const [drawnCount, setDrawnCount] = useState(0)
-  const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; soundEnabled: boolean; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, soundEnabled: false, cameraView: null })
+  const [boxState, setBoxState] = useState<{ category: string; total: number; phase: BoxPhase; startedAt: number; animationId: number; soundEnabled: boolean; cameraView: { position: [number,number,number]; target: [number,number,number] } | null }>({ category: 'No category selected', total: 0, phase: 'idle', startedAt: 0, animationId: 0, soundEnabled: true, cameraView: null })
   const latestWinnerId = useRef<string | null>(null)
   const lastRoundId = useRef<string | null>(null)
   const lastRoundUpdatedAt = useRef<string | null>(null)
@@ -68,6 +68,8 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
   }
 
   useEffect(() => {
+    // Sound is always enabled for Lucky Box output; attempt autoplay and resume on user interaction if the browser blocks it.
+    unlockOutputAudio()
     let active = true
     async function loadBoxState() {
       const { data } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
@@ -81,7 +83,7 @@ export default function LedLuckyDrawOutput({ categories = DEFAULT_PARTICIPANT_CA
         phase,
         startedAt: typeof payload.box_started_at === 'number' ? payload.box_started_at : 0,
         animationId: typeof payload.box_animation_id === 'number' ? payload.box_animation_id : 0,
-        soundEnabled: payload.sound_enabled === true,
+        soundEnabled: true,
         cameraView: payload.machine_camera && typeof payload.machine_camera === 'object' ? payload.machine_camera as { position: [number,number,number]; target: [number,number,number] } : null,
       })
     }
