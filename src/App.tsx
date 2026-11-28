@@ -691,10 +691,11 @@ function App() {
                     </button>
                     {isSuperAdmin && (
                       <button onClick={() => navigateToPage('Lucky Draw')}>
-                          <div className="quick-icon purple"><Gift size={20} /></div>
-                          <span><strong>Lucky Draw</strong><small>Draw from checked-in guests</small></span>
-                          <ArrowUpRight size={16} />
-                        </button>
+                        <div className="quick-icon purple"><Gift size={20} /></div>
+                        <span><strong>Lucky Draw</strong><small>Draw from checked-in guests</small></span>
+                        <ArrowUpRight size={16} />
+                      </button>
+                    )}
                     {canManageParticipants && (
                       <button onClick={() => navigateToPage('LED Display')}>
                         <div className="quick-icon orange"><Monitor size={20} /></div>
