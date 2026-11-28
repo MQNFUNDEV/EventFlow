@@ -61,7 +61,6 @@ const rolePageAccess: Record<string, string[]> = {
     'Overview',
     'Participants',
     'Attendance',
-    'Lucky Draw',
     'LED Display',
     'Settings',
     'Admin Management',
@@ -547,7 +546,7 @@ function App() {
           </section>
 
           <Suspense fallback={<section className="panel placeholder-panel"><h2>Loading section…</h2><p>Preparing this part of EventFlow.</p></section>}>
-          {canManageParticipants && (
+          {isSuperAdmin && (
             <div style={{ display: activePage === 'Lucky Draw' ? 'block' : 'none' }}>
               <LuckyDrawManagement />
             </div>
@@ -690,19 +689,18 @@ function App() {
                       <span><strong>Manual Check-in</strong><small>Search for a participant and record arrival</small></span>
                       <ArrowUpRight size={16} />
                     </button>
-                    {canManageParticipants && (
-                      <>
-                        <button onClick={() => navigateToPage('Lucky Draw')}>
+                    {isSuperAdmin && (
+                      <button onClick={() => navigateToPage('Lucky Draw')}>
                           <div className="quick-icon purple"><Gift size={20} /></div>
                           <span><strong>Lucky Draw</strong><small>Draw from checked-in guests</small></span>
                           <ArrowUpRight size={16} />
                         </button>
-                        <button onClick={() => navigateToPage('LED Display')}>
-                          <div className="quick-icon orange"><Monitor size={20} /></div>
-                          <span><strong>LED Display</strong><small>Control event screen</small></span>
-                          <ArrowUpRight size={16} />
-                        </button>
-                      </>
+                    {canManageParticipants && (
+                      <button onClick={() => navigateToPage('LED Display')}>
+                        <div className="quick-icon orange"><Monitor size={20} /></div>
+                        <span><strong>LED Display</strong><small>Control event screen</small></span>
+                        <ArrowUpRight size={16} />
+                      </button>
                     )}
                   </div>
                 </article>
