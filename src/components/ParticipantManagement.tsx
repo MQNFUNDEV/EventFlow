@@ -434,6 +434,8 @@ export default function ParticipantManagement({
             .from('participants')
             .update(updateValues)
             .eq('id', editingId)
+            .select('id')
+            .maybeSingle()
         : { error: null }
       : await supabase
           .from('participants')
@@ -446,6 +448,8 @@ export default function ParticipantManagement({
       setError(result.error.code === '23505'
         ? 'This IC number is already registered. Refresh the directory and check the existing participant.'
         : result.error.message)
+    } else if (editingId && hasActualChanges && !result.data) {
+      setError('The guest was not updated. The record may have changed or your account may not have permission. Refresh the directory and try again.')
     } else {
       setMessage(
         differentNameDuplicates.length
@@ -1169,28 +1173,27 @@ export default function ParticipantManagement({
                 inputMode="numeric"
                 maxLength={20}
                 placeholder="e.g. 900101-14-5678"
-                required
               />
             </label>
 
             <label>
               Student ID
-              <input value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })} placeholder="Student / matric number" required />
+              <input value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })} placeholder="Student / matric number" />
             </label>
 
             <label>
               University name
-              <input value={form.university_name} onChange={(e) => setForm({ ...form, university_name: e.target.value, organisation: e.target.value })} placeholder="Name of university" required />
+              <input value={form.university_name} onChange={(e) => setForm({ ...form, university_name: e.target.value, organisation: e.target.value })} placeholder="Name of university" />
             </label>
 
             <label>
               Gender
-              <input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} placeholder="Gender" required />
+              <input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} placeholder="Gender" />
             </label>
 
             <label>
               Race
-              <input value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} placeholder="Race" required />
+              <input value={form.race} onChange={(e) => setForm({ ...form, race: e.target.value })} placeholder="Race" />
             </label>
 
             <label>
@@ -1202,7 +1205,6 @@ export default function ParticipantManagement({
                   setForm({ ...form, phone: e.target.value })
                 }
                 placeholder="+60 12-345 6789"
-                required
               />
             </label>
 
@@ -1215,7 +1217,6 @@ export default function ParticipantManagement({
                   setForm({ ...form, email: e.target.value })
                 }
                 placeholder="name@example.com"
-                required
               />
             </label>
 
