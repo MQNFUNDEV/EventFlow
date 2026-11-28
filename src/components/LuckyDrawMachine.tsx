@@ -221,8 +221,8 @@ export default function LuckyDrawMachine({ totalNames = 0, remainingNames, categ
     render()
     return()=>{window.cancelAnimationFrame(frame);observer.disconnect();controls.dispose();scene.traverse((object: { geometry?: { dispose: () => void }; material?: { dispose: () => void } | Array<{ dispose: () => void }> }) => { object.geometry?.dispose(); const mats = Array.isArray(object.material) ? object.material : object.material ? [object.material] : []; mats.forEach((material) => material.dispose()) });renderer.dispose();renderer.domElement.remove()}
   },[])
-  return <section className="ld-machine-preview" aria-label="Lucky Draw acrylic box 3D prototype">
-    <div className="ld-machine-preview-head"><div><span className="ld-machine-kicker">LUCKY DRAW · 3D MACHINE</span><h2>Acrylic Name Draw Box</h2><p>Paper slips feed through the top slot and collect inside the transparent enclosure.</p></div><span className="ld-machine-status">{phase==='loading'?'LOADING PAPERS':phase==='loaded'?'PAPERS LOADED':phase==='cranking'?'PULLING LEVER':phase==='shaking'?'MIXING NAMES':phase==='reveal'?'WINNER SELECTED':'BOX READY'}</span></div>
+  return <section className="ld-machine-preview" aria-label="Lucky Draw machine">
+    <div className="ld-machine-preview-head"><span className="ld-machine-status">{phase==='loading'?'LOADING PAPERS':phase==='loaded'?'PAPERS LOADED':phase==='cranking'?'PULLING LEVER':phase==='shaking'?'MIXING NAMES':phase==='reveal'?'WINNER SELECTED':'BOX READY'}</span></div>
     <div className="ld-machine-stage" ref={hostRef}><span className="ld-machine-hint">DRAG TO ORBIT · SCROLL TO ZOOM</span></div>
     <div className="ld-machine-preview-footer"><div><strong>{categoryLabel}</strong><span>{phase==='loading'?'Feeding name slips into the box':phase==='shaking'?'Mixing the paper slips':phase==='idle'?'Reset and ready for the next category':'Lucky draw machine active'}</span></div><span className="ld-machine-units">{totalNames.toLocaleString()} NAMES</span></div>
   </section>
