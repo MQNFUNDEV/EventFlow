@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Check, Play, RefreshCw, RotateCw, Trophy, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { Check, Play, RefreshCw, RotateCw, Trophy, Users, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_PARTICIPANT_CATEGORIES, readParticipantCategories, categoryName, type ParticipantCategory } from '../lib/participantCategories'
 import './LuckyDrawManagement.css'
@@ -65,7 +65,6 @@ export default function LuckyDrawManagement() {
   const [spinning, setSpinning] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
-  const [winnerSoundEnabled, setWinnerSoundEnabled] = useState(false)
   const [boxPhase, setBoxPhase] = useState<BoxPhase>('idle')
   const [boxStartedAt, setBoxStartedAt] = useState(0)
   const [boxAnimationId, setBoxAnimationId] = useState(0)
@@ -96,19 +95,13 @@ export default function LuckyDrawManagement() {
     return true
   }, [])
 
-  async function toggleWinnerSound() {
-    const nextEnabled = !winnerSoundEnabled
-    const saved = await publishBoxState({ sound_enabled: nextEnabled })
-    if (saved) setWinnerSoundEnabled(nextEnabled)
-  }
-
   async function publishBoxState(patch: Record<string, unknown>) {
     if (!await ensureDisplayController()) return false
     const { data, error: readError } = await supabase.from('display_state').select('payload').eq('id', 1).maybeSingle()
     if (readError) { setError(readError.message); return false }
     const current = data?.payload && typeof data.payload === 'object' ? data.payload as Record<string, unknown> : {}
     const { error: updateError } = await supabase.from('display_state').update({
-      payload: { ...current, ...patch },
+      payload: { ...current, ...patch, sound_enabled: true },
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
     if (updateError) { setError(updateError.message); return false }
@@ -314,7 +307,6 @@ export default function LuckyDrawManagement() {
     setPendingWinner(pendingParticipant)
     setPendingWinnerRowId(pendingParticipant ? pendingRow?.id ?? null : null)
     const savedPayload = restoredPayload
-    setWinnerSoundEnabled(savedPayload.sound_enabled === true)
     const savedPhase = savedPayload.box_phase
     const savedStartedAt = typeof savedPayload.box_started_at === 'number' ? savedPayload.box_started_at : 0
     const feedElapsed = savedStartedAt ? Math.max(0, Date.now() - savedStartedAt) : 0
@@ -1078,7 +1070,6 @@ export default function LuckyDrawManagement() {
       </div>
 
       <div className="lucky-draw-box-actions">
-        <button className={`sound-toggle ${winnerSoundEnabled ? 'is-on' : 'is-off'}`} onClick={() => void toggleWinnerSound()} aria-pressed={winnerSoundEnabled} title="Enable or mute machine and winner effects on the LED output">{winnerSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />} Sound {winnerSoundEnabled ? 'On' : 'Off'}</button>
         <button className="button-secondary" onClick={() => void resetBox()} disabled={spinning || savingWinner}><RotateCw size={16} /> Reset box</button>
         <button className="button-primary" onClick={() => void startPaperFeed()} disabled={!roundId || !pool.length || spinning || boxPhase === 'loading' || boxPhase === 'loaded' || boxPhase === 'cranking' || boxPhase === 'shaking' || boxPhase === 'reveal'}><Play size={16} /> {boxPhase === 'loading' ? 'Filling box…' : 'Start'}</button>
         <button className="lucky-draw-spin-button" onClick={() => void pullBoxLever()} disabled={!roundId || !boxLoadingComplete || spinning || savingWinner || Boolean(pendingWinner) || !winnerQueue.some((entry) => entry.queue_status === 'pending') || boxPhase === 'cranking' || boxPhase === 'shaking'}>Pull lever</button>
