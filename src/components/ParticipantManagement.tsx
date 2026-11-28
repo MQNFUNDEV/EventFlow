@@ -231,10 +231,35 @@ export default function ParticipantManagement({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participant_import_rows' }, () => {
         void loadImportHistory()
       })
-      .subscribe()
+      .subscribe((status) => {
+        // A newly opened or reconnected Front Desk/Admin session immediately
+        // reconciles its local view against the shared database.
+        if (status === 'SUBSCRIBED') {
+          void loadParticipants()
+          void loadImportHistory()
+        }
+      })
 
     return () => {
       void supabase.removeChannel(channel)
+    }
+  }, [loadParticipants, loadImportHistory])
+
+  // Reconcile after tab switches, laptop wake, network recovery, and as a
+  // fallback if a browser misses a Realtime event while it is suspended.
+  useEffect(() => {
+    const refreshSharedData = () => {
+      if (document.visibilityState !== 'visible') return
+      void loadParticipants()
+      void loadImportHistory()
+    }
+    window.addEventListener('focus', refreshSharedData)
+    document.addEventListener('visibilitychange', refreshSharedData)
+    const intervalId = window.setInterval(refreshSharedData, 30000)
+    return () => {
+      window.removeEventListener('focus', refreshSharedData)
+      document.removeEventListener('visibilitychange', refreshSharedData)
+      window.clearInterval(intervalId)
     }
   }, [loadParticipants, loadImportHistory])
 
